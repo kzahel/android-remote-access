@@ -21,9 +21,10 @@ public final class StationActivity extends Activity {
     private final Runnable clock = new Runnable() {
         @Override public void run() { if (fresh != null) { tick++; fresh.setText("Live demo · " + new java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.ROOT).format(new java.util.Date())); witness(); handler.postDelayed(this,1000); } }
     };
-    @Override public void onCreate(Bundle state) { super.onCreate(state); render(); }
+    @Override public void onCreate(Bundle state) { super.onCreate(state); getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN | WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE); render(); }
     private void render() {
         LinearLayout p = new LinearLayout(this); p.setOrientation(LinearLayout.VERTICAL);
+        p.setFocusableInTouchMode(true); p.requestFocus();
         p.setPadding(42,70,42,30); p.setBackgroundColor(0xfff4f6ef);
         label(p,"FIELD STATION",15,0xff56705c);
         label(p,"A little sun.\nA lot of possibility.",30,0xff203c30);
@@ -49,7 +50,9 @@ public final class StationActivity extends Activity {
             else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
             protect.setText(secure ? "Leave protected screen" : "Test protected screen"); witness(); }); p.addView(protect);
         label(p,"Synthetic fixture · no real battery connected",12,0xff788579);
-        ScrollView scroll = new ScrollView(this); scroll.addView(p); setContentView(scroll);
+        ScrollView scroll = new ScrollView(this); scroll.setBackgroundColor(0xfff4f6ef); scroll.addView(p); setContentView(scroll);
+        getWindow().getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+        for (Button b:new Button[]{details,save,protect}) { b.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xffdfe8d5)); b.setTextColor(0xff31553c); }
         handler.removeCallbacks(clock); handler.post(clock); witness();
     }
     private TextView label(LinearLayout parent,String text,int size,int color) {

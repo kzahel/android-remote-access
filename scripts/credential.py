@@ -5,6 +5,7 @@ Credential travels to the shell helper on stdin, never in argv or diagnostics.
 No screenshot/video should run during credential enrollment.
 """
 import json
+import os
 from pathlib import Path
 import secrets
 import sys
@@ -26,7 +27,9 @@ def enroll():
     if marker.exists(): print('Synthetic credential already provisioned.'); return
     value=path.read_bytes() if path.exists() else (''.join(str(secrets.randbelow(10)) for _ in range(6))).encode()
     # Keep only in this ignored test fixture, with local-owner permissions.
-    path.write_bytes(value); path.chmod(0o600)
+    descriptor=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_TRUNC,0o600)
+    os.fchmod(descriptor,0o600)
+    with os.fdopen(descriptor,'wb') as file: file.write(value)
     try:
         adb(serial,'shell','am','start','-a','android.app.action.SET_NEW_PASSWORD')
         def choose_pin():
@@ -57,4 +60,39 @@ def enroll():
         print('Enrollment incomplete; the private fixture credential was preserved for recovery.',file=sys.stderr)
         raise
 
-if __name__=='__main__': enroll()
+def unlock_local():
+    receipt=json.loads((LOCAL/'demo.json').read_text()); serial=receipt['serial']
+    assert_owned(serial,receipt['avd'])
+    trust=adb(serial,'shell','dumpsys','trust')
+    if 'deviceLocked=1' not in trust: print('Emulator is already credential-unlocked.'); return
+    path=LOCAL/f"pin-api{receipt['api']}.txt"
+    if not path.exists(): raise RuntimeError('The owned emulator has no private fixture credential')
+    boot=adb(serial,'shell','cat','/proc/sys/kernel/random/boot_id').strip()
+    attempted=LOCAL/f"local-unlock-api{receipt['api']}.json"
+    if attempted.exists() and json.loads(attempted.read_text()).get('boot')==boot:
+        raise RuntimeError('Local unlock was already attempted this boot; refusing automatic replay')
+    adb(serial,'shell','input','keyevent','KEYCODE_WAKEUP')
+    adb(serial,'shell','input','keyevent','KEYCODE_MENU')
+    time.sleep(.5)
+    current=tree(serial)
+    if not any(n.get('resource-id')=='com.android.systemui:id/pinEntry' for n in current.iter('node')):
+        adb(serial,'shell','input','swipe','540','2000','540','600','400')
+        time.sleep(.5)
+        current=tree(serial)
+    entry=next((n for n in current.iter('node') if n.get('resource-id')=='com.android.systemui:id/pinEntry'),None)
+    if entry is None or entry.get('password')!='true' or entry.get('text')!='':
+        raise RuntimeError('Local recovery requires an observed empty SystemUI PIN field')
+    focus=adb(serial,'shell','dumpsys','window')
+    if not any('NotificationShade' in line for line in focus.splitlines() if 'mCurrentFocus=' in line):
+        raise RuntimeError('SystemUI must own keyboard focus')
+    owners=adb(serial,'shell','dpm','list-owners')
+    if 'no owners' not in owners.lower(): raise RuntimeError('Managed emulator recovery is excluded')
+    attempted.write_text(json.dumps({'boot':boot})); attempted.chmod(0o600)
+    inject(serial,path.read_bytes())
+    wait_for(lambda:'deviceLocked=1' not in adb(serial,'shell','dumpsys','trust'),10,'first unlock effect')
+    attempted.unlink(missing_ok=True)
+    print('Owned emulator locally unlocked once using its private fixture credential.')
+
+if __name__=='__main__':
+    if len(sys.argv)>1 and sys.argv[1]=='unlock': unlock_local()
+    else: enroll()

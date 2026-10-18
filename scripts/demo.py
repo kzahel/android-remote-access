@@ -16,7 +16,8 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 LOCAL = ROOT / '.local'
-LOCAL.mkdir(exist_ok=True)
+LOCAL.mkdir(mode=0o700,exist_ok=True)
+LOCAL.chmod(0o700)
 PACKAGE = 'dev.remoteaccess.spike'
 SDK = Path(os.environ.get('ANDROID_HOME') or os.environ.get('ANDROID_SDK_ROOT') or next((str(p) for p in [Path.home()/'Android/Sdk',Path.home()/'Library/Android/sdk'] if p.exists()), ''))
 ADB = SDK / 'platform-tools/adb'
@@ -34,8 +35,9 @@ def adb(serial, *args, **kwargs):
 
 
 def private(path, value):
-    path.write_text(json.dumps(value))
-    path.chmod(0o600)
+    descriptor=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_TRUNC,0o600)
+    os.fchmod(descriptor,0o600)
+    with os.fdopen(descriptor,'w') as file: json.dump(value,file)
 
 
 def wait_for(fn, seconds=120, description='condition'):
@@ -101,8 +103,12 @@ def provision(serial, pairing):
     adb(serial,'shell','settings','put','secure','accessibility_enabled','1')
     adb(serial,'shell','input','keyevent','KEYCODE_WAKEUP')
     adb(serial,'shell','wm','dismiss-keyguard')
+    now=int(adb(serial,'shell','date','+%s').strip())*1000
+    adb(serial,'shell',f"run-as {PACKAGE} sh -c 'cat > files/start-request.json'",input=json.dumps({'createdAtMillis':now}).encode())
     adb(serial,'shell','am','start','-n',PACKAGE+'/.SetupActivity')
-    wait_for(lambda: click(serial,'2 · Start remote access'),30,'native Start button')
+    from client import Client
+    client=Client()
+    wait_for(lambda:client.state()['connected'],15,'native access grant')
 
 
 def start(args):
@@ -129,6 +135,9 @@ def start(args):
         private(state_path,receipt)
         wait_for(lambda: adb(serial,'shell','getprop','sys.boot_completed',timeout=5).strip()=='1',180,'emulator boot')
         assert_owned(serial,name)
+        adb(serial,'install','-r',str(ROOT/'android/app/build/outputs/apk/debug/app-debug.apk'),timeout=90)
+        if 'deviceLocked=1' in adb(serial,'shell','dumpsys','trust'):
+            subprocess.run([sys.executable,str(ROOT/'scripts/credential.py'),'unlock'],check=True)
         config={'port':args.port,'phonePort':0,'token':secrets.token_urlsafe(32),'emulator':serial,'adb':str(ADB),'testPinFile':str(LOCAL/f'pin-api{args.api}.txt')}
         private(LOCAL/'server.json',config)
         with (LOCAL/'server.log').open('w') as log:
@@ -137,6 +146,9 @@ def start(args):
         running=wait_for(lambda: json.loads((LOCAL/'running.json').read_text()) if (LOCAL/'running.json').exists() and json.loads((LOCAL/'running.json').read_text()).get('pid')==server.pid else None,20,'demo server')
         receipt['url']=running['url']; private(state_path,receipt)
         provision(serial,{'host':'10.0.2.2','port':running['phonePort'],'token':config['token']})
+        if args.with_test_pin and not (LOCAL/f'pin-api{args.api}.ready').exists():
+            subprocess.run([sys.executable,str(ROOT/'scripts/credential.py')],check=True)
+            provision(serial,{'host':'10.0.2.2','port':running['phonePort'],'token':config['token']})
         adb(serial,'shell','am','start','-n',PACKAGE+'/.StationActivity')
         print(f"Demo ready: {running['url']}\nIsolated Android API {args.api}; native outbound control; USB phones untouched.")
     except Exception:
@@ -149,6 +161,8 @@ def start(args):
 def rearm(args):
     data=json.loads((LOCAL/'demo.json').read_text())
     assert_owned(data['serial'],data['avd'])
+    trust=adb(data['serial'],'shell','dumpsys','trust')
+    if 'deviceLocked=1' in trust: raise RuntimeError('Unlock the disposable emulator before re-arming. Existing access was preserved.')
     if args.restart_server:
         pid=data.get('serverPid')
         if pid:
@@ -176,6 +190,7 @@ def stop(args):
         assert_owned(data['serial'],data['avd'])
         adb(data['serial'],'shell','am','force-stop',PACKAGE)
         adb(data['serial'],'emu','kill')
+        wait_for(lambda:data['serial'] not in run([ADB,'devices']),20,'owned emulator shutdown')
     except Exception: pass
     pid=data.get('serverPid')
     if pid:
@@ -192,7 +207,7 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     sub=parser.add_subparsers(dest='command',required=True)
     start_cmd=sub.add_parser('start'); start_cmd.add_argument('--api',choices=['35','36'],default='36')
-    start_cmd.add_argument('--port',type=int,default=4317); start_cmd.add_argument('--emulator-port',type=int,default=5580); start_cmd.add_argument('--no-build',action='store_true')
+    start_cmd.add_argument('--port',type=int,default=4317); start_cmd.add_argument('--emulator-port',type=int,default=5580); start_cmd.add_argument('--no-build',action='store_true'); start_cmd.add_argument('--with-test-pin',action='store_true')
     sub.add_parser('stop'); sub.add_parser('build')
     rearm_cmd=sub.add_parser('rearm'); rearm_cmd.add_argument('--restart-server',action='store_true')
     args=parser.parse_args()

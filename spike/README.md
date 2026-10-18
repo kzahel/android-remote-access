@@ -19,7 +19,9 @@ npm run demo
 
 The runner builds/lints the APK, creates a project-local AVD, starts a headless
 emulator and loopback demo server, provisions only that emulator, enables its
-accessibility service and presses the native Start button. An existing emulator
+accessibility service and explicitly arms it through a one-use debug fixture
+request in private app storage. It also enrolls a synthetic PIN through Settings
+on first use. An existing emulator
 at the chosen port causes refusal. No shared AVD, ADB server, debugging listener
 or physical device is changed. First boot may take several minutes.
 
@@ -30,7 +32,7 @@ python3 scripts/demo.py build         # assembleDebug + lint
 npm run stop
 ```
 
-Re-arm installs the current debug APK and opens the local fixture; the phone
+Re-arm installs the current debug APK, explicitly arms it locally and opens the fixture; the phone
 must be unlocked. A secure lock is not dismissed by claiming setup succeeded.
 Logs, pairing material, AVD disks, credentials and captures stay under ignored
 `.local/`. Stop terminates only the owned demo; AVD data remains for review.
@@ -71,6 +73,25 @@ The accessibility experiment requires a visible SystemUI PIN field and keypad,
 zero wipe threshold, an empty field and one explicit submission. The optional
 shell route uses the explicitly selected emulator's already-authorized shell UID;
 it does not establish same-phone ADB, physical-phone or post-reboot availability.
+
+The advanced **Use disposable test PIN** button reads this host's fixture file
+for the selected route; the PIN itself never enters the browser. Manual PIN entry
+is also available. Capture pauses around either route. This convenience applies
+only to the disposable test fixture.
+
+## Verify
+
+```sh
+npm test                         # host authority and delivery regression tests
+npm run acceptance               # 23 live native/control checks; ends with Stop
+python3 scripts/demo.py rearm
+node scripts/browser-acceptance.mjs  # real sequential input + visual captures
+python3 scripts/lifecycle.py     # force-stop/reboot/first-unlock observations
+```
+
+Private reports and screenshots are written to `.local/`. Browser checks use
+Playwright Chromium and reap it after the run. Install that test browser with
+`npx playwright install chromium` if needed; the user's primary browser is unused.
 
 ## Transport and limits
 

@@ -34,12 +34,14 @@ public final class AccessService extends AccessibilityService {
     private String activePackage = "";
     private long deadline;
     private boolean capturing;
+    private long captureSequence;
     private long lastFrameAt;
     private String lastFrame;
     private long lastFrameScene;
     private int frameWidth, frameHeight, frameRotation;
     private boolean gestureBusy;
     private boolean unlockAttempted;
+    private long credentialCaptureUntil;
     private int connectionAttempt;
     private AccessibilityNodeInfo focusNode;
     private String focusToken;
@@ -78,7 +80,7 @@ public final class AccessService extends AccessibilityService {
         main.post(heartbeat);
     }
     synchronized void disarm() {
-        armed=false; grant++; main.removeCallbacks(heartbeat); lastFrame=null; focusNode=null; focusToken=null;
+        armed=false; grant++; capturing=false; captureSequence++; main.removeCallbacks(heartbeat); lastFrame=null; focusNode=null; focusToken=null;
         try { if (connection != null) connection.close(); } catch (IOException ignored) { }
         connection=null; writer=null;
         getSystemService(NotificationManager.class).cancel(1);
@@ -102,7 +104,7 @@ public final class AccessService extends AccessibilityService {
                 }
                 BufferedReader in=new BufferedReader(new InputStreamReader(socket.getInputStream(),StandardCharsets.UTF_8));
                 String line;
-                while (armed && grant == session && (line=readBounded(in)) != null) {
+                while (connection==socket && !socket.isClosed() && (line=readBounded(in)) != null) {
                     JSONObject command=new JSONObject(line);
                     main.post(() -> {
                         if (!armed || grant != session || connection != socket) return;
@@ -145,26 +147,54 @@ public final class AccessService extends AccessibilityService {
             .put("scene",scene).put("package",activePackage).put("width",dm.widthPixels).put("height",dm.heightPixels)
             .put("rotation",getSystemService(android.hardware.display.DisplayManager.class).getDisplay(0).getRotation())
             .put("grantSeconds",Math.max(0,(deadline-SystemClock.elapsedRealtime())/1000))
-            .put("wipeThreshold",getSystemService(android.app.admin.DevicePolicyManager.class).getMaximumFailedPasswordsForWipe(null)).put("unlockAttempted",unlockAttempted).put("route","Android accessibility · outbound app connection");
+            .put("credentialCapturePaused",SystemClock.elapsedRealtime()<credentialCaptureUntil).put("wipeThreshold",getSystemService(android.app.admin.DevicePolicyManager.class).getMaximumFailedPasswordsForWipe(null)).put("unlockAttempted",unlockAttempted).put("route","Android accessibility · outbound app connection");
     }
     private void dispatch(JSONObject c) throws Exception {
         String op=c.getString("op");
+        if (op.equals("pauseCredentialCapture")) { credentialCaptureUntil=SystemClock.elapsedRealtime()+30000; lastFrame=null; reply(c,true,"Screen capture paused for credential delivery",null); return; }
+        if (op.equals("resumeCredentialCapture")) { credentialCaptureUntil=0; reply(c,true,"Credential capture pause ended",null); return; }
         if (op.equals("state")) { reply(c,true,"Phone state observed",null); return; }
         if (op.equals("capture")) { capture(c); return; }
-        if (op.equals("stop")) { reply(c,true,"Access stopped on the phone",null); disarm(); return; }
+        if (op.equals("stop")) {
+            armed=false; grant++; main.removeCallbacks(heartbeat); lastFrame=null; focusNode=null; focusToken=null;
+            reply(c,true,"Access stopped on the phone",null);
+            try { outbound.execute(() -> main.post(this::disarm)); }
+            catch (RejectedExecutionException error) { disarm(); }
+            return;
+        }
         if (op.equals("wake") || op.equals("dismiss")) {
-            startActivity(new Intent(this,WakeActivity.class).putExtra("dismiss",op.equals("dismiss")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            startActivity(new Intent(this,WakeActivity.class).putExtra("dismiss",op.equals("dismiss")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP));
             reply(c,true,op.equals("wake") ? "Display wake requested; checking state" : "Keyguard dismissal requested; secure locks still need a credential",null); return;
         }
         if (op.equals("lock")) { reply(c,performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN),"Screen lock requested",null); return; }
         if (op.equals("unlock")) { unlock(c); return; }
         if (op.equals("inspect")) { reply(c,true,"Visible controls (password content omitted)",inspect()); return; }
+        if (op.equals("apps")) {
+            JSONArray apps=new JSONArray();
+            Intent launcher=new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
+            for (android.content.pm.ResolveInfo app:getPackageManager().queryIntentActivities(launcher,0))
+                if (!app.activityInfo.packageName.equals(getPackageName())) apps.put(new JSONObject().put("package",app.activityInfo.packageName).put("label",app.loadLabel(getPackageManager())));
+            reply(c,true,"Launchable apps on this phone",new JSONObject().put("apps",apps)); return;
+        }
+        if (op.equals("openApp")) {
+            if (getSystemService(KeyguardManager.class).isKeyguardLocked()) throw new IllegalStateException("Unlock the phone first");
+            String pkg=c.getString("package");
+            Intent launcher=new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
+            boolean found=false;
+            for (android.content.pm.ResolveInfo app:getPackageManager().queryIntentActivities(launcher,0))
+                if (app.activityInfo.packageName.equals(pkg)) found=true;
+            Intent launch=found ? getPackageManager().getLaunchIntentForPackage(pkg) : null;
+            if (launch==null) throw new IllegalArgumentException("Choose an installed launchable app");
+            scene++; lastFrame=null; startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            reply(c,true,"App launch requested",null); return;
+        }
         if (op.equals("openFixture")) {
             if (getSystemService(KeyguardManager.class).isKeyguardLocked()) throw new IllegalStateException("Unlock the phone first");
             startActivity(new Intent(this,StationActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));
             reply(c,true,"Demo power station opened",null); return;
         }
         if (op.equals("nav")) {
+            scene++; lastFrame=null;
             int action=switch(c.getString("button")) {
                 case "back" -> GLOBAL_ACTION_BACK; case "home" -> GLOBAL_ACTION_HOME; case "recents" -> GLOBAL_ACTION_RECENTS;
                 case "notifications" -> GLOBAL_ACTION_NOTIFICATIONS; case "settings" -> GLOBAL_ACTION_QUICK_SETTINGS;
@@ -191,7 +221,7 @@ public final class AccessService extends AccessibilityService {
     }
     private void gesture(JSONObject c,Path path,int ms) {
         if (gestureBusy) { reply(c,false,"Another gesture is still running",null); return; }
-        gestureBusy=true;
+        gestureBusy=true; scene++; lastFrame=null;
         boolean accepted=dispatchGesture(new GestureDescription.Builder().addStroke(new GestureDescription.StrokeDescription(path,0,ms)).build(),new GestureResultCallback() {
             @Override public void onCompleted(GestureDescription g) { gestureBusy=false; reply(c,true,"Gesture delivered; check the screen for its effect",null); }
             @Override public void onCancelled(GestureDescription g) { gestureBusy=false; reply(c,false,"Gesture cancelled; it will not be replayed",null); }
@@ -199,23 +229,32 @@ public final class AccessService extends AccessibilityService {
         if (!accepted) { gestureBusy=false; reply(c,false,"Android refused this gesture",null); }
     }
     private void capture(JSONObject c) {
+        if (SystemClock.elapsedRealtime()<credentialCaptureUntil) { lastFrame=null; reply(c,false,"Screen capture is paused during credential delivery",null); return; }
         if (capturing) { reply(c,false,"A screenshot is already in progress",null); return; }
-        capturing=true; long capturedScene=scene; long session=grant; Socket owner=connection;
+        capturing=true; long capture=++captureSequence; long capturedScene=scene; long session=grant; Socket owner=connection;
+        main.postDelayed(() -> {
+            if (capture==captureSequence && capturing) { capturing=false; captureSequence++; lastFrame=null;
+                if (grant==session && connection==owner) reply(c,false,"Android capture timed out; refresh to try a fresh observation",null);
+            }
+        },4500);
         AccessibilityNodeInfo root=getRootInActiveWindow();
         if (Build.VERSION.SDK_INT>=34 && root!=null) {
             takeScreenshotOfWindow(root.getWindowId(),getMainExecutor(),new TakeScreenshotCallback() {
-                @Override public void onSuccess(ScreenshotResult probe) { probe.getHardwareBuffer().close(); captureDisplay(c,capturedScene,session,owner); }
+                @Override public void onSuccess(ScreenshotResult probe) { probe.getHardwareBuffer().close(); if (capture!=captureSequence) return; captureDisplay(c,capturedScene,session,owner,capture); }
                 @Override public void onFailure(int code) {
+                    if (capture!=captureSequence) return;
                     if (code==ERROR_TAKE_SCREENSHOT_SECURE_WINDOW) { capturing=false; lastFrame=null; reply(c,false,"This screen is protected. Android blocks its screenshot.",null); }
-                    else captureDisplay(c,capturedScene,session,owner);
+                    else captureDisplay(c,capturedScene,session,owner,capture);
                 }
             });
-        } else captureDisplay(c,capturedScene,session,owner);
+        } else captureDisplay(c,capturedScene,session,owner,capture);
     }
-    private void captureDisplay(JSONObject c,long capturedScene,long session,Socket owner) {
+    private void captureDisplay(JSONObject c,long capturedScene,long session,Socket owner,long capture) {
+        if (capture!=captureSequence) return;
         takeScreenshot(Display.DEFAULT_DISPLAY,getMainExecutor(),new TakeScreenshotCallback() {
             @Override public void onSuccess(ScreenshotResult shot) {
                 HardwareBuffer buffer=shot.getHardwareBuffer();
+                if (capture!=captureSequence) { buffer.close(); return; }
                 Bitmap hardware=Bitmap.wrapHardwareBuffer(buffer,shot.getColorSpace());
                 Bitmap bitmap=hardware == null ? null : hardware.copy(Bitmap.Config.ARGB_8888,false);
                 if (hardware!=null) hardware.recycle(); buffer.close();
@@ -234,8 +273,10 @@ public final class AccessService extends AccessibilityService {
                     finally { bitmap.recycle(); }
                     JSONObject frame=data;
                     main.post(() -> {
+                        if (capture!=captureSequence) return;
                         capturing=false;
                         if (!armed || grant!=session || connection!=owner) return;
+                        if (SystemClock.elapsedRealtime()<credentialCaptureUntil) { lastFrame=null; reply(c,false,"Screen capture is paused during credential delivery",null); return; }
                         if (frame==null || capturedScene!=scene) { lastFrame=null; reply(c,false,"Screen changed during capture; refresh",null); return; }
                         lastFrame=frame.optString("frame"); lastFrameAt=SystemClock.elapsedRealtime(); lastFrameScene=scene;
                         frameWidth=frame.optInt("width"); frameHeight=frame.optInt("height"); frameRotation=rotation;
@@ -244,6 +285,7 @@ public final class AccessService extends AccessibilityService {
                 });
             }
             @Override public void onFailure(int code) {
+                if (capture!=captureSequence) return;
                 capturing=false; lastFrame=null;
                 String message=switch(code) {
                     case ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT -> "Capture is rate limited; wait a moment";
@@ -271,6 +313,7 @@ public final class AccessService extends AccessibilityService {
             throw new IllegalStateException("Focused field changed. Read the field again.");
         String ref=focusToken;
         Bundle args=new Bundle(); args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,text);
+        scene++; lastFrame=null;
         boolean accepted=field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT,args);
         if (accepted && c.has("start")) {
             Bundle selection=new Bundle(); selection.putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT,Math.max(0,Math.min(text.length(),c.getInt("start"))));
@@ -328,7 +371,7 @@ public final class AccessService extends AccessibilityService {
         for (char ch:value.toCharArray()) { AccessibilityNodeInfo k=key("key"+ch); if (k==null || !k.isClickable()) throw new IllegalStateException("SystemUI keypad is not available to this service"); digits.add(k); }
         AccessibilityNodeInfo enter=key("key_enter");
         if (enter==null || !enter.isClickable()) throw new IllegalStateException("SystemUI PIN confirmation is unavailable");
-        unlockAttempted=true;
+        unlockAttempted=true; credentialCaptureUntil=SystemClock.elapsedRealtime()+30000; lastFrame=null;
         // The credential is never persisted or returned. Java/JSON strings are not guaranteed erasable.
         value=null;
         submitDigit(c,digits,enter,0,grant,connection);
@@ -339,6 +382,7 @@ public final class AccessService extends AccessibilityService {
             boolean delivered=enter.refresh() && enter.performAction(AccessibilityNodeInfo.ACTION_CLICK);
             observeUnlock(c,delivered,SystemClock.elapsedRealtime()+3500,session,owner);
         } else if (!digits.get(i).refresh() || !digits.get(i).performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+            credentialCaptureUntil=SystemClock.elapsedRealtime()+2500;
             reply(c,false,"Android refused a PIN digit; no automatic retry",null);
         } else main.postDelayed(() -> submitDigit(c,digits,enter,i+1,session,owner),100);
     }
@@ -348,6 +392,7 @@ public final class AccessService extends AccessibilityService {
         if (delivered && locked && SystemClock.elapsedRealtime()<until) {
             main.postDelayed(() -> observeUnlock(c,delivered,until,session,owner),100); return;
         }
+        credentialCaptureUntil=SystemClock.elapsedRealtime()+2500;
         try { reply(c,delivered, !delivered ? "PIN confirmation refused; no automatic retry" : locked ? "PIN submitted once; phone is still locked. No retry." : "Unlocked · native keyguard state confirms the result",
             new JSONObject().put("delivered",delivered).put("locked",locked)); } catch(Exception ignored) { }
     }

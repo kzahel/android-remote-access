@@ -1,6 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <queries><intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent></queries>
     <application android:label="Remote access spike" android:allowBackup="false"
         android:fullBackupContent="false" android:dataExtractionRules="@xml/backup_rules"
         android:icon="@android:drawable/ic_menu_view"

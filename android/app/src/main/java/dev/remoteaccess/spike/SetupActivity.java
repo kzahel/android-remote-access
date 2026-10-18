@@ -34,7 +34,26 @@ public final class SetupActivity extends Activity {
         if (android.os.Build.VERSION.SDK_INT >= 33 && !getSystemService(NotificationManager.class).areNotificationsEnabled())
             requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 1);
     }
-    @Override public void onResume() { super.onResume(); refresh(); }
+    @Override public void onResume() {
+        super.onResume(); refresh();
+        java.io.File request=new java.io.File(getFilesDir(),"start-request.json");
+        if (BuildConfig.DEBUG && (android.os.Build.HARDWARE.equals("ranchu") || android.os.Build.HARDWARE.equals("goldfish")) && request.exists()) {
+            try {
+                org.json.JSONObject data=new org.json.JSONObject(new String(java.nio.file.Files.readAllBytes(request.toPath()),java.nio.charset.StandardCharsets.UTF_8));
+                boolean fresh=Math.abs(System.currentTimeMillis()-data.getLong("createdAtMillis"))<60000;
+                if (!request.delete()) return;
+                if (fresh) startPreparedDemo(0);
+            } catch (Exception ignored) { request.delete(); }
+        }
+    }
+    private void startPreparedDemo(int attempt) {
+        if (isFinishing() || isDestroyed()) return;
+        if (AccessService.current==null && attempt<30) {
+            new android.os.Handler(getMainLooper()).postDelayed(() -> startPreparedDemo(attempt+1),100); return;
+        }
+        if (AccessService.current!=null) try { AccessService.current.arm(); refresh(); }
+        catch (Exception ignored) { toast("Demo pairing is unavailable"); }
+    }
     private void refresh() {
         AccessService svc = AccessService.current;
         status.setText(svc == null ? "Screen access needs permission" : svc.armed ? "Remote access is on · use Stop to revoke" : "Screen access allowed · remote access is off");
