@@ -6,6 +6,7 @@ import { once } from "node:events";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { randomInt } from "node:crypto";
 import { createDemo } from "../server.mjs";
 
 async function viewer(app) {
@@ -70,7 +71,7 @@ test("browser actions require same-origin authority; unknown operations are refu
 test("overlapping credential attempts and ordinary input are refused", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "remote-access-test-"));
   const testPinFile = path.join(directory, "synthetic-pin");
-  await writeFile(testPinFile, "123456", { mode: 0o600 });
+  await writeFile(testPinFile, String(randomInt(100000, 1000000)), { mode: 0o600 });
   const app = await createDemo({ testPinFile, emulator: "emulator-9998" });
   try {
     const socket = await device(app, app.token, { locked: true, secure: true });

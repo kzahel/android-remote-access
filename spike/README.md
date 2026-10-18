@@ -95,6 +95,21 @@ Private reports and screenshots are written to `.local/`. Browser checks use
 Playwright Chromium and reap it after the run. Install that test browser with
 `npx playwright install chromium` if needed; the user's primary browser is unused.
 
+## Record the walkthrough
+
+With a fresh armed demo and the synthetic PIN enrolled:
+
+```sh
+node scripts/record-demo.mjs
+```
+
+The managed test browser records pointer control, sequential typing, secure
+lock/wake/unlock and a real Android Settings launch. It checks the saved field
+and observed app/unlock state before finishing. The video and desktop capture
+stay under ignored `.local/evidence/`; the PIN never enters the browser.
+The runner closes its browser even if a check fails. A failed run may leave a
+partial recording, so use a successful exit as the evidence of completion.
+
 ## Transport and limits
 
 The Android app makes an outbound authenticated TCP connection to the host via

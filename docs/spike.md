@@ -42,7 +42,8 @@ are copied. The spike uses Android SDK and Node built-ins.
 
 Live-tested 2026-10-18 on Google APIs ARM64 API 35 (Android 15, security patch
 2024-09-05), target SDK 36. This older base image is not Android 15 QPR1+
-MediaProjection acceptance. **23 native/control checks passed.**
+MediaProjection acceptance. **25 native/control checks passed in the final
+regression.**
 
 - Browser-directed gestures changed synthetic solar/output values, independently
   confirmed through app-private fixture files. Fresh frames matched an advancing
@@ -67,7 +68,8 @@ MediaProjection acceptance. **23 native/control checks passed.**
 Browser acceptance used a separately identified Playwright Chromium, closed
 in `finally`. Real sequential typing, cursor Delete, Backspace and Unicode
 matched independent Android app data while frames and state continued updating.
-The measured maximum local keyboard acknowledgement was **41.8 ms** in that run;
+The measured maximum local keyboard acknowledgement was **48.1 ms** in the final
+API 35 run;
 this is not a network-delivery latency claim. Desktop and mobile layouts passed
 without horizontal overflow or uncaught browser errors.
 
@@ -91,7 +93,7 @@ nine lifecycle checks passed.** This repeats the viewing, pointer, Unicode,
 rotation, protected-window, reconnect, Stop and both known-PIN routes above.
 The browser regression deliberately delays a real native field-read response by
 900 ms while typing; the late response cannot overwrite newer keys. The maximum
-local keyboard acknowledgement was **48 ms** in the final API 36 run.
+local keyboard acknowledgement was **43.5 ms** in the final API 36 run.
 
 SystemUI on this image uses auto-confirm for the six-digit synthetic PIN and
 omits the Enter key. The native route delivers the observed keypad digits once
@@ -128,7 +130,8 @@ to the local emulator host gateway. No attached physical phone was changed.
   and image encoding use separate bounded workers.
 - New stills must not invalidate the image a person is currently clicking.
   Native capture keeps bounded five-second frame leases for the same scene and
-  rotation; actions, screen changes, failures and credential pauses revoke them.
+  rotation; actions, window changes, capture failures and credential pauses
+  revoke them.
   The live regression acts on one frame after a newer capture arrives, then
   separately verifies that navigation invalidates stale coordinates.
 - Screenshot callbacks can fail to arrive during a window transition. Requests
