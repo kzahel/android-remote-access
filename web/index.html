@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Remote access · Emulator spike</title><link rel="stylesheet" href="/style.css"><script type="module" src="/app.js"></script></head>
+<body>
+  <aside class="sidebar">
+    <a class="wordmark" href="/" aria-label="Remote access home"><span class="mark">↗</span><span>Remote access<small>WORKING PROTOTYPE</small></span></a>
+    <div class="section-label">YOUR DEVICES</div>
+    <button class="device selected" id="device-card"><span class="device-icon">▯</span><span>Demo phone<small id="device-subtitle">Connecting…</small></span><span class="dot" id="side-dot"></span></button>
+    <div class="sidebar-bottom"><span class="lab-tag">EMULATOR LAB</span><p>A small experiment in feeling a little closer.</p><small>No account. No AI session.</small></div>
+  </aside>
+  <main>
+    <header><div><div class="eyebrow">YOUR PHONE, WITHIN REACH</div><h1>A window to your phone.</h1><p class="lede">Check in. Make a change. Get on with your day.</p></div><button class="quiet" id="disconnect">Pause viewer</button></header>
+    <div class="readiness" aria-label="Phone readiness"><div><span class="dot" id="connection-dot"></span><span id="connection-label">Connecting to phone</span></div><div id="display-state">Display · checking</div><div id="lock-state">Lock · checking</div><div id="frame-state">Screen · waiting</div></div>
+    <section class="workspace">
+      <div class="screen-area">
+        <div class="screen-heading"><span><span class="live-dot"></span><span id="view-mode">LIVE STILLS</span></span><span id="frame-time">No frame yet</span></div>
+        <div class="phone" id="phone"><div class="phone-camera"></div><img id="screen" alt="Live screen from the demo Android phone" draggable="false"><div id="screen-cover" class="screen-cover"><span class="cover-icon">▯</span><strong id="cover-title">Reaching your phone</strong><p id="cover-message">The demo phone will appear here when its session is ready.</p><button id="cover-wake">Wake phone</button></div><div class="tap-marker" id="tap-marker"></div></div>
+        <nav class="phone-nav" aria-label="Android navigation"><button data-nav="back" aria-label="Back" title="Back">‹</button><button data-nav="home" aria-label="Home" title="Home">○</button><button data-nav="recents" aria-label="Recent apps" title="Recent apps">▢</button></nav>
+        <p class="screen-hint">Click to tap · drag to swipe · hold for a long press</p>
+      </div>
+      <div class="controls">
+        <section class="card task-card"><div class="card-kicker">TRY SOMETHING SMALL</div><h2>How’s the solar doing?</h2><p>Open the demo power station. Refresh its reading, switch the output, or give it a new name.</p><button class="primary" id="open-fixture">Open power station <span>↗</span></button><small>Synthetic readings. No battery connected.</small></section>
+        <section class="card typing-card"><div class="card-title"><h2>Type on your phone</h2><button class="text-button" id="read-field">Read focused field</button></div><p class="helper" id="typing-help">Tap a text field on the phone, then read it here.</p><textarea id="typing" rows="2" aria-label="Edit the focused phone field" placeholder="Your keyboard, their screen." disabled spellcheck="false"></textarea><div class="typing-footer"><span id="typing-status">No field selected</span><button id="send-text" class="small-button" disabled>Send edit</button></div><label class="check-label"><input type="checkbox" id="live-typing" checked> Send edits as I type</label></section>
+        <div class="quick-controls"><button id="wake">☼ <span>Wake phone</span></button><button id="lock">▣ <span>Lock screen</span></button><button id="refresh">↻ <span>Refresh view</span></button></div>
+        <div class="notice" id="notice" role="status" aria-live="polite">Waiting for the phone’s first response.</div>
+        <details class="advanced" id="advanced"><summary>Advanced controls <span>＋</span></summary><div class="advanced-content">
+          <div class="button-row"><button data-nav="notifications">Notifications</button><button data-nav="settings">Quick settings</button><button id="dismiss">Show unlock screen</button></div>
+          <div class="unlock-box"><h3>Known-PIN experiment</h3><p>Use only this disposable emulator’s known PIN. One submission, no saved credential, no automatic retry.</p><form id="unlock-form"><input id="pin" type="password" inputmode="numeric" pattern="[0-9]{4,16}" minlength="4" maxlength="16" autocomplete="off" aria-label="Emulator PIN" placeholder="Known emulator PIN"><select id="unlock-route" aria-label="Unlock route"><option value="native">Accessibility keypad</option><option value="shell">Prepared emulator shell</option></select><button type="submit">Submit once</button></form><button id="test-pin" class="text-button">Use disposable test PIN</button><p class="helper" id="unlock-status">Wake the phone and show its PIN screen first.</p></div>
+          <div id="lab-controls"><h3>Emulator lab</h3><div class="button-row"><button data-lab="wake">Shell wake</button><button data-lab="sleep">Shell sleep</button><button data-lab="disconnect">Interrupt connection</button><button data-rotation="0">Portrait</button><button data-rotation="1">Landscape</button></div></div>
+          <div class="diagnostics"><div class="card-title"><h3>What the phone reports</h3><button class="text-button" id="inspect">Inspect controls</button></div><pre id="diagnostics">Waiting for native state…</pre><pre id="nodes" hidden></pre></div>
+          <h3>Recent activity</h3><ol id="activity"></ol><button id="stop-access" class="danger">Stop access on the phone</button><p class="helper">Restarting access requires the phone’s Start remote access button.</p>
+        </div></details>
+      </div>
+    </section>
+    <footer><span>LOCAL DEMO <span class="footer-sep">/</span> <span id="platform">Android emulator</span></span><span>Internet, overnight and reboot recovery are still experiments.</span></footer>
+  </main>
+</body></html>

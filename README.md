@@ -8,12 +8,14 @@ and check whether solar is charging the big power station. Other examples are
 using the phone as a camera, recovering an app login, and operating a dedicated
 phone without visiting it physically.
 
-**Stage: product and technical research.** No application, service, device
-configuration or reliability claim has been implemented here. This project is
+**Stage: research plus an authorized emulator prototype.** The
+[manual-access spike](docs/spike.md) is experimental; its acceptance evidence
+does not establish consumer readiness. This project is
 independent of Yep Anywhere (YA) and must work without AI subscriptions or an
 agent being signed in. Repairing YA Android-host authentication is one useful
 test case, not the product's identity.
 
+- [Run the emulator demo](spike/README.md)
 - [Product inspiration, use cases and open decisions](docs/product.md)
 - [Android capabilities, unlock, wake and background reliability](docs/android-platform.md)
 - [Competitors and alternatives](docs/competitors.md)
