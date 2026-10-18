@@ -86,7 +86,7 @@ credential and emulator ADB authority; it does not prove phone-local recovery.
 ### Android 16 emulator qualification
 
 Live-tested 2026-10-18 on Google APIs ARM64 API 36 (Android 16, security patch
-2025-07-05), target SDK 36. **24 native/control checks, five browser checks and
+2025-07-05), target SDK 36. **25 native/control checks, five browser checks and
 nine lifecycle checks passed.** This repeats the viewing, pointer, Unicode,
 rotation, protected-window, reconnect, Stop and both known-PIN routes above.
 The browser regression deliberately delays a real native field-read response by
@@ -126,6 +126,11 @@ to the local emulator host gateway. No attached physical phone was changed.
 
 - Android refuses network response writes from the main thread; native writes
   and image encoding use separate bounded workers.
+- New stills must not invalidate the image a person is currently clicking.
+  Native capture keeps bounded five-second frame leases for the same scene and
+  rotation; actions, screen changes, failures and credential pauses revoke them.
+  The live regression acts on one frame after a newer capture arrives, then
+  separately verifies that navigation invalidates stale coordinates.
 - Screenshot callbacks can fail to arrive during a window transition. Requests
   have a bounded timeout and invalidate late results instead of wedging capture.
 - Wake and dismissal can reuse an existing activity; `onNewIntent` must update

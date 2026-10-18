@@ -69,7 +69,10 @@ try:
     original=witness()
     first=c.call('/api/frame');time.sleep(.8);second=c.call('/api/frame')
     check('Fresh screenshots and independent fixture clock advance',first['ok'] and second['ok'] and first['data']['frame']!=second['data']['frame'] and witness()['tick']>original['tick'])
-    tap('Refresh solar reading')
+    n=next(n for n in nodes() if n.get('text')=='Refresh solar reading')
+    a,b,x,y=n['bounds']
+    recent=c.action('tap',x=(a+x)//2,y=(b+y)//2,frame=first['data']['frame'])
+    check('A recent displayed frame remains usable while newer stills arrive',recent['ok'])
     wait_for(lambda:witness()['watts']==original['watts']+7,5,'solar task effect')
     check('Remote tap changes independently observed solar reading',True)
     before=witness()['output'];tap('AC output');wait_for(lambda:witness()['output']!=before,5,'output toggle')
