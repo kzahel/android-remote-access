@@ -13,6 +13,22 @@ uncommitted work; revision pins identify the committed baseline only.
 | [agent-auth-router](../../agent-auth-router/) | `263bbf2` | Inference authentication infrastructure and the failure mode that motivates manual repair | Context only; no inference service should be a runtime prerequisite |
 | [web-server-chrome](../../web-server-chrome/) | Unpinned orientation reference | Android bootstrap, simple user-facing server setup and private native bridging | Candidate for a focused later source review; no implementation acceptance claimed here |
 
+## Buddy Android: primary phone-resident reference
+
+[Buddy Android](https://github.com/ghorbelhamdi/buddy-android/tree/ffd2ec84c7498c9e10e22889b4f4d1f52c293e18)
+is an external reference checked out under YA's ignored `references/` directory,
+not a direct sibling or a required runtime dependency. Its native accessibility
+screenshots, gestures and focused-field editing, with a local API boundary, are
+especially relevant to this standalone manual-access spike. See the pinned
+[YA source review](../../yepanywhere/docs/competitive/buddy.md) and
+[spike provenance](spike.md#source-references).
+
+The app declares Apache-2.0; bundled assets/native components have separate
+terms. We reviewed the native control and API code without importing Buddy code,
+binaries, art, Alpine/PRoot, provider CLIs or its agent loop. The current spike is
+an independent implementation of Android SDK primitives. This review does not
+establish Buddy's unattended, secure-unlock or reboot behavior.
+
 ## Machine Control entry points
 
 - [Android platform guide](../../machine-control/platforms/android/README.md):

@@ -831,3 +831,9 @@ body.paused .live-dot {
 #test-pin {
   margin-top: 12px;
 }
+@media (min-width: 611px) {
+  .screen-area {
+    position: sticky;
+    top: 20px;
+  }
+}

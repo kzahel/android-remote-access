@@ -102,6 +102,10 @@ tiers. A technical privilege level must not be confused with a subscription.
 
 ## What would justify implementation
 
+The later authorized [emulator spike](spike.md) supplies initial implementation
+evidence for a subset of these questions. It does not select a product
+architecture, pricing, distribution or supported physical-phone range.
+
 A small set of device experiments should establish capture after lock,
 known-PIN delivery, process recovery and carrier-network reachability before
 promising unattended availability. A documented prototype can be useful even

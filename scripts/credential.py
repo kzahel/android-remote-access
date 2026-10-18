@@ -6,6 +6,7 @@ No screenshot/video should run during credential enrollment.
 """
 import json
 import os
+import re
 from pathlib import Path
 import secrets
 import sys
@@ -13,10 +14,10 @@ import time
 from demo import LOCAL, PACKAGE, adb, assert_owned, click, tree, wait_for
 
 
-def inject(serial, value):
+def inject(serial, value, submit=True):
     apk=adb(serial,'shell','pm','path',PACKAGE).strip().removeprefix('package:')
     if not apk.startswith('/data/app/') or not apk.endswith('/base.apk'): raise RuntimeError('Unexpected APK location')
-    adb(serial,'shell',f'CLASSPATH={apk}','app_process','/system/bin',PACKAGE+'.ShellPin',input=value+b'\n')
+    adb(serial,'shell',f'CLASSPATH={apk}','app_process','/system/bin',PACKAGE+'.ShellPin',*([] if submit else ['digits-only']),input=value+b'\n')
 
 
 def enroll():
@@ -34,7 +35,8 @@ def enroll():
         adb(serial,'shell','am','start','-a','android.app.action.SET_NEW_PASSWORD')
         def choose_pin():
             if any(n.get('resource-id')=='com.android.settings:id/password_entry' for n in tree(serial).iter('node')): return True
-            return click(serial,'PIN • Fingerprint • Face')
+            choice=next((n.get('text') for n in tree(serial).iter('node') if n.get('resource-id')=='android:id/title' and re.search(r'\bPIN\b',n.get('text',''))),None)
+            return click(serial,choice) if choice else False
         wait_for(choose_pin,30,'PIN choice')
         wait_for(lambda:any(n.get('resource-id')=='com.android.settings:id/password_entry' for n in tree(serial).iter('node')),30,'credential entry')
         inject(serial,value)
@@ -88,7 +90,8 @@ def unlock_local():
     owners=adb(serial,'shell','dpm','list-owners')
     if 'no owners' not in owners.lower(): raise RuntimeError('Managed emulator recovery is excluded')
     attempted.write_text(json.dumps({'boot':boot})); attempted.chmod(0o600)
-    inject(serial,path.read_bytes())
+    enter=any(n.get('resource-id')=='com.android.systemui:id/key_enter' for n in current.iter('node'))
+    inject(serial,path.read_bytes(),submit=enter)
     wait_for(lambda:'deviceLocked=1' not in adb(serial,'shell','dumpsys','trust'),10,'first unlock effect')
     attempted.unlink(missing_ok=True)
     print('Owned emulator locally unlocked once using its private fixture credential.')

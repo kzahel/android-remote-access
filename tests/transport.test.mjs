@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import net from "node:net";
 import http from "node:http";
 import { once } from "node:events";
+import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { createDemo } from "../server.mjs";
 
 async function viewer(app) {
@@ -20,7 +23,7 @@ async function viewer(app) {
         : { method: "POST", body: JSON.stringify(data) }),
     });
 }
-async function device(app, token = app.token) {
+async function device(app, token = app.token, state = { locked: false }) {
   const socket = net.connect(app.phonePort, "127.0.0.1");
   await once(socket, "connect");
   socket.write(
@@ -28,7 +31,7 @@ async function device(app, token = app.token) {
       type: "hello",
       token,
       generation: "test",
-      state: { locked: false },
+      state,
     }) + "\n",
   );
   return socket;
@@ -61,6 +64,50 @@ test("browser actions require same-origin authority; unknown operations are refu
     assert.equal(hostResult, 403);
   } finally {
     await app.close();
+  }
+});
+
+test("overlapping credential attempts and ordinary input are refused", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "remote-access-test-"));
+  const testPinFile = path.join(directory, "synthetic-pin");
+  await writeFile(testPinFile, "123456", { mode: 0o600 });
+  const app = await createDemo({ testPinFile, emulator: "emulator-9998" });
+  try {
+    const socket = await device(app, app.token, { locked: true, secure: true });
+    await new Promise((r) => setTimeout(r, 20));
+    const call = await viewer(app);
+    const received = once(socket, "data");
+    const attempt = call("/api/action", { op: "unlock", useTestPin: true });
+    const [bytes] = await received;
+    const command = JSON.parse(bytes.toString().trim());
+    assert.equal(command.op, "unlock");
+    const competing = await call("/api/action", {
+      op: "unlock",
+      useTestPin: true,
+    });
+    assert.equal(competing.status, 400);
+    assert.match((await competing.json()).error, /already in progress/);
+    assert.equal((await call("/api/action", { op: "tap" })).status, 400);
+    const frame = await (await call("/api/frame")).json();
+    assert.equal(frame.ok, false);
+    assert.match(frame.message, /credential/i);
+    socket.write(
+      JSON.stringify({
+        type: "result",
+        id: command.id,
+        ok: true,
+        state: { locked: true, secure: true, unlockAttempted: true },
+      }) + "\n",
+    );
+    assert.equal((await attempt).status, 200);
+    assert.equal(
+      (await call("/api/action", { op: "unlock", useTestPin: true })).status,
+      400,
+    );
+    socket.destroy();
+  } finally {
+    await app.close();
+    await rm(directory, { recursive: true, force: true });
   }
 });
 

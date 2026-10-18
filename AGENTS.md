@@ -23,12 +23,17 @@ combined camera/Bluetooth product.
 
 ## Current authorization and reading
 
-This repository currently contains research, not an approved implementation
-plan. The originating request authorizes repository creation, use-case and
+This repository contains research and an explicitly authorized emulator spike,
+not an approved product implementation plan. The originating request authorizes repository creation, use-case and
 sibling documentation, competitive/UX research, Git initialization and a
 commit of that work. Brainstorming and “we should build this” are not sufficient
 reason to choose a brand, impose a YA integration, install software on phones
 or change their lock/debugging settings. Follow later explicit instructions.
+
+The later spike request authorizes emulator setup, synthetic lock credentials,
+implementation, tests and incremental commits. It does not authorize changing
+physical-phone settings, publication or a production architecture. See
+`spike/README.md` and `docs/spike.md` for the runbook and measured scope.
 
 Read README.md and the applicable documents under docs/ before proposing work.
 Keep product decisions separate from hypotheses and implementation evidence.

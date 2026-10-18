@@ -64,7 +64,9 @@ python3 scripts/credential.py
 python3 scripts/demo.py rearm
 ```
 
-Enrollment uses Android Settings and a one-shot stdin key helper. The synthetic
+Enrollment uses Android Settings and a one-shot stdin key helper. A read-only
+shell observer uses `FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES` and redacts
+password text before returning metadata; it writes no raw UI dump. The synthetic
 credential is stored in an owner-readable `.local` fixture for repeatable tests,
 not in the app, Git, arguments, browser storage or logs. This is test data handling,
 not an implementation of a consumer saved-PIN feature. No wrong-PIN cases are run.
@@ -83,7 +85,7 @@ only to the disposable test fixture.
 
 ```sh
 npm test                         # host authority and delivery regression tests
-npm run acceptance               # 23 live native/control checks; ends with Stop
+npm run acceptance               # live native/control checks; ends with Stop
 python3 scripts/demo.py rearm
 node scripts/browser-acceptance.mjs  # real sequential input + visual captures
 python3 scripts/lifecycle.py     # force-stop/reboot/first-unlock observations

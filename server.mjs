@@ -56,6 +56,9 @@ export async function createDemo(options = {}) {
   let lastCaptureAttempt = 0;
   let lastFrameError = "";
   let credentialInProgress = false;
+  let credentialChild = null;
+  let credentialReserved = false;
+  let credentialVersion = 0;
   const activity = (kind, message, ok = true) => {
     log.unshift({ at: Date.now(), kind, message, ok });
     log.splice(30);
@@ -184,6 +187,8 @@ export async function createDemo(options = {}) {
     socket.on("close", () => {
       clearTimeout(authTimer);
       if (socket === device) {
+        credentialVersion++;
+        if (credentialChild) credentialChild.kill("SIGKILL");
         device = null;
         invalidate();
         activity("connection", "Phone disconnected", false);
@@ -230,6 +235,7 @@ export async function createDemo(options = {}) {
         ["-s", options.emulator, ...args],
         { stdio: ["pipe", "pipe", "pipe"] },
       );
+      if (input) credentialChild = child;
       const output = [];
       let size = 0;
       const timer = setTimeout(() => child.kill("SIGKILL"), timeout);
@@ -244,6 +250,7 @@ export async function createDemo(options = {}) {
       });
       child.stderr.resume();
       child.on("close", (code) => {
+        if (credentialChild === child) credentialChild = null;
         clearTimeout(timer);
         if (code === 0) resolve(Buffer.concat(output).toString());
         else reject(new Error("Emulator operation failed; no automatic retry"));
@@ -267,6 +274,9 @@ export async function createDemo(options = {}) {
     }
   }
   async function lab(action, data) {
+    if (credentialInProgress)
+      throw new Error("Credential delivery is already in progress");
+    const version = credentialVersion;
     if ((await adb(["shell", "getprop", "ro.kernel.qemu"])).trim() !== "1")
       throw new Error("This target is not an emulator");
     if (action === "wake") {
@@ -336,18 +346,6 @@ export async function createDemo(options = {}) {
         )
       )
         throw new Error("Managed emulator unlock is excluded");
-      const inspection = await command("inspect");
-      const entry = inspection.data?.nodes?.find(
-        (n) => n.id === "com.android.systemui:id/pinEntry" && n.password,
-      );
-      if (!entry || entry.passwordHasText !== false)
-        throw new Error("An observed empty SystemUI PIN field is required");
-      const focus = await adb(["shell", "dumpsys", "window"]);
-      if (!/mCurrentFocus=Window\{[^\n]*NotificationShade/.test(focus))
-        throw new Error(
-          "SystemUI does not own keyboard focus; wait for the PIN screen",
-        );
-      await new Promise((resolve) => setTimeout(resolve, 600));
       const packagePath = (
         await adb(["shell", "pm", "path", "dev.remoteaccess.spike"])
       )
@@ -355,13 +353,39 @@ export async function createDemo(options = {}) {
         .replace(/^package:/, "");
       if (!/^\/data\/app\/[A-Za-z0-9_~+/=.-]+\/base\.apk$/.test(packagePath))
         throw new Error("Unexpected APK path");
+      const inspection = JSON.parse(
+        await adb([
+          "shell",
+          `CLASSPATH=${packagePath}`,
+          "app_process",
+          "/system/bin",
+          "dev.remoteaccess.spike.ShellUi",
+        ]),
+      );
+      const entry = inspection.nodes?.find(
+        (n) => n.id === "com.android.systemui:id/pinEntry" && n.password,
+      );
+      if (!entry || entry.hasText !== false)
+        throw new Error("An observed empty SystemUI PIN field is required");
+      const focus = await adb(["shell", "dumpsys", "window"]);
+      if (!/mCurrentFocus=Window\{[^\n]*NotificationShade/.test(focus))
+        throw new Error(
+          "SystemUI does not own keyboard focus; wait for the PIN screen",
+        );
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      if (version !== credentialVersion || !device)
+        throw new Error(
+          "Access ended during unlock preparation; no PIN delivered",
+        );
       unlockBlocked = true;
       credentialInProgress = true;
       currentFrame = null;
-      await command("pauseCredentialCapture");
       const pin = Buffer.from(data.pin + "\n");
       delete data.pin;
       try {
+        await command("pauseCredentialCapture");
+        if (version !== credentialVersion || !device)
+          throw new Error("Access ended before credential delivery");
         await adb(
           [
             "shell",
@@ -369,6 +393,11 @@ export async function createDemo(options = {}) {
             "app_process",
             "/system/bin",
             "dev.remoteaccess.spike.ShellPin",
+            inspection.nodes.some(
+              (n) => n.id === "com.android.systemui:id/key_enter",
+            )
+              ? "submit"
+              : "digits-only",
           ],
           pin,
         );
@@ -395,6 +424,7 @@ export async function createDemo(options = {}) {
     throw new Error("Unknown lab operation");
   }
   const server = http.createServer(async (req, res) => {
+    let ownsCredentialReservation = false;
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "no-referrer");
@@ -439,12 +469,26 @@ export async function createDemo(options = {}) {
           const data = await body(req);
           const op = data.op;
           delete data.op;
+          if (
+            (credentialReserved || credentialInProgress) &&
+            !["state", "inspect", "capture", "stop"].includes(op)
+          )
+            throw new Error("Credential delivery is already in progress");
+          if (op === "stop") {
+            credentialVersion++;
+            if (credentialChild) credentialChild.kill("SIGKILL");
+          }
           if (!safeOps.has(op)) {
             json(400, { error: "Unknown action" });
             return;
           }
           if (op === "unlock") {
+            credentialReserved = true;
+            ownsCredentialReservation = true;
+            const version = credentialVersion;
             await credential(data);
+            if (version !== credentialVersion || !device)
+              throw new Error("Access ended during unlock preparation");
             if (unlockBlocked)
               throw new Error(
                 "One unlock attempt already made. Unlock locally first.",
@@ -483,6 +527,12 @@ export async function createDemo(options = {}) {
           const data = await body(req);
           const action = data.action;
           delete data.action;
+          if (credentialReserved || credentialInProgress)
+            throw new Error("Credential delivery is already in progress");
+          if (action === "unlock") {
+            credentialReserved = true;
+            ownsCredentialReservation = true;
+          }
           const result = await lab(action, data);
           activity("lab", result.message, result.ok);
           json(200, result);
@@ -514,6 +564,8 @@ export async function createDemo(options = {}) {
       res.end(await readFile(path.join(root, "web", file)));
     } catch (error) {
       json(400, { error: error.message || "Request failed" });
+    } finally {
+      if (ownsCredentialReservation) credentialReserved = false;
     }
   });
   server.requestTimeout = 10000;

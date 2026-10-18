@@ -226,8 +226,10 @@ depend on the very app/provider authentication it is repairing.
 
 ## Experiments that would resolve the main unknowns
 
-No experiments below have been run for this repository or authorized merely by
-writing this list. Use disposable fixtures and explicit device selection.
+This list initially proposed experiments; it does not authorize new device work.
+The later [emulator spike](spike.md#results) now supplies bounded evidence for
+capture/input, secure lock, known-PIN delivery and lifecycle on its tested images.
+It does not complete this wider physical-device validation matrix. Use disposable fixtures and explicit device selection.
 
 1. **Capture/input:** qualify an accessibility frame and a MediaProjection
    session across lock/unlock, sensitive views, orientation and service restart;

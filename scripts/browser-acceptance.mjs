@@ -71,6 +71,16 @@ try {
   );
   await control(null, "dev.remoteaccess.spike:id/station_name");
   await page.waitForTimeout(700);
+  await expect(page.locator("#typing")).toBeEnabled();
+  let delayRead = true;
+  await page.route("**/api/action", async (route) => {
+    if (delayRead && route.request().postDataJSON()?.op === "inspect") {
+      delayRead = false;
+      const response = await route.fetch();
+      await new Promise((resolve) => setTimeout(resolve, 900));
+      await route.fulfill({ response });
+    } else await route.continue();
+  });
   await page.locator("#read-field").click();
   await expect(page.locator("#typing")).toBeEnabled();
   await page.locator("#typing").focus();
@@ -94,8 +104,8 @@ try {
     await expect(page.locator("#typing")).toHaveValue(expected);
     await page.waitForTimeout(35);
   }
-  await page.keyboard.insertText(" · café ☀ 日本語");
-  expected += " · café ☀ 日本語";
+  await page.keyboard.insertText(" · café ☀ 🔋 日本語");
+  expected += " · café ☀ 🔋 日本語";
   await page.keyboard.press("Home");
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("Delete");
@@ -116,6 +126,9 @@ try {
   await expect(page.locator("#typing")).toHaveValue(expected);
   report.checks.push(
     "Sequential typing, cursor Delete, Backspace and Unicode match independent Android data during live refresh",
+  );
+  report.checks.push(
+    "A deliberately delayed native field read cannot overwrite newer local keystrokes",
   );
   report.maxLocalKeyboardAcknowledgementMs = latency;
   await page.keyboard.press("Tab");

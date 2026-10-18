@@ -17,7 +17,7 @@ public final class ShellPin {
             if (length<4) throw new IllegalArgumentException();
             Instrumentation input=new Instrumentation();
             for (int i=0;i<length;i++) { input.sendKeyDownUpSync(KeyEvent.KEYCODE_0+digits[i]-'0'); android.os.SystemClock.sleep(100); }
-            input.sendKeyDownUpSync(KeyEvent.KEYCODE_ENTER);
+            if (args.length==0 || args[0].equals("submit")) input.sendKeyDownUpSync(KeyEvent.KEYCODE_ENTER);
         } catch (Exception ignored) { System.exit(2); }
         finally { Arrays.fill(digits,(byte)0); }
     }

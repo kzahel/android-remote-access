@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import secrets
 import shutil
+import shlex
 import signal
 import subprocess
 import sys
@@ -64,10 +65,17 @@ def build():
 
 
 def tree(serial):
-    adb(serial,'shell','uiautomator','dump','/data/local/tmp/remote-access-ui.xml')
-    data=adb(serial,'shell','cat','/data/local/tmp/remote-access-ui.xml')
-    adb(serial,'shell','rm','-f','/data/local/tmp/remote-access-ui.xml')
-    return ET.fromstring(data)
+    apk=adb(serial,'shell','pm','path',PACKAGE).strip().removeprefix('package:')
+    if not apk.startswith('/data/app/') or not apk.endswith('/base.apk'): raise RuntimeError('Unexpected fixture APK location')
+    snapshot=json.loads(adb(serial,'shell',f'CLASSPATH={apk}','app_process','/system/bin',PACKAGE+'.ShellUi'))
+    root=ET.Element('hierarchy')
+    for node in snapshot['nodes']:
+        a,b,c,d=node['bounds']
+        ET.SubElement(root,'node',{'text':node.get('text',''),'content-desc':node.get('description',''),
+            'resource-id':node.get('id',''),'password':str(node.get('password',False)).lower(),
+            'password-has-text':str(node.get('hasText',False)).lower(),
+            'enabled':str(node.get('enabled',False)).lower(),'bounds':f'[{a},{b}][{c},{d}]'})
+    return root
 
 
 def click(serial, text=None, resource=None, contains=False):
@@ -89,6 +97,22 @@ def assert_owned(serial, avd=None):
 
 def provision(serial, pairing):
     assert_owned(serial)
+    services=adb(serial,'shell','settings','get','secure','enabled_accessibility_services').strip()
+    enabled=[] if services in ('','null') else services.split(':')
+    # APK replacement can leave a stale accessibility connection on Android 16.
+    # Renew only this fixture's permission, preserving all other enabled services.
+    remaining=[service for service in enabled if service.split('/')[0]!=PACKAGE]
+    adb(serial,'shell',f"settings put secure enabled_accessibility_services {shlex.quote(':'.join(remaining))}")
+    def fixture_unbound():
+        dump=adb(serial,'shell','dumpsys','accessibility')
+        return not any(
+            ('Remote access spike' in line if 'Bound services:' in line else PACKAGE in line)
+            for line in dump.splitlines()
+            if any(section in line for section in ['Bound services:','Binding services:','Crashed services:','Enabled services:'])
+        )
+    # Settings writes return before AccessibilityManager has removed the old
+    # binder. Installing/re-enabling in that gap can bind a stale service on 36.
+    wait_for(fixture_unbound,10,'old fixture accessibility connection to unbind')
     apk=ROOT/'android/app/build/outputs/apk/debug/app-debug.apk'
     adb(serial,'install','-r',str(apk),timeout=90)
     adb(serial,'shell','run-as',PACKAGE,'mkdir','-p','files')
@@ -109,6 +133,7 @@ def provision(serial, pairing):
     from client import Client
     client=Client()
     wait_for(lambda:client.state()['connected'],15,'native access grant')
+    wait_for(lambda:client.call('/api/frame')['ok'],15,'verified native screen capture')
 
 
 def start(args):

@@ -10,6 +10,8 @@ let field = null,
   sending = false,
   textTimer;
 let unlockSending = false;
+let shownFirstFrame = false;
+let fieldReadSequence = 0;
 const screen = $("screen");
 const notify = (message, error = false) => {
   $("notice").textContent = message;
@@ -59,7 +61,7 @@ function renderState(next) {
     ? "Phone connected"
     : "Phone not responding";
   $("device-subtitle").textContent = connected
-    ? `Android ${s.release} · ${s.locked ? "Locked" : "Ready"}`
+    ? `Android ${s.release} · ${s.locked ? "Locked" : frame && !next.captureError ? "Ready" : next.captureError ? "View unavailable" : "Connected"}`
     : next.lastSeen
       ? "Connection interrupted"
       : "Waiting for session";
@@ -87,6 +89,8 @@ function renderState(next) {
   ))
     button.disabled = !connected;
   if (!connected) {
+    shownFirstFrame = false;
+    fieldReadSequence++;
     frame = null;
     field = null;
     $("typing").disabled = true;
@@ -182,6 +186,10 @@ async function refreshFrame() {
       state.state.interactive
     ) {
       frame = result.data;
+      if (!shownFirstFrame) {
+        shownFirstFrame = true;
+        notify("Connected. Use the screen or open the demo power station.");
+      }
       screen.src = `data:image/jpeg;base64,${frame.image}`;
       $("phone").classList.toggle("landscape", frame.width > frame.height);
       $("screen-cover").hidden = true;
@@ -258,7 +266,11 @@ async function readField(explicit = true) {
       notify("Finish or send your pending edit before switching fields.", true);
     return;
   }
+  const request = ++fieldReadSequence;
+  const draftRevision = revision;
   const result = await action("inspect");
+  // A remote read must never overwrite keys typed while it was in flight.
+  if (request !== fieldReadSequence || revision !== draftRevision) return;
   const focused = result.data?.focused;
   if (focused) {
     field = focused.field;
@@ -294,6 +306,7 @@ async function sendEdit() {
   sending = false;
   if (!result.ok) {
     $("live-typing").checked = false;
+    fieldReadSequence++;
     field = null;
     $("send-text").disabled = true;
     $("typing-status").textContent = "Delivery unconfirmed · no replay";

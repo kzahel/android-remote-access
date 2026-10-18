@@ -151,6 +151,8 @@ public final class AccessService extends AccessibilityService {
     }
     private void dispatch(JSONObject c) throws Exception {
         String op=c.getString("op");
+        if (SystemClock.elapsedRealtime()<credentialCaptureUntil && java.util.Arrays.asList("tap","swipe","nav","text","wake","dismiss","lock","openFixture","openApp","unlock").contains(op))
+            throw new IllegalStateException("Credential delivery is in progress; wait for the observed result");
         if (op.equals("pauseCredentialCapture")) { credentialCaptureUntil=SystemClock.elapsedRealtime()+30000; lastFrame=null; reply(c,true,"Screen capture paused for credential delivery",null); return; }
         if (op.equals("resumeCredentialCapture")) { credentialCaptureUntil=0; reply(c,true,"Credential capture pause ended",null); return; }
         if (op.equals("state")) { reply(c,true,"Phone state observed",null); return; }
@@ -328,6 +330,7 @@ public final class AccessService extends AccessibilityService {
         JSONObject data=new JSONObject().put("nodes",nodes);
         AccessibilityNodeInfo f=focused();
         if (f!=null && f.isEditable() && !f.isPassword() && !getSystemService(KeyguardManager.class).isKeyguardLocked()) {
+            if (f.getText()!=null && f.getText().length()>4096) return data.put("editingUnavailable","This field is too long for the spike editor");
             if (focusNode==null || !focusNode.refresh() || !focusNode.equals(f)) { focusNode=f; focusToken=UUID.randomUUID().toString(); }
             data.put("focused",new JSONObject().put("field",focusToken)
                 .put("text",f.isShowingHintText() ? "" : String.valueOf(f.getText()==null?"":f.getText()))
@@ -341,8 +344,11 @@ public final class AccessService extends AccessibilityService {
             Rect r=new Rect(); n.getBoundsInScreen(r);
             String text=n.isPassword()?"[password]":String.valueOf(n.getText()==null?"":n.getText());
             String desc=n.isPassword()?"":String.valueOf(n.getContentDescription()==null?"":n.getContentDescription());
+            boolean truncated=text.length()>600 || desc.length()>300;
+            if (text.length()>600) text=text.substring(0,600);
+            if (desc.length()>300) desc=desc.substring(0,300);
             if (!text.isEmpty() || !desc.isEmpty() || n.isClickable() || n.isEditable()) out.put(new JSONObject()
-                .put("text",text).put("description",desc).put("id",n.getViewIdResourceName())
+                .put("text",text).put("description",desc).put("truncated",truncated).put("id",n.getViewIdResourceName())
                 .put("editable",n.isEditable()).put("clickable",n.isClickable()).put("password",n.isPassword()).put("passwordHasText",n.isPassword() && n.getText()!=null && n.getText().length()>0)
                 .put("bounds",new JSONArray(new int[]{r.left,r.top,r.right,r.bottom})));
         }
@@ -370,7 +376,10 @@ public final class AccessService extends AccessibilityService {
         ArrayList<AccessibilityNodeInfo> digits=new ArrayList<>();
         for (char ch:value.toCharArray()) { AccessibilityNodeInfo k=key("key"+ch); if (k==null || !k.isClickable()) throw new IllegalStateException("SystemUI keypad is not available to this service"); digits.add(k); }
         AccessibilityNodeInfo enter=key("key_enter");
-        if (enter==null || !enter.isClickable()) throw new IllegalStateException("SystemUI PIN confirmation is unavailable");
+        if (enter!=null && !enter.isClickable()) throw new IllegalStateException("SystemUI PIN confirmation is unavailable");
+        // Newer SystemUI may hide Enter for a six-or-more-digit auto-confirm PIN.
+        // Enter digits once and observe; never guess an alternate submission.
+        if (enter==null && value.length()<6) throw new IllegalStateException("No supported PIN confirmation control is visible");
         unlockAttempted=true; credentialCaptureUntil=SystemClock.elapsedRealtime()+30000; lastFrame=null;
         // The credential is never persisted or returned. Java/JSON strings are not guaranteed erasable.
         value=null;
@@ -379,7 +388,7 @@ public final class AccessService extends AccessibilityService {
     private void submitDigit(JSONObject c,ArrayList<AccessibilityNodeInfo> digits,AccessibilityNodeInfo enter,int i,long session,Socket owner) {
         if (!armed || session!=grant || owner!=connection) return;
         if (i==digits.size()) {
-            boolean delivered=enter.refresh() && enter.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+            boolean delivered=enter==null || (enter.refresh() && enter.performAction(AccessibilityNodeInfo.ACTION_CLICK));
             observeUnlock(c,delivered,SystemClock.elapsedRealtime()+3500,session,owner);
         } else if (!digits.get(i).refresh() || !digits.get(i).performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
             credentialCaptureUntil=SystemClock.elapsedRealtime()+2500;

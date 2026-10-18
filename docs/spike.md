@@ -71,8 +71,9 @@ The measured maximum local keyboard acknowledgement was **41.8 ms** in that run;
 this is not a network-delivery latency claim. Desktop and mobile layouts passed
 without horizontal overflow or uncaught browser errors.
 
-Four host transport tests cover browser authority/Origin/Host checks, device-token
-refusal, uncertain delivery without reconnect replay and late-result isolation.
+Five host transport tests cover browser authority/Origin/Host checks, device-token
+refusal, uncertain delivery without reconnect replay, late-result isolation and
+overlapping credential/input refusal.
 Android debug assembly and lint pass (English-only/deprecation warnings remain).
 
 The API 35 lifecycle run also passed force-stop revocation, explicit local
@@ -82,8 +83,44 @@ submission opened user storage, but did not recreate the native grant. Local
 preparation then restored viewing. This is an emulator with a host-held test
 credential and emulator ADB authority; it does not prove phone-local recovery.
 
-Android 16 results are pending. Raw reports, captures, exact selectors,
-boot identifiers, credentials and logs remain in ignored `.local/`.
+### Android 16 emulator qualification
+
+Live-tested 2026-10-18 on Google APIs ARM64 API 36 (Android 16, security patch
+2025-07-05), target SDK 36. **24 native/control checks, five browser checks and
+nine lifecycle checks passed.** This repeats the viewing, pointer, Unicode,
+rotation, protected-window, reconnect, Stop and both known-PIN routes above.
+The browser regression deliberately delays a real native field-read response by
+900 ms while typing; the late response cannot overwrite newer keys. The maximum
+local keyboard acknowledgement was **48 ms** in the final API 36 run.
+
+SystemUI on this image uses auto-confirm for the six-digit synthetic PIN and
+omits the Enter key. The native route delivers the observed keypad digits once
+and then checks keyguard state; the shell comparison omits Enter too. Neither
+route tries a second submission or assumes delivery means unlock.
+
+Force-stop and reboot each revoked the native grant. First-unlock user storage
+was observed locked, the app stayed disconnected, host-assisted first unlock
+did not restore a grant, and explicit local preparation restored verified screen
+capture. This is a measured local recovery procedure, not unattended recovery.
+Android 16 exposed an asynchronous accessibility teardown race during APK
+replacement: the runner now waits for this fixture's enabled, binding, bound and
+crashed entries to clear before reinstalling and enabling it again. It preserves
+other services and requires an actual successful capture before reporting ready.
+
+Raw reports, captures, exact selectors, boot identifiers, credentials and logs
+remain in ignored `.local/`.
+
+### What this establishes
+
+A native Android accessibility service can make manual remote viewing, input and
+known-PIN experiments useful without an AI runtime or ordinary ADB input. This
+spike uses live JPEG stills rather than video. ADB remains an explicitly labeled
+emulator setup, independent-observation and optional shell-comparison tool.
+
+Physical Pixel 7a behavior, secure unlock across OEMs, phone-local first unlock,
+Doze/overnight endurance, Bluetooth/vendor-app behavior, Internet relay and
+production pairing/encryption are untested. The current transport is confined
+to the local emulator host gateway. No attached physical phone was changed.
 
 ### Implementation observations
 
@@ -93,9 +130,11 @@ boot identifiers, credentials and logs remain in ignored `.local/`.
   have a bounded timeout and invalidate late results instead of wedging capture.
 - Wake and dismissal can reuse an existing activity; `onNewIntent` must update
   the pending request and cancel the previous finish timer.
-- Stock UIAutomator dumping suppresses other accessibility services. It is used
-  only for local credential setup/recovery while control is unarmed, not live
-  control acceptance or shell-unlock preflight.
+- Stock UIAutomator dumping suppresses other accessibility services. The final
+  setup and shell preflight instead use a read-only shell-UID observer with
+  `FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES`. It redacts passwords in process
+  and returns only bounded metadata; no raw XML dump is written. Its reflective
+  framework entry point is an emulator-lab helper, not an adopted app API.
 - Automated emulator preparation creates a short-lived, one-use request in the
   debug app's private storage and opens its setup activity. Only an emulator
   debug build consumes that request. Normal Stop cannot be reversed over the
