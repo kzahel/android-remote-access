@@ -1,0 +1,92 @@
+# Android Remote Access — agent instructions
+
+## Product intent
+
+Build understanding of a potential standalone consumer product for remotely
+reaching an Android phone. Its brand, distribution, architecture and business
+model are open. Do not fold it into Yep Anywhere merely because YA and Machine
+Control contain useful pieces.
+
+The inspiration is a phone left in an RV near an Anker power station: the owner
+wants to check battery level and solar charging through its Bluetooth app.
+Adjacent uses are an old-phone security camera, a remote app that needs manual
+login repair, and a dedicated phone that runs simple home/RV automations.
+Repairing YA Android-host provider authentication is a concrete example of
+manual control remaining useful when AI authentication has failed. It is not a
+requirement to use YA, an AI account, an agent session or a subscription model.
+
+The intended experience is approachable to someone who does not know ADB,
+Tailscale, ports or foreground services. Explain readiness and repair actions
+in ordinary language. Manual access must be useful on its own. Do not silently
+expand the project into autonomous phone control, an agent harness, MDM or a
+combined camera/Bluetooth product.
+
+## Current authorization and reading
+
+This repository currently contains research, not an approved implementation
+plan. The originating request authorizes repository creation, use-case and
+sibling documentation, competitive/UX research, Git initialization and a
+commit of that work. Brainstorming and “we should build this” are not sufficient
+reason to choose a brand, impose a YA integration, install software on phones
+or change their lock/debugging settings. Follow later explicit instructions.
+
+Read README.md and the applicable documents under docs/ before proposing work.
+Keep product decisions separate from hypotheses and implementation evidence.
+Do not mark something implemented or authorized beyond what the user requested.
+Do not create approval rituals for ordinary reversible research or docs edits.
+
+## Research discipline
+
+- Prefer official Android/Firebase documentation, official vendor help, and
+  pinned source over marketing summaries or recollection.
+- Record review date, exact URLs, important version limits and whether evidence
+  is platform-documented, vendor-claimed, source-reviewed or physically tested.
+- A product listing is not proof of reliable unattended control or Play approval
+  for our eventual implementation. Distinguish remote viewing, input, secure
+  unlock and unattended recovery in every comparison.
+- Do not infer UI behavior from marketing alone. Label documentation-based
+  walkthroughs and proposed flows; do not present them as hands-on UX research.
+- Recheck prices and licensing at decision time. Do not invent prices, session
+  limits, security guarantees or absent competitor features.
+- Keep screenshots, raw web captures, logs, credentials, device selectors and
+  machine-specific inventories out of Git. Use .local/ for private evidence.
+- Native code and APK reuse require exact-component license review. A sibling
+  repository's license does not license all of its bundled dependencies.
+
+## Technical boundaries to preserve
+
+Keep process wake, display wake, keyguard dismissal, credential entry, first
+unlock after reboot, capture consent, input authority and network reachability
+distinct. ADB is a candidate advanced route, not root or an unlock bypass.
+Accessibility input and screenshots have OS, app and OEM restrictions.
+
+FCM is a best-effort wake hint, not remote authentication or a command channel.
+A persistent WebSocket does not override Doze. Foreground services, battery
+exemptions, companion-device associations and nearby-device permissions each
+have a specific purpose; do not claim they guarantee survival or use unrelated
+permissions just to keep a process alive.
+
+Never commit PINs, tokens, ADB keys, OAuth state or app data. Optional saved-PIN
+design must account for native storage, backup exclusion, explicit opt-in,
+one-attempt delivery, lockout policy, local forgetting and unattended key
+availability. Do not silently weaken device lock or boot security.
+
+## Working with siblings and verification
+
+See docs/sibling-repositories.md. Read each sibling's own AGENTS.md and local
+instructions before changing it. Keep reusable device primitives in their
+proper owner when that makes sense; do not assume this product needs YA's
+server, Alpine/PRoot or an AI runtime. Preserve concurrent edits.
+
+Prefer deterministic CLIs, official APIs, existing capture/test runners and
+isolated fixtures. Use explicit device selection. Do not kill a shared ADB
+server, change debugging listeners, install a competitor or enter credentials
+on a real phone without task authorization. Hands-on tests must preserve state
+and distinguish foreground success from reboot/Doze/overnight acceptance.
+
+For documentation-only changes, verify links, evidence consistency and
+`git diff --check`; do not add shallow tests or an application scaffold solely
+to make this research repository look implemented. Commit on the current
+branch unless instructed otherwise. Attribute model contributions with only a
+`Contributing-model: <short-model-name>` trailer, not model authorship banners
+or Co-Authored-By lines. Do not publish/push without authorization.

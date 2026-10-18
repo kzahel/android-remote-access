@@ -1,0 +1,48 @@
+{
+  "reviewed": "2026-10-18",
+  "scope": "Documentation/license files only; no build or device acceptance",
+  "sources": [
+    {
+      "name": "scrcpy",
+      "pin": "a60891aea193d92e7e5c3942700eca63f9d19a5f",
+      "matches_reviewed": true,
+      "sha256": "1a2f2677b4b86c0879b68a5b23c24fa7268ac3af1a92a17bddbe137abf374549",
+      "url": "https://raw.githubusercontent.com/Genymobile/scrcpy/a60891aea193d92e7e5c3942700eca63f9d19a5f/README.md"
+    },
+    {
+      "name": "scrcpy-device",
+      "pin": "a60891aea193d92e7e5c3942700eca63f9d19a5f",
+      "matches_reviewed": true,
+      "sha256": "268189f4da71aba682624e29b70e1766ec845e385b149e00eae0ccdda00758ea",
+      "url": "https://raw.githubusercontent.com/Genymobile/scrcpy/a60891aea193d92e7e5c3942700eca63f9d19a5f/doc/device.md"
+    },
+    {
+      "name": "scrcpy-connection",
+      "pin": "a60891aea193d92e7e5c3942700eca63f9d19a5f",
+      "matches_reviewed": true,
+      "sha256": "8891838d6997780e9a1a68e5083973e328838e5cf020ee2d169611716b7143f8",
+      "url": "https://raw.githubusercontent.com/Genymobile/scrcpy/a60891aea193d92e7e5c3942700eca63f9d19a5f/doc/connection.md"
+    },
+    {
+      "name": "droidvnc",
+      "pin": "5ec28c925b1df06082059d93bc3a79f89dc3ec13",
+      "matches_reviewed": true,
+      "sha256": "ac7b0dc00e70afac6d99a158f94bc24220a1051f6682e1ae0a8314d652a3bc6e",
+      "url": "https://raw.githubusercontent.com/bk138/droidVNC-NG/5ec28c925b1df06082059d93bc3a79f89dc3ec13/README.md"
+    },
+    {
+      "name": "droidvnc-license",
+      "pin": "5ec28c925b1df06082059d93bc3a79f89dc3ec13",
+      "matches_reviewed": true,
+      "sha256": "58530d09b6fcb91ae27071be0081af90e6c2d7fdf991d34a29e234a2a5e75455",
+      "url": "https://raw.githubusercontent.com/bk138/droidVNC-NG/5ec28c925b1df06082059d93bc3a79f89dc3ec13/COPYING"
+    },
+    {
+      "name": "rustdesk-license",
+      "pin": "53996e3c404ea5083df0775057e4149e49102084",
+      "matches_reviewed": true,
+      "sha256": "8486a10c4393cee1c25392769ddd3b2d6c242d6ec7928e1414efff7dfb2f07ef",
+      "url": "https://raw.githubusercontent.com/rustdesk/rustdesk/53996e3c404ea5083df0775057e4149e49102084/LICENCE"
+    }
+  ]
+}

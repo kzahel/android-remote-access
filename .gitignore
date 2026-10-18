@@ -1,0 +1,14 @@
+.DS_Store
+.local/
+.env
+.env.*
+!.env.example
+*.log
+node_modules/
+build/
+dist/
+.gradle/
+local.properties
+*.jks
+*.keystore
+adbkey*
