@@ -1,0 +1,39 @@
+# Research checkouts only; not production dependencies, submodules or APK inputs.
+schema_version: 1
+reviewed_at: "2026-10-19"
+scope: "Pinned source review; no competitor builds, installs or physical tests"
+checkouts:
+  - name: scrcpy
+    repository: https://github.com/Genymobile/scrcpy.git
+    revision: a60891aea193d92e7e5c3942700eca63f9d19a5f
+    path: references/scrcpy
+    purpose: "ADB shell authority, screen power versus lock, capture, input and cleanup"
+    license_summary: "Apache-2.0; inspect exact component and dependency notices before reuse"
+  - name: droidVNC-NG
+    repository: https://github.com/bk138/droidVNC-NG.git
+    revision: 5ec28c925b1df06082059d93bc3a79f89dc3ec13
+    path: references/droidVNC-NG
+    purpose: "App-resident accessibility input, capture fallback, wake/lock and unattended lifecycle"
+    license_summary: "GPL-2.0 project text; native libraries and browser assets require their own review"
+  - name: rustdesk
+    repository: https://github.com/rustdesk/rustdesk.git
+    revision: 53996e3c404ea5083df0775057e4149e49102084
+    path: references/rustdesk
+    purpose: "Native/Flutter Android service, input authority, lock/wake, capture and rendezvous/relay"
+    license_summary: "AGPL-3.0 project text; review exact files, dependencies and optional components"
+  - name: buddy-android
+    repository: https://github.com/ghorbelhamdi/buddy-android.git
+    revision: ffd2ec84c7498c9e10e22889b4f4d1f52c293e18
+    path: references/buddy-android
+    purpose: "Related source reference for native screen, accessibility, wake and credential operations"
+    license_summary: "Apache-2.0 app; bundled components have separate terms"
+documentation_only:
+  - name: AirDroid / AirMirror
+    source: https://help.airdroid.com/hc/en-us/articles/360004121114
+    reason: "Proprietary product; official support documentation, not an unofficial source clone"
+  - name: AnyDesk
+    source: https://support.anydesk.com/docs/anydesk-for-android
+    reason: "Proprietary product and control plugins; vendor claims remain distinct from source evidence"
+  - name: TeamViewer Host / QuickSupport
+    source: https://play.google.com/store/apps/details?id=com.teamviewer.host.market
+    reason: "Proprietary product; Host and attended QuickSupport have different consent models"

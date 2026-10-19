@@ -13,6 +13,8 @@ ADB listener, PIN, phone or sibling working tree was changed.
   not an independently measured usability or reliability result.
 - **Repository documentation reviewed:** exact README/guide/license content was
   read. This is not an implementation audit, build or security certification.
+- **Source-reviewed:** specific implementation paths inspected at an exact Git
+  revision; not proof of a successful build or behavior on a real phone.
 - **Sibling evidence:** a dated experiment/implementation record in another
   repository. Preserve that record's device, scope and limitations.
 - **Hypothesis/proposal:** analysis or candidate design requiring validation.
@@ -82,6 +84,22 @@ remote control,” “Control Add-on Accessibility,” “android background” 
 “set up AlfredCamera.” The canonical articles above are the references to use.
 
 ## Pinned public repository material
+
+**2026-10-19 implementation follow-up:** [repos.yaml](../repos.yaml) pins four
+ignored local source checkouts, adding Buddy Android to the three repositories
+below. [The source comparison](../docs/competitor-implementations.md) records
+the inspected paths and immutable anchors; [checkout instructions](README.md)
+record the setup and dependency exclusions. No competitor was built, installed
+or physically tested. The older hashes below remain documentation evidence.
+
+The same follow-up retrieved AnyDesk's Android guide again and AirDroid's
+[Find Phone article](https://help.airdroid.com/hc/en-us/articles/360005115473)
+(official help-center article API, ID `360005115473`). The latter documents
+Device Administration and Lost Mode; exiting that mode is not evidence of
+general Android keyguard/PIN unlock. Official AirDroid help-center searches
+for unlock, black, wake and screen off were orientation only; search omissions
+were not treated as missing product capabilities. No proprietary internals
+were inferred from these articles.
 
 The following heads were obtained through the repositories' GitHub commit API.
 The listed files were fetched again at those exact commits and compared with

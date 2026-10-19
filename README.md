@@ -22,6 +22,8 @@ test case, not the product's identity.
 - [Production plan: gates, architecture and phases toward a Play release](docs/production-plan.md)
 - [Android capabilities, unlock, wake and background reliability](docs/android-platform.md)
 - [Competitors and alternatives](docs/competitors.md)
+- [Competitor implementations: unlock, screen power, capture and recovery](docs/competitor-implementations.md)
+- [Pinned reference repositories and checkout instructions](research/README.md)
 - [UX analysis and research questions](docs/ux.md)
 - [Relevant sibling repositories and reuse boundaries](docs/sibling-repositories.md)
 - [Sources, review method and evidence limits](research/SOURCES.md)

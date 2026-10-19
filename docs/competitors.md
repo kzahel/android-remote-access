@@ -7,6 +7,12 @@ established” means the reviewed sources did not prove the capability; it does
 not mean the competitor lacks it. Source links and retrieval limitations are
 in [SOURCES.md](../research/SOURCES.md).
 
+The **2026-10-19 [implementation comparison](competitor-implementations.md)**
+adds pinned source evidence for scrcpy, droidVNC-NG, RustDesk and Buddy Android,
+covering screen power, secure unlock, capture, input and unattended recovery.
+The [manifest](../repos.yaml) and ignored local checkouts make that review
+repeatable. It adds no hands-on competitor results.
+
 ## Findings that change the opportunity
 
 Remote Android control is an established category. Accessibility-based input,
