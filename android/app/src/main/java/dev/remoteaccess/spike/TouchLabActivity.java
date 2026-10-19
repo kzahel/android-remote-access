@@ -82,7 +82,11 @@ public final class TouchLabActivity extends Activity {
             try {
                 JSONObject o=new JSONObject().put("slider",slider).put("scale",scale).put("angle",angle).put("panX",panX).put("panY",panY).put("scroll",scroll)
                     .put("held",held).put("maxHeld",maxHeld).put("moves",moves).put("downs",downs).put("ups",ups).put("cancels",cancels).put("events",events);
-                Files.write(new java.io.File(getFilesDir(),"touch-fixture.json").toPath(),o.toString().getBytes(StandardCharsets.UTF_8));
+                java.nio.file.Path target=new java.io.File(getFilesDir(),"touch-fixture.json").toPath();
+                java.nio.file.Path temporary=new java.io.File(getFilesDir(),"touch-fixture.tmp").toPath();
+                Files.write(temporary,o.toString().getBytes(StandardCharsets.UTF_8));
+                // The independent observer must never read half of a frame's JSON.
+                Files.move(temporary,target,java.nio.file.StandardCopyOption.ATOMIC_MOVE,java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             } catch(Exception ignored) { }
         }
     }

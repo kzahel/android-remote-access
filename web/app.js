@@ -103,7 +103,7 @@ function renderState(next) {
     cover(
       "Phone not responding",
       next.lastSeen
-        ? "The connection ended. Waiting for the phone to reconnect; no action will be replayed."
+        ? "The connection ended. If it does not return, open Remote access on the phone and choose Start remote access. No action will be replayed."
         : "Start remote access on the emulator to connect this viewer.",
     );
   } else if (!s.interactive) {

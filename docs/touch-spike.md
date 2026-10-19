@@ -34,7 +34,8 @@ transactional rollback of a button, drag or long press.
 
 The native playground is an ordinary View consuming actual MotionEvents. It
 contains a slider, a map for pinch/rotation/pan and a checklist. A private witness
-records native contacts and effects independently of browser acknowledgements.
+records native contacts and effects independently of browser acknowledgements,
+using atomic replacement so observers never read a partially written snapshot.
 Tests also scroll the real Android Settings app.
 
 ## Measured evidence
@@ -59,12 +60,12 @@ Google APIs ARM64 API 36, target SDK 36:
   protected capture covers video and stops browser decoding; leaving that
   screen resumes video under the existing consent; Stop releases contact,
   stops the projection service, hides video and stays stopped.
-- The continuous run decoded **122 frames over 6.44 seconds (18.9 fps)** during
-  its defined interaction window. Touch-batch acknowledgements were **44.3 ms
-  median, 73.1 ms p95, 101.8 ms maximum**, including native batch execution.
+- The final continuous run decoded **121 frames over 6.40 seconds (18.9 fps)**
+  during its defined interaction window. Touch-batch acknowledgements were
+  **43.9 ms median, 63.8 ms p95, 101.2 ms maximum**, including native batch execution.
   The independent witness reached two held contacts, 1.63× zoom and 36° rotation,
   with zero unexpected cancellations during the ordinary gestures. The dropped-
-  packet release was observed within 943 ms, including polling and ADB overhead.
+  packet release was observed within 944 ms, including polling and ADB overhead.
 
 These are local lab measurements, not physical-finger motion-to-photon latency.
 The slider timing field measures the complete scripted drag plus witness read;
@@ -116,8 +117,8 @@ The authorized attached **Pixel 7a**, Android API 37, Chrome 155, successfully
 controlled the API 36 emulator from its real Chrome browser. Three automated
 checks passed: native slider effect while held, two contacts zooming/rotating
 together, and H.264 decoding with no horizontal overflow or uncaught browser
-errors. The interaction decoded **89 frames at 23.6 fps**; touch-batch ACKs were
-**51.1 ms median, 75.4 ms p95, 77.6 ms maximum**. This was CDP-injected touch
+errors. The final interaction decoded **78 frames at 21.6 fps**; touch-batch ACKs
+were **51.9 ms median, 77.5 ms p95, 107.6 ms maximum**. This was CDP-injected touch
 on physical browser hardware, **not a physical-finger trial**, and the Pixel
 was the client, not the Android host.
 

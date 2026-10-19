@@ -26,7 +26,7 @@ public final class SetupActivity extends Activity {
         status = new TextView(this); status.setTextSize(16); page.addView(status);
         button(page,"1 · Allow screen access", v -> startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
         button(page,"2 · Start remote access", v -> {
-            if (AccessService.current == null) { toast("Enable Remote access spike in Accessibility first"); return; }
+            if (AccessService.current == null || !AccessService.current.authorityReady()) { toast("Allow screen access first, or wait for it to reconnect"); return; }
             try { AccessService.current.arm(); refresh(); } catch (Exception e) { toast("Demo pairing is missing. Run the demo setup on your computer."); }
         });
         button(page,"Open demo power station", v -> startActivity(new Intent(this,StationActivity.class)));
@@ -59,7 +59,7 @@ public final class SetupActivity extends Activity {
     }
     private void refresh() {
         AccessService svc = AccessService.current;
-        status.setText(svc == null ? "Screen access needs permission" : svc.armed ? "Remote access is on · use Stop to revoke" : "Screen access allowed · remote access is off");
+        status.setText(svc == null || !svc.authorityReady() ? "Screen access needs permission or is reconnecting" : svc.armed ? "Remote access is on · use Stop to revoke" : "Screen access allowed · remote access is off");
     }
     private void smoothView() {
         if(AccessService.current==null || !AccessService.current.armed) {toast("Start remote access first");return;}
