@@ -388,12 +388,53 @@ public final class AccessService extends AccessibilityService {
         for (int i=0;i<n.getChildCount();i++) walk(n.getChild(i),out,count,depth+1);
     }
     private AccessibilityNodeInfo key(String suffix) {
+        String id="com.android.systemui:id/"+suffix;
         for (AccessibilityWindowInfo w:getWindows()) {
             AccessibilityNodeInfo root=w.getRoot(); if (root==null) continue;
-            for (AccessibilityNodeInfo n:root.findAccessibilityNodeInfosByViewId("com.android.systemui:id/"+suffix))
+            for (AccessibilityNodeInfo n:root.findAccessibilityNodeInfosByViewId(id))
                 if (n.isVisibleToUser() && n.isEnabled()) return n;
+            // Compose SystemUI (Pixel) reports test-tag IDs that the View-ID search misses.
+            ArrayList<AccessibilityNodeInfo> found=new ArrayList<>();
+            collect(root,n -> id.equals(n.getViewIdResourceName()),found,0,new int[]{0});
+            if (!found.isEmpty()) return found.get(0);
         }
         return null;
+    }
+    private void collect(AccessibilityNodeInfo n,java.util.function.Predicate<AccessibilityNodeInfo> match,ArrayList<AccessibilityNodeInfo> out,int depth,int[] count) {
+        if (n==null || count[0]++>400 || depth>30) return;
+        if (n.isVisibleToUser() && n.isEnabled() && match.test(n)) out.add(n);
+        for (int i=0;i<n.getChildCount();i++) collect(n.getChild(i),match,out,depth+1,count);
+    }
+    /** AOSP keypad IDs first; Pixel SystemUI exposes its digits by exact text only. */
+    private AccessibilityNodeInfo digit(AccessibilityNodeInfo entry,char ch) {
+        AccessibilityNodeInfo k=key("key"+ch); if (k!=null) return k;
+        String label=String.valueOf(ch); ArrayList<AccessibilityNodeInfo> found=new ArrayList<>();
+        for (AccessibilityWindowInfo w:getWindows())
+            if (w.getId()==entry.getWindowId()) collect(w.getRoot(),n -> n.isClickable() && label.equals(String.valueOf(n.getText()))
+                && "com.android.systemui".equals(String.valueOf(n.getPackageName())),found,0,new int[]{0});
+        // Ambiguous or missing: never guess which control is the digit.
+        return found.size()==1 ? found.get(0) : null;
+    }
+    /** Pixel's fingerprint-only bouncer hides the PIN pad until the screen is tapped once. */
+    private void revealPinPad(JSONObject c) throws Exception {
+        if (gestureBusy) throw new IllegalStateException("Another gesture is still running");
+        Rect screen=getSystemService(android.view.WindowManager.class).getMaximumWindowMetrics().getBounds();
+        Path p=new Path(); p.moveTo(screen.width()/2f,screen.height()*.4f);
+        long session=grant; Socket owner=connection; gestureBusy=true; scene++; frames.clear();
+        long until=SystemClock.elapsedRealtime()+4000;
+        Runnable[] poll={null};
+        // The bouncer animates in; wait for its PIN field rather than a fixed delay.
+        poll[0]=() -> {
+            if (!armed || grant!=session || connection!=owner) return;
+            if (key("pinEntry")==null && SystemClock.elapsedRealtime()<until) { main.postDelayed(poll[0],200); return; }
+            try { c.put("revealed",true); unlock(c); } catch (Exception e) { c.remove("pin"); reply(c,false,e.getMessage(),null); }
+        };
+        Runnable retry=() -> { gestureBusy=false; main.postDelayed(poll[0],300); };
+        boolean accepted=dispatchGesture(new GestureDescription.Builder().addStroke(new GestureDescription.StrokeDescription(p,0,60)).build(),new GestureResultCallback() {
+            @Override public void onCompleted(GestureDescription g) { retry.run(); }
+            @Override public void onCancelled(GestureDescription g) { retry.run(); }
+        },main);
+        if (!accepted) { gestureBusy=false; throw new IllegalStateException("Android refused the tap that shows the PIN pad"); }
     }
     /** One explicitly requested known PIN, via observed SystemUI keypad only. */
     private void unlock(JSONObject c) throws Exception {
@@ -402,12 +443,13 @@ public final class AccessService extends AccessibilityService {
         if (getSystemService(android.app.admin.DevicePolicyManager.class).getMaximumFailedPasswordsForWipe(null)>0) throw new IllegalStateException("A device wipe policy forbids this experiment");
         if (unlockAttempted) throw new IllegalStateException("An unlock was already attempted. Unlock locally before another experiment.");
         AccessibilityNodeInfo entry=key("pinEntry");
+        if (entry==null && !c.optBoolean("revealed")) { revealPinPad(c); return; }
         if (entry==null || !entry.isPassword()) throw new IllegalStateException("A supported visible SystemUI PIN field is required. Request keyguard dismissal first.");
         if (entry.getText()!=null && entry.getText().length()>0) throw new IllegalStateException("The PIN field must be empty; clear it locally first");
         String value=c.optString("pin"); c.remove("pin");
         if (!value.matches("[0-9]{4,16}")) throw new IllegalArgumentException("Use a 4–16 digit known PIN");
         ArrayList<AccessibilityNodeInfo> digits=new ArrayList<>();
-        for (char ch:value.toCharArray()) { AccessibilityNodeInfo k=key("key"+ch); if (k==null || !k.isClickable()) throw new IllegalStateException("SystemUI keypad is not available to this service"); digits.add(k); }
+        for (char ch:value.toCharArray()) { AccessibilityNodeInfo k=digit(entry,ch); if (k==null || !k.isClickable()) throw new IllegalStateException("SystemUI keypad is not available to this service"); digits.add(k); }
         AccessibilityNodeInfo enter=key("key_enter");
         if (enter!=null && !enter.isClickable()) throw new IllegalStateException("SystemUI PIN confirmation is unavailable");
         // Newer SystemUI may hide Enter for a six-or-more-digit auto-confirm PIN.

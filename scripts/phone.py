@@ -5,6 +5,7 @@ Keeps an independent server/receipt; never changes lock or debugging settings.
 The accessibility and screen-sharing prompts are accepted through visible UI.
 """
 import argparse
+import getpass
 import json
 import os
 from pathlib import Path
@@ -13,6 +14,7 @@ import secrets
 import signal
 import subprocess
 import sys
+import time
 
 from demo import ROOT, LOCAL, ADB, PACKAGE, run, private, wait_for, build
 from client import Client
@@ -21,6 +23,8 @@ STATE = LOCAL / 'phone'
 STATE.mkdir(mode=0o700, exist_ok=True)
 STATE.chmod(0o700)
 RECEIPT = STATE / 'device.json'
+# Optional owner-saved PIN: one line of digits, mode 0600. Read by the local server only.
+SAVED_PIN = STATE / 'pin'
 
 
 def receipt():
@@ -94,7 +98,8 @@ def start(args):
         barrier=adb('shell','am','wait-for-broadcast-idle',timeout=30)
         if 'All broadcast queues are idle' not in barrier: raise RuntimeError('Package broadcasts still pending')
         config={'port':args.port,'phonePort':0,'token':secrets.token_urlsafe(32),
-                'profile':'usb-phone','deviceName':data['model'],'adb':str(ADB)}
+                'profile':'usb-phone','deviceName':data['model'],'adb':str(ADB),
+                'phoneUnlock':True,'savedPinFile':str(SAVED_PIN)}
         private(STATE/'server.json',config)
         with (STATE/'server.log').open('w') as log:
             proc=subprocess.Popen(['node',str(ROOT/'server.mjs')],cwd=ROOT,
@@ -168,17 +173,44 @@ def rearm(args):
         os.kill(data['serverPid'],signal.SIGTERM)
         wait_for(lambda:not run(['ps','-p',str(data['serverPid']),'-o','command='],check=False).strip(),10,'old server exit')
         config=json.loads((STATE/'server.json').read_text())
-        config['phonePort']=data['nativePort'];private(STATE/'server.json',config)
+        config.update(phonePort=data['nativePort'],phoneUnlock=True,savedPinFile=str(SAVED_PIN))
+        private(STATE/'server.json',config)
         with (STATE/'server.log').open('w') as log:
             proc=subprocess.Popen(['node',str(ROOT/'server.mjs')],cwd=ROOT,
                 env={**os.environ,'DEMO_CONFIG':str(STATE/'server.json'),'DEMO_RUNNING':str(STATE/'running.json')},
                 stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
         data['serverPid']=proc.pid;private(RECEIPT,data)
         wait_for(lambda:json.loads((STATE/'running.json').read_text()).get('pid')==proc.pid,15,'new phone server')
+    if args.install:
+        adb('install','-r',str(ROOT/'android/app/build/outputs/apk/debug/app-debug.apk'),timeout=90)
+        barrier=adb('shell','am','wait-for-broadcast-idle',timeout=30)
+        if 'All broadcast queues are idle' not in barrier: raise RuntimeError('Package broadcasts still pending')
     adb('shell','am','start','-n',PACKAGE+'/.SetupActivity','--activity-clear-top')
     wait_for(lambda:click('2 · Start remote access'),10,'local Start button')
     wait_for(lambda:client().state()['connected'],15,'native phone connection')
     print('Phone access re-armed locally: '+receipt()['url'])
+
+
+def unlock(args):
+    # doctor() requires an unlocked phone, so check identity directly.
+    if receipt().get('stopped'): raise RuntimeError('Server stopped; rearm first')
+    if adb('shell','getprop','ro.product.model').strip()!=receipt()['model']:
+        raise RuntimeError('Selected phone identity changed')
+    c=client(); s=c.state()
+    if not s['connected']: raise RuntimeError('Phone app is not connected; rearm first')
+    if not s['state'].get('locked'): print('Phone is already unlocked.'); return
+    if s['unlockBlocked']: raise RuntimeError('An attempt was already made; unlock locally first')
+    if args.saved:
+        if not SAVED_PIN.exists(): raise RuntimeError(f'No saved PIN at {SAVED_PIN}')
+        secret={'useTestPin':True}
+    else:
+        secret={'pin':getpass.getpass('Phone PIN (hidden, one attempt): ')}
+    c.action('wake'); c.action('dismiss')
+    time.sleep(1.5)
+    try: result=c.action('unlock',**secret)
+    finally: secret.clear()
+    print(result['message'])
+    if not result['ok'] or result.get('data',{}).get('locked'): sys.exit(1)
 
 
 def stop(args):
@@ -211,7 +243,8 @@ def main():
     p=argparse.ArgumentParser(description=__doc__); sub=p.add_subparsers(dest='command',required=True)
     s=sub.add_parser('start');s.add_argument('--selector-file',required=True);s.add_argument('--port',type=int,default=4318);s.add_argument('--no-build',action='store_true')
     for name in ['allow','smooth']:sub.add_parser(name)
-    s=sub.add_parser('rearm');s.add_argument('--restart-server',action='store_true')
+    s=sub.add_parser('rearm');s.add_argument('--restart-server',action='store_true');s.add_argument('--install',action='store_true',help='replace the app with the current debug APK first')
+    s=sub.add_parser('unlock');s.add_argument('--saved',action='store_true',help=f'use the PIN saved in {SAVED_PIN}')
     s=sub.add_parser('stop');s.add_argument('--restore',action='store_true')
     args=p.parse_args()
     try: globals()[args.command](args)

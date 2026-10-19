@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import net from "node:net";
 import http from "node:http";
 import { once } from "node:events";
-import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, writeFile, rm, chmod } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { randomInt } from "node:crypto";
@@ -197,6 +197,43 @@ test("USB phone profile refuses emulator credentials before native dispatch", as
     assert.equal(app.status().lab, false);
     assert.equal(app.status().deviceName, "Test phone");
     assert.equal((await call("/api/lab", { action: "wake" })).status, 400);
+    socket.destroy();
+  } finally {
+    await app.close();
+  }
+});
+
+test("opted-in USB phone delivers an owner-only saved PIN once", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "remote-access-test-"));
+  const savedPinFile = path.join(directory, "pin");
+  const pin = String(randomInt(100000, 1000000));
+  await writeFile(savedPinFile, pin + "\n", { mode: 0o644 });
+  const app = await createDemo({ profile: "usb-phone", phoneUnlock: true, savedPinFile });
+  try {
+    const socket = await device(app, app.token, { locked: true, secure: true });
+    await new Promise((r) => setTimeout(r, 20));
+    const call = await viewer(app);
+    assert.equal(app.status().credentialExperiment, true);
+    assert.equal(app.status().lab, false);
+    const loose = await call("/api/action", { op: "unlock", useTestPin: true });
+    assert.equal(loose.status, 400);
+    assert.match((await loose.json()).error, /chmod 600/);
+    await chmod(savedPinFile, 0o600);
+    const received = once(socket, "data");
+    const attempt = call("/api/action", { op: "unlock", useTestPin: true });
+    const command = JSON.parse((await received)[0].toString().trim());
+    assert.equal(command.op, "unlock");
+    assert.equal(command.pin, pin);
+    socket.write(
+      JSON.stringify({
+        type: "result",
+        id: command.id,
+        ok: true,
+        state: { locked: true, secure: true, unlockAttempted: true },
+      }) + "\n",
+    );
+    assert.equal((await attempt).status, 200);
+    assert.equal(app.status().unlockBlocked, true);
     socket.destroy();
   } finally {
     await app.close();

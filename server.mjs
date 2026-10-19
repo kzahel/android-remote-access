@@ -1,7 +1,7 @@
 import http from "node:http";
 import net from "node:net";
 import { randomBytes, timingSafeEqual } from "node:crypto";
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -43,6 +43,11 @@ const types = {
 
 export async function createDemo(options = {}) {
   const token = options.token || secret();
+  const phoneProfile = options.profile === "usb-phone";
+  // The emulator's synthetic fixture, or the phone owner's opt-in saved PIN.
+  const pinFile = phoneProfile
+    ? options.phoneUnlock && options.savedPinFile
+    : options.emulator && options.testPinFile;
   const session = secret();
   const pending = new Map();
   const log = [];
@@ -317,8 +322,8 @@ export async function createDemo(options = {}) {
     lab: !!options.emulator,
     target: options.profile === "usb-phone" ? "USB-connected phone" : "Local emulator",
     deviceName: options.deviceName || "Demo phone",
-    credentialExperiment: options.profile !== "usb-phone",
-    testCredential: !!options.testPinFile && existsSync(options.testPinFile),
+    credentialExperiment: !phoneProfile || !!options.phoneUnlock,
+    testCredential: !!pinFile && existsSync(pinFile),
     unlockBlocked,
     live: {
       videoConnected: !!videoDevice,
@@ -369,15 +374,17 @@ export async function createDemo(options = {}) {
   }
   async function credential(data) {
     if (data.useTestPin === true) {
-      if (!options.emulator || !options.testPinFile)
-        throw new Error("Test credential is not configured");
-      try {
-        data.pin = (await readFile(options.testPinFile, "utf8")).trim();
-      } catch {
+      if (!pinFile) throw new Error("Test credential is not configured");
+      const info = await stat(pinFile).catch(() => null);
+      if (!info)
         throw new Error(
-          "Enroll the disposable emulator PIN first with scripts/credential.py",
+          phoneProfile
+            ? "Save this phone's PIN first; see docs/phone-spike.md"
+            : "Enroll the disposable emulator PIN first with scripts/credential.py",
         );
-      }
+      if (phoneProfile && (info.mode & 0o077) !== 0)
+        throw new Error("Saved PIN file must be readable only by you (chmod 600)");
+      data.pin = (await readFile(pinFile, "utf8")).trim();
       delete data.useTestPin;
     }
   }
@@ -593,7 +600,7 @@ export async function createDemo(options = {}) {
             return;
           }
           if (op === "unlock") {
-            if (options.profile === "usb-phone")
+            if (phoneProfile && !options.phoneUnlock)
               throw new Error("Unlock this phone locally; credential experiments are emulator-only");
             endTouch("Unlocking");
             videoPause("Unlocking · view paused");
@@ -621,7 +628,8 @@ export async function createDemo(options = {}) {
           }
           let result;
           try {
-            result = await command(op, data);
+            // Unlock may first tap past Pixel's fingerprint-only screen.
+            result = await command(op, data, op === "unlock" ? 12000 : undefined);
           } finally {
             if (op === "unlock") {
               delete data.pin;

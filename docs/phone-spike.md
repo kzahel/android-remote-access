@@ -64,10 +64,37 @@ MediaCodec supplies consented H.264. ADB performs setup, USB transport and
 independent effect observation; it does not inject ordinary browser gestures.
 
 This is a USB demo. It stops being reachable when its USB transport is removed.
+The same `adb reverse` route also works over an already-paired wireless-debugging
+transport; select it by its `host:port` serial. Attaching USB to the same phone
+once wedged that wireless reverse (connections accepted, bytes not forwarded);
+recreating the owned mapping on the same port recovered it.
 Internet access, pairing/encryption for deployment, Doze, overnight survival and
-reboot recovery remain unqualified. Lock/debugging settings and credentials are
-preserved. Credential experiments are hidden and refused by the phone server;
-unlock this phone locally. No physical secure-unlock acceptance is claimed.
+reboot recovery remain unqualified. Lock/debugging settings are preserved.
+
+## Owner PIN unlock
+
+Authorized 2026-10-19 by the owner for the Pixel 9 host. The phone server now
+accepts one known-PIN unlock per lock. The PIN comes from a hidden terminal
+prompt, the webpage PIN field, or an owner-saved file read only by the local
+server; it never enters command arguments, logs or the browser for the saved route.
+
+```sh
+( umask 077; read -rs "PIN?Phone PIN: "; echo; printf '%s\n' "$PIN" > .local/phone/pin; unset PIN )
+python3 scripts/phone.py unlock --saved   # or: unlock, for a hidden prompt
+```
+
+The server refuses a saved file readable by group or others. The native route
+wakes the display, requests keyguard dismissal, taps once past Pixel's
+fingerprint-only alternate bouncer, waits for the PIN field, presses each digit
+once and submits once. It refuses, entering nothing, when a digit is missing or
+ambiguous, the field is not empty, or a wipe policy is set. After one attempt it
+refuses again until the phone is unlocked. This is a spike convenience, not a
+consumer saved-PIN design: the host file is a standing secret on the computer.
+
+Pixel 9 SystemUI is Compose-based. `pinEntry` and `key_enter` carry IDs, but
+the platform view-ID and text searches do not find them; digits have no IDs.
+The service therefore walks the visible tree, preferring AOSP `keyN` IDs and
+otherwise using exactly one clickable SystemUI node whose text is the digit.
 
 ## Automated verification
 
@@ -123,6 +150,18 @@ failure and lets an additional finger use the active gesture's pinned frame.
 Native window/rotation checks remain in force. The repeated physical touch and
 protected-window suites passed after the fix; a host regression checks joining
 during refresh and continued refusal when input authority is unavailable.
+
+Physically tested 2026-10-19 on a Pixel 9, Android 17/API 37, over wireless
+debugging: after a requested lock, the saved-PIN route unlocked on its first and
+only attempt. The native keyguard state and an independent ADB window dump both
+reported the keyguard gone. Earlier attempts in the same session refused before
+entering any digit (PIN field not yet found). Reboot/first-unlock remains local:
+the app does not run before user storage is unlocked. The webpage PIN field is
+enabled on this profile but was not separately exercised.
+
+Separately, an accessibility tap on Android's "Share screen" consent dialog
+restored projection without ADB input; the dialog is visible to accessibility
+inspection and screenshots on this phone.
 
 The cleanup run also passed five independent checks: the test package was
 removed, both the enabled-service set and global accessibility-enabled value

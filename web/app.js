@@ -59,6 +59,12 @@ function renderState(next) {
   $("device-name").textContent = next.deviceName || "Demo phone";
   $("target-label").textContent = next.target || "Local prototype";
   $("unlock-experiment").hidden = next.credentialExperiment === false;
+  if (next.target === "USB-connected phone") {
+    $("unlock-note").textContent =
+      "Your phone’s own PIN. One submission, no automatic retry; a wrong PIN counts toward Android’s lockout.";
+    $("pin").placeholder = "Phone PIN";
+    $("test-pin").textContent = "Use PIN saved on this computer";
+  }
   const connected = !!next.connected,
     s = next.state;
   $("connection-dot").className = "dot" + (connected ? " on" : " warn");

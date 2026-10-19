@@ -43,6 +43,11 @@ services, apps and transports; do not change lock credentials or debugging
 settings. Physical credential entry, reboot/Doze qualification and publication
 are outside this extension. See `docs/phone-spike.md`.
 
+A later 2026-10-19 owner request authorizes installing the host on the
+attached Pixel 9 and testing remote unlock with the owner's own PIN, entered by
+hidden prompt or saved in an owner-only `.local/` file. It does not authorize
+reading that file, changing lock settings or retrying a failed attempt.
+
 The 2026-10-19 follow-up authorizes continuous touch/smooth viewing, automated
 tests and use of the attached Pixel 7a. The current hardware trial uses it as
 the browser client; it does not install the host APK or change its lock/debugging
