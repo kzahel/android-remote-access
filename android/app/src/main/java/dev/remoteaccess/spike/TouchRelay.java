@@ -3,6 +3,7 @@ package dev.remoteaccess.spike;
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.GestureDescription;
 import android.graphics.Path;
+import android.graphics.PathMeasure;
 import android.os.Handler;
 import android.os.SystemClock;
 import java.util.LinkedHashMap;
@@ -26,6 +27,21 @@ final class TouchRelay {
     private int width,height,rotation,window;
     private boolean busy;
     private Reply pending;
+    private int adjusted;
+    int adjustedEndpoints() { return adjusted; }
+    /**
+     * Where Android itself places this stroke's last point. A continuation must
+     * start exactly there, and float path measurement can absorb a tiny final
+     * segment, so the raw last sample may differ.
+     */
+    private static float[] platformEnd(Path path,float startX,float startY) {
+        PathMeasure measure=new PathMeasure(path,false);
+        float length=measure.getLength();
+        if (length==0) return new float[]{startX,startY}; // Android treats it as a tap at its start
+        float[] pos=new float[2];
+        measure.getPosTan(length,pos,null);
+        return pos;
+    }
     TouchRelay(AccessibilityService service,Handler main) { this.service=service; this.main=main; }
     boolean active() { return owner!=null; }
     boolean busy() { return busy; }
@@ -73,8 +89,8 @@ final class TouchRelay {
             Finger previous=fingers.get(id);
             if(previous==null)hasEvent=true;
             Path path=new Path();
-            float x=0,y=0;
-            if (previous!=null) path.moveTo(previous.x,previous.y);
+            float x=0,y=0,startX=0,startY=0;
+            if (previous!=null) { path.moveTo(previous.x,previous.y); startX=previous.x; startY=previous.y; }
             for (int j=0;j<samples.length();j++) {
                 JSONArray xy=samples.getJSONArray(j);
                 double dx=xy.getDouble(0),dy=xy.getDouble(1);
@@ -82,7 +98,7 @@ final class TouchRelay {
                     throw new IllegalArgumentException("Finger is outside this screen");
                 x=(float)dx; y=(float)dy;
                 if(previous!=null&&(x!=previous.x||y!=previous.y))hasEvent=true;
-                if (j==0 && previous==null) path.moveTo(x,y); else path.lineTo(x,y);
+                if (j==0 && previous==null) { path.moveTo(x,y); startX=x; startY=y; } else path.lineTo(x,y);
             }
             if (!(p.get("held") instanceof Boolean)) throw new IllegalArgumentException("Expected held flag");
             boolean held=p.getBoolean("held");
@@ -92,7 +108,9 @@ final class TouchRelay {
                 ?new GestureDescription.StrokeDescription(path,start,duration-start,held)
                 :previous.stroke.continueStroke(path,0,duration,held);
             builder.addStroke(stroke);
-            if (held) next.put(id,new Finger(stroke,x,y));
+            float[] end=platformEnd(path,startX,startY);
+            if (end[0]!=x || end[1]!=y) adjusted++;
+            if (held) next.put(id,new Finger(stroke,end[0],end[1]));
         }
         if (!included.containsAll(fingers.keySet())) throw new IllegalArgumentException("Every held finger must be continued or released");
         if(!hasEvent) {
@@ -126,7 +144,7 @@ final class TouchRelay {
                 // Diagnostics: where in the gesture Android cancelled it.
                 JSONObject why=new JSONObject();
                 try { why.put("sequence",seq).put("fingers",fingerCount).put("msSincePreviousBatch",sincePrevious)
-                    .put("msIntoBatch",SystemClock.elapsedRealtime()-dispatchedAt); } catch (Exception ignored) { }
+                    .put("msIntoBatch",SystemClock.elapsedRealtime()-dispatchedAt).put("adjustedEndpoints",adjusted); } catch (Exception ignored) { }
                 reply.send(false,"Android cancelled touch; lift your fingers to start again",why);
             }
         },main);

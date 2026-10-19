@@ -802,7 +802,7 @@ export async function createDemo(options = {}) {
             "touch",
             result.message +
               (result.data?.sequence !== undefined
-                ? ` (batch ${result.data.sequence}, ${result.data.fingers} finger(s), ${result.data.msSincePreviousBatch} ms after previous, ${result.data.msIntoBatch} ms into batch)`
+                ? ` (batch ${result.data.sequence}, ${result.data.fingers} finger(s), ${result.data.msSincePreviousBatch} ms after previous, ${result.data.msIntoBatch} ms into batch, ${result.data.adjustedEndpoints} endpoints adjusted so far)`
                 : ""),
             false,
           );

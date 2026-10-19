@@ -183,7 +183,7 @@ public final class AccessService extends AccessibilityService {
             .put("api",Build.VERSION.SDK_INT).put("release",Build.VERSION.RELEASE).put("targetSdk",getApplicationInfo().targetSdkVersion)
             .put("scene",scene).put("package",activePackage).put("width",dm.widthPixels).put("height",dm.heightPixels)
             .put("rotation",getSystemService(android.hardware.display.DisplayManager.class).getDisplay(0).getRotation())
-            .put("touchActive",touch.active()).put("touchRoute","Accessibility continuation batches").put("video",VideoService.status())
+            .put("touchActive",touch.active()).put("touchEndpointAdjustments",touch.adjustedEndpoints()).put("touchRoute","Accessibility continuation batches").put("video",VideoService.status())
             .put("grantSeconds",deadline==Long.MAX_VALUE?-1:Math.max(0,(deadline-SystemClock.elapsedRealtime())/1000))
             .put("credentialCapturePaused",SystemClock.elapsedRealtime()<credentialCaptureUntil).put("wipeThreshold",getSystemService(android.app.admin.DevicePolicyManager.class).getMaximumFailedPasswordsForWipe(null)).put("unlockAttempted",unlockAttempted).put("route","Android accessibility · outbound app connection")
             .put("link",linkRoute==null?"":linkRoute.getHostString().startsWith("100.")?"tailscale":"adb");
