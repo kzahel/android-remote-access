@@ -21,12 +21,22 @@ scope.
 These are owner decisions from 2026-10-19; everything else below is open.
 
 1. Aim for a Play-published consumer app, not a research artifact.
-2. A hosted relay carries traffic. Consumers will not need a VPN; Tailscale was
-   only the spike's stand-in.
+2. We host and operate the relay, following the existing projects' hosting and
+   deployment patterns documented in dotfiles. Consumers will not need a VPN;
+   Tailscale was only the spike's stand-in. The concrete machine and domain are
+   still to be selected.
 3. Account-free pairing comes first: a QR code shown in the browser, scanned on
    the phone, confirmed with **Grant**. Sign-in may be added later as an option.
 4. The pairing flow was prototyped in this repository before any production
    code ([QR pairing](phone-spike.md#qr-pairing-without-an-account)).
+5. Aim for best-effort direct WebRTC, with PeerJS as a candidate for simplifying
+   setup, and a low-tech hosted fallback when direct setup fails. The fallback
+   must support manual control and still images over HTTPS/WebSocket; smooth
+   relayed video is optional. No TURN service is planned. Library choice,
+   Android interoperability and transport details still need validation.
+6. Include FCM for waking the app to establish a session on demand. An always-open
+   application connection to our relay is not a product requirement. Validate
+   idle disconnection and push-triggered connection before relying on them.
 
 ## What the spikes established
 
@@ -62,7 +72,10 @@ protects. Record results in this repository.
    testers for 14 days for new personal accounts) and organization verification.
 4. **Natural overnight test.** Unplugged phone, normal screen timeout, real
    idle for several hours, then remote wake and control. Repeat once a relay
-   exists, because the forced-Doze run went through Tailscale's own process.
+   exists, including with no application relay socket open: request access from
+   the viewer, deliver FCM, authenticate the phone and establish a session.
+   The forced-Doze run went through Tailscale's own process and does not test
+   this on-demand path.
 5. **Camera scan.** Pair by actually scanning the code; check the Play services
    scanner's availability and first-use module download.
 6. **Licenses.** Review Google's code-scanner terms, `uqr` (MIT) and any code
@@ -72,11 +85,18 @@ protects. Record results in this repository.
 
 Write a short decision record for each before building it.
 
-- **Relay and transport.** Leading candidate: WebRTC, with the relay as
-  signaling plus a TURN fallback. It provides NAT traversal, encryption between
-  phone and browser, and native browser video. The alternative is extending the
-  spike's custom framed connection through an application relay. Compare APK
-  size, server cost on cellular data, and latency.
+- **Relay and transport.** Try direct WebRTC within a bounded setup window, then
+  fall back automatically to manual control and refreshed still images through
+  our HTTPS/WebSocket relay. PeerJS is a candidate, not a selected dependency:
+  review its signaling model, self-hosting, Android WebRTC interoperability and
+  license before choosing it. Bind either transport to the same paired
+  identities and session authority. Direct connectivity is best effort; no TURN
+  service is required for the fallback. Avoid a long connection spinner when
+  only the simpler route works. Define protocol versioning, frame limits,
+  backpressure and reconnect behavior; never replay uncertain input during a
+  transport change. Evaluate relayed encoded video separately if its bandwidth,
+  browser decoding and TCP behavior justify it. Core remote access must remain
+  useful with control and stills alone.
 - **End-to-end encryption.** If the product claims the relay cannot see the
   screen, keys must be the paired keys and the browser must verify them. A
   relay-served web viewer weakens that claim against the operator itself; say
@@ -85,15 +105,85 @@ Write a short decision record for each before building it.
   key, done), session authority (short-lived grants, step-up before unlock) and
   optional account sign-in separate. Sign-in, if added, recovers and syncs
   paired keys; it must not be required for an unattended phone to reconnect.
-- **Wake.** A persistent outbound connection while Android allows it, with FCM
-  as a wake hint when the relay sees the phone offline. Push payloads carry no
-  credentials or commands. Force-stopped phones and phones without Google Play
-  services cannot be woken; the viewer must say so.
+- **Wake.** Prefer an on-demand application connection: an authorized viewer
+  asks to connect, our service sends an FCM wake hint, and the phone connects
+  outward to fetch the pending request through an authenticated channel.
+  Push payloads carry no credentials or control commands. Choose idle timeouts,
+  bounded reconnect behavior and whether an optional warm connection improves
+  latency enough to justify its battery cost. FCM wakes the process where
+  Android permits; display wake, unlock, capture consent and input authority
+  remain separate. Delivery may be delayed or unavailable. High priority must
+  fit FCM's time-sensitive, user-visible requirements; it is not an indefinite
+  silent keepalive. Treat force-stop as requiring local recovery and design
+  any non-GMS route separately. See the documented [FCM and background limits](android-platform.md#fcm-and-a-persistent-relay-connection-solve-different-problems).
 - **Multiple phones and browsers.** The spike server holds one phone. The relay
   needs per-account or per-pairing routing, rate limits for anonymous pairing,
   and revocation that takes effect immediately.
-- **Hosting and cost.** Relay bandwidth (especially video over TURN) is the main
-  running cost and will shape any free tier. No pricing has been decided.
+- **Capacity and cost.** Hosting ownership is settled: we operate the relay.
+  Measure relayed video bandwidth, concurrent sessions and host
+  capacity to set limits and estimate operating cost. No pricing has been decided.
+
+## Relay hosting and operations
+
+Follow the existing relay operations patterns rather than choose a new managed
+relay provider. Source-reviewed 2026-10-19 against the private dotfiles
+[YepAnywhere relay deployer](../../dotfiles/scripts/deploy-yepanywhere-relay.sh)
+and [JSTorrent relay runbook](../../dotfiles/runbooks/rstorrent-remote-access.md).
+This is deployment precedent, not evidence that the phone relay is implemented
+or has enough capacity for production video.
+
+- Public HTTPS/WSS through Caddy, with the application listener on loopback.
+  This serves the fallback and WebRTC signaling; direct media travels between
+  endpoints. Review signaling/STUN dependencies when selecting the WebRTC
+  library; no TURN service is planned.
+- A separately supervised service with its own identity, configuration, state
+  and resource limits. Keep it independent of the other products' services and
+  pairing records.
+- Immutable releases selected by exact revision, a disposable candidate smoke
+  test, health checks after activation and rollback to the previous release.
+- Durable pairing authority outside release directories, encrypted backups and
+  a tested restore procedure. Binary rollback must preserve current authority
+  and revocations.
+- Health and aggregate capacity monitoring, admission limits and an operator
+  action to stop new sessions without inspecting screen or credential content.
+
+Product code and protocol tests belong in the new product repository. Concrete
+host selection, domains, ports, DNS/TLS configuration, service units, deployment
+scripts and private operator runbooks belong in dotfiles. Select the host and
+domain before provisioning; this plan does not deploy or reconfigure a service.
+
+## On-demand session lifecycle
+
+This is the intended flow to implement and test, not measured spike behavior:
+
+1. A paired browser authenticates and requests a short-lived session for one
+   phone. The service checks revocation and admission limits before sending a
+   wake hint. Repeated requests are bounded and coalesced.
+2. If the phone is already connected, notify it over that connection. Otherwise
+   send FCM using its current registration. Account-free pairing still applies;
+   Firebase delivery registration does not require product account sign-in.
+3. The phone connects outward, proves its identity and fetches the pending
+   request. It checks the paired browser and current local access grant;
+   receiving a push alone never authorizes control. Expired or revoked requests
+   cannot start a session.
+4. Attempt authenticated direct WebRTC for a bounded time. If it cannot connect,
+   use the hosted HTTPS/WebSocket control-and-stills path automatically. A
+   failed direct path during use must also recover through that fallback without
+   replaying uncertain input. Start viewing and input only with their respective
+   native authority; smooth video still needs valid screen-sharing consent.
+5. After the session ends, release input and capture resources. The application
+   relay/signaling connection may close after a bounded idle period. Show the
+   viewer "Contacting phone" until the phone answers, then the actual readiness
+   or repair state; a disconnected idle socket alone does not prove the phone
+   is unreachable. Bound waiting when FCM or connection setup does not succeed.
+
+Acceptance must include natural idle with the socket closed, process reclamation,
+FCM registration refresh, delayed/duplicate wake hints, expired requests,
+revocation during wake, direct WebRTC success, direct setup failure, mid-session
+direct-path loss, control-and-stills fallback under packet loss and slow
+receivers, network changes and session teardown. Record wake-to-ready latency
+and idle battery cost. A push delivery receipt is not proof of a usable remote
+session.
 
 ## Build in a new repository
 
@@ -104,8 +194,9 @@ repository and port proven pieces deliberately, each with its tests:
   input, touch relay, video encoder, unlock sequence, start-after-restart and
   Keystore pairing. Leave behind the fixtures, ADB provisioning and test-only
   shell paths.
-- Relay: pairing records, challenge sign-in, routing, revocation and FCM
-  sending.
+- Hosted services: pairing records, challenge sign-in, pending session requests,
+  routing, revocation, FCM registration/sending, WebRTC signaling and the
+  HTTPS/WebSocket control-and-stills fallback.
 - Web viewer: rebuilt around the readiness model below; reuse the spike
   viewer's interaction lessons rather than its code wholesale.
 
@@ -139,8 +230,8 @@ emulator screenshots.
 | Phase | Done when |
 | --- | --- |
 | 0. Gates | Every gate above has a recorded result and the saved-PIN decision is made |
-| 1. Decisions | Decision records for transport, encryption, wake, routing and hosting |
-| 2. Core | New app pairs, views and controls a phone through the hosted relay; overnight test passes |
+| 1. Decisions | Decision records for transport, encryption, wake and routing; hosting target and operations plan selected within the existing infrastructure |
+| 2. Core | New app pairs, wakes on demand, tries direct WebRTC and automatically falls back to hosted control/stills; overnight test passes with no idle application relay connection |
 | 3. Onboarding | First-run flow and readiness checks complete; a non-technical tester sets up a phone unaided |
 | 4. Closed testing | Play closed track with the accessibility declaration accepted; issues from testers fixed |
 | 5. Production | Store listing, privacy policy, support page and a tested recovery story |
