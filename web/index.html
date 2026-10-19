@@ -39,13 +39,21 @@
       </div>
       <section class="workspace">
         <div class="screen-area">
+          <div class="view-controls">
+            <span class="view-switch"
+              ><button id="view-smooth">Smooth</button
+              ><button id="view-stills">Stills</button></span
+            ><select id="video-mode" aria-label="Video quality">
+              <option value="auto">Auto quality</option>
+              <option value="smooth">60 fps</option>
+              <option value="standard">30 fps</option>
+              <option value="saver">10 fps · data saver</option>
+            </select>
+          </div>
           <div class="screen-heading">
             <span
               ><span class="live-dot"></span
-              ><span id="view-mode">LIVE STILLS</span
-              ><button id="smooth-start" class="text-button" hidden>
-                Smooth view
-              </button></span
+              ><span id="view-mode">LIVE STILLS</span></span
             ><span id="frame-time">No frame yet</span>
           </div>
           <div class="phone" id="phone">
@@ -185,15 +193,6 @@
                 <p id="smooth-status" class="helper">
                   Smooth view off · still frames
                 </p>
-                <label class="video-mode"
-                  >Video quality
-                  <select id="video-mode">
-                    <option value="auto">Auto · by phone network</option>
-                    <option value="smooth">Smooth · 60 fps</option>
-                    <option value="standard">Standard · 30 fps</option>
-                    <option value="saver">Data saver · 10 fps</option>
-                  </select></label
-                >
                 <p id="touch-status" class="helper">
                   Touch ready · accessibility continuation
                 </p>

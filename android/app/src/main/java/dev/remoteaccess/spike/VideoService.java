@@ -102,6 +102,9 @@ public final class VideoService extends Service {
         f.setInteger(MediaFormat.KEY_BIT_RATE,bitrate);f.setInteger(MediaFormat.KEY_FRAME_RATE,fps);
         // KEY_FRAME_RATE is only a hint; a 120 Hz display otherwise feeds every composition.
         f.setFloat(MediaFormat.KEY_MAX_FPS_TO_ENCODER,fps);
+        // A static screen otherwise yields no output, so a requested keyframe
+        // (new viewer, mode switch) waits until something on screen changes.
+        f.setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER,500_000);
         f.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL,1);f.setInteger(MediaFormat.KEY_PROFILE,MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline);
         f.setInteger(MediaFormat.KEY_MAX_B_FRAMES,0);
         encoder=MediaCodec.createEncoderByType("video/avc");encoder.configure(f,null,null,MediaCodec.CONFIGURE_FLAG_ENCODE);

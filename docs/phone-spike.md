@@ -149,6 +149,17 @@ saver 8.7 and Auto 21.7–23.7 (chose Standard). Video stayed active through eac
 switch. On cellular data over Tailscale, Auto chose Data saver, then returned to
 Standard on its own when Wi-Fi came back.
 
+The **Smooth | Stills** switch above the screen turns screen sharing on or off.
+Smooth opens Android's consent prompt and approves it by accessibility (a
+sideload convenience; the prompt and sharing notification still appear), then
+returns to the previous app; it also runs after a successful remote unlock
+unless Stills was chosen. Stills ends the projection, saving phone battery and
+data. On the Pixel 9 a Stills→Smooth switch showed video in the viewer in 0.7 s
+across eight runs, after two fixes: the encoder repeats the last frame after
+0.5 s idle (`KEY_REPEAT_PREVIOUS_FRAME_AFTER`) so a keyframe is available on a
+static screen, and the server no longer drops video while the last still
+capture failed only transiently.
+
 ## Owner PIN unlock
 
 Authorized 2026-10-19 by the owner for the Pixel 9 host. The phone server now

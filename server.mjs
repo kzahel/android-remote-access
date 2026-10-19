@@ -33,6 +33,7 @@ const safeOps = new Set([
   "videoKeyframe",
   "videoMode",
   "smooth",
+  "smoothOff",
   "unlock",
   "stop",
 ]);
@@ -68,6 +69,10 @@ export async function createDemo(options = {}) {
   let lastCapture = 0;
   let lastCaptureAttempt = 0;
   let lastFrameError = "";
+  // A busy or changing screen fails a still capture briefly; only a protected
+  // screen or missing permission should also hold back video.
+  const transientFrameError = () =>
+    /rate limited|changed|already in progress|timed out/.test(lastFrameError);
   let credentialInProgress = false;
   let credentialChild = null;
   let credentialReserved = false;
@@ -261,7 +266,7 @@ export async function createDemo(options = {}) {
             credentialInProgress ||
             !state?.interactive ||
             state?.locked ||
-            lastFrameError
+            (lastFrameError && !transientFrameError())
           )
             continue;
           for (const viewer of viewers) {
@@ -337,7 +342,7 @@ export async function createDemo(options = {}) {
     state,
     log,
     captureError: lastFrameError,
-    captureErrorTransient: /rate limited|changed|already in progress|timed out/.test(lastFrameError),
+    captureErrorTransient: transientFrameError(),
     lab: !!options.emulator,
     target: options.profile === "usb-phone" ? "USB-connected phone" : "Local emulator",
     deviceName: options.deviceName || "Demo phone",

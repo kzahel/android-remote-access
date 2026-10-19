@@ -90,8 +90,10 @@ function renderState(next) {
     ? `Android ${s.release} · API ${s.api}`
     : next.target || "Android";
   $("lab-controls").hidden = !next.lab;
-  $("smooth-start").hidden =
-    !connected || !s || s.locked || !s.interactive || !!s.video?.active;
+  const viewable = connected && s && !s.locked && s.interactive;
+  $("view-smooth").disabled = $("view-stills").disabled = !viewable;
+  $("view-smooth").classList.toggle("on", !!s?.video?.active);
+  $("view-stills").classList.toggle("on", !s?.video?.active);
   $("quick-unlock").hidden = next.credentialExperiment === false;
   $("quick-unlock").disabled =
     unlockSending || !!next.unlockBlocked || !connected || !s?.locked;
@@ -432,7 +434,7 @@ async function unlock(useTestPin = false) {
     notify(result.message, !result.ok);
     $("unlock-status").textContent = result.message;
     // Locking ended screen sharing; bring smooth view back after a remote unlock.
-    if (result.ok && result.data?.locked === false && route !== "shell")
+    if (result.ok && result.data?.locked === false && route !== "shell" && !preferStills)
       action("smooth");
   } catch (e) {
     pin = "";
@@ -449,7 +451,15 @@ $("unlock-form").onsubmit = (e) => {
   unlock();
 };
 $("test-pin").onclick = () => unlock(true);
-$("smooth-start").onclick = () => action("smooth");
+let preferStills = false;
+$("view-smooth").onclick = () => {
+  preferStills = false;
+  action("smooth");
+};
+$("view-stills").onclick = () => {
+  preferStills = true;
+  action("smoothOff");
+};
 $("quick-unlock").onclick = async () => {
   if (!state?.testCredential) {
     $("advanced").open = true;

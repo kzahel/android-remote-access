@@ -801,24 +801,38 @@ body.paused .live-dot {
   }
 }
 
-.video-mode {
+
+.view-controls {
   display: flex;
+  justify-content: center;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  margin-bottom: 10px;
   font-size: 11px;
-  color: #526b47;
-  margin: 6px 0 10px;
 }
-.video-mode select {
+.view-switch {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.view-switch button {
+  border: 0;
+  border-radius: 0;
+  background: white;
+  color: #526b47;
+  font-size: 11px;
+  padding: 6px 12px;
+}
+.view-switch button.on {
+  background: var(--green);
+  color: white;
+}
+.view-controls select {
   font-size: 11px;
   color: #526b47;
   padding: 6px;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: white;
-}
-
-#smooth-start {
-  margin-left: 10px;
-  font-size: 9px;
 }
