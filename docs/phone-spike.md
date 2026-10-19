@@ -118,7 +118,17 @@ frames round-tripped in 0.30–0.41 s (about 50 KB each); a lock, saved-PIN unlo
 reopen and accessibility screen-sharing consent completed in about 17 s; Auto
 chose Data saver and delivered 7.7 frames/s during swipes. A second tile tap
 restored Wi-Fi with the phone still connected. Wireless debugging came back by
-itself on a new port. Overnight, Doze and a relayed (DERP) path were not tested.
+itself on a new port. Overnight and Doze were not tested.
+
+Relay-only path, tested the same day: a temporary user-space `tailscaled` node on
+this computer with `TS_DEBUG_ALWAYS_USE_DERP=true` (no system or Tailscale
+configuration change; it needed one owner sign-in to join the tailnet) forwarded
+to the loopback phone listener. With the app paired to that node only, Tailscale
+reported `via DERP(fra)` and no direct connection. Over the relay: still frames
+0.45–1.2 s; lock, saved-PIN unlock and accessibility screen-sharing consent
+succeeded; Standard video delivered 15.8 frames/s during swipes, versus about 22
+direct. The node was then logged out and stopped; its offline entry remains in
+the tailnet's machine list until removed there.
 
 ## Video quality
 
