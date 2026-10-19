@@ -47,6 +47,10 @@ A later 2026-10-19 owner request authorizes installing the host on the
 attached Pixel 9 and testing remote unlock with the owner's own PIN, entered by
 hidden prompt or saved in an owner-only `.local/` file. It does not authorize
 reading that file, changing lock settings or retrying a failed attempt.
+The owner then authorized a Tailscale transport spike with Tailscale already
+running on the computer and the Pixel 9, including turning the phone's Wi-Fi off
+and on through the remote control. It does not authorize changing Tailscale
+configuration, other network settings or debugging settings.
 
 The 2026-10-19 follow-up authorizes continuous touch/smooth viewing, automated
 tests and use of the attached Pixel 7a. The current hardware trial uses it as

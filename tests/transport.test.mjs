@@ -326,3 +326,8 @@ test("USB phone link repair pauses after a viewer Stop", async () => {
     await app.close();
   }
 });
+
+test("phone listener refuses a non-Tailscale address", async () => {
+  for (const tailnetHost of ["192.168.1.5", "0.0.0.0", "100.63.1.1", "100.128.0.1"])
+    await assert.rejects(createDemo({ profile: "usb-phone", tailnetHost }), /Tailscale/);
+});

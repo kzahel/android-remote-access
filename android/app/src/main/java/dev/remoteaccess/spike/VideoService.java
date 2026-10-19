@@ -143,9 +143,9 @@ public final class VideoService extends Service {
                 boolean key=(info.flags&MediaCodec.BUFFER_FLAG_KEY_FRAME)!=0;
                 try {
                     if(socket==null||!generation.equals(linkedGeneration)) {
-                        closeSocket();String host=pairing.getString("host");
-                        if(!host.equals("10.0.2.2")&&!host.equals("127.0.0.1"))throw new IOException("Local demo endpoint required");
-                        socket=new Socket();socket.connect(new InetSocketAddress(host,pairing.getInt("port")),1500);socket.setTcpNoDelay(true);linkedGeneration=generation;
+                        closeSocket();InetSocketAddress route=access.link();
+                        if(route==null||!AccessService.allowedHost(route.getHostString()))throw new IOException("No current remote-access route");
+                        socket=new Socket();socket.connect(new InetSocketAddress(route.getHostString(),route.getPort()),3000);socket.setTcpNoDelay(true);linkedGeneration=generation;
                         write(new JSONObject().put("type","hello").put("role","video").put("token",pairing.getString("token")).put("generation",generation));awaitKey=true;requestKeyframe=true;
                     }
                     if(awaitKey&&!key){requestKeyframe=true;continue;}

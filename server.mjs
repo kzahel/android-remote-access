@@ -43,6 +43,8 @@ const types = {
 };
 
 export async function createDemo(options = {}) {
+  if (options.tailnetHost && !/^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d+\.\d+$/.test(options.tailnetHost))
+    throw new Error("tailnetHost must be a Tailscale 100.64.0.0/10 address");
   const token = options.token || secret();
   const phoneProfile = options.profile === "usb-phone";
   // The emulator's synthetic fixture, or the phone owner's opt-in saved PIN.
@@ -182,7 +184,8 @@ export async function createDemo(options = {}) {
       });
     return capturePromise;
   }
-  const phone = net.createServer((socket) => {
+  let deviceRoute = "";
+  const acceptPhone = (socket, route) => {
     socket.setNoDelay(true);
     let admitted = false,
       role = "control",
@@ -229,6 +232,7 @@ export async function createDemo(options = {}) {
           clearTimeout(authTimer);
           admitted = true;
           device = socket;
+          deviceRoute = route;
           generation = data.generation;
           viewerStopped = false;
           update(data.state);
@@ -298,11 +302,22 @@ export async function createDemo(options = {}) {
         videoPause("Smooth view connection ended");
       }
     });
-  });
+  };
+  const phone = net.createServer((socket) => acceptPhone(socket, "adb"));
   await new Promise((resolve, reject) => {
     phone.once("error", reject);
     phone.listen(options.phonePort ?? 0, "127.0.0.1", resolve);
   });
+  // Optional second phone listener on this computer's Tailscale address only,
+  // so the app can reach it on any network. Same token; WireGuard encrypts it.
+  const tailnet = options.tailnetHost
+    ? net.createServer((socket) => acceptPhone(socket, "tailscale"))
+    : null;
+  if (tailnet)
+    await new Promise((resolve, reject) => {
+      tailnet.once("error", reject);
+      tailnet.listen(options.tailnetPort ?? 0, options.tailnetHost, resolve);
+    });
 
   async function body(req) {
     const bytes = [];
@@ -334,8 +349,11 @@ export async function createDemo(options = {}) {
       videoFrames,
       touchHeld: !!touchOwner,
     },
+    link: device ? deviceRoute : "",
     transport: options.profile === "usb-phone"
-      ? "USB demo · native phone control · local ADB reverse transport"
+      ? deviceRoute === "tailscale" && device
+        ? "Phone demo · native phone control · Tailscale transport"
+        : "USB demo · native phone control · local ADB reverse transport"
       : "Local emulator demo · app connects outward · no ADB forwarding",
     limits:
       "Local prototype. Internet reachability, Doze and unattended reboot recovery are unqualified.",
@@ -891,6 +909,7 @@ export async function createDemo(options = {}) {
   return {
     url: `http://127.0.0.1:${server.address().port}`,
     phonePort: phone.address().port,
+    tailnetPort: tailnet?.address().port ?? null,
     token,
     status,
     command,
@@ -907,6 +926,7 @@ export async function createDemo(options = {}) {
       await Promise.all([
         new Promise((r) => server.close(r)),
         new Promise((r) => phone.close(r)),
+        tailnet ? new Promise((r) => tailnet.close(r)) : null,
       ]);
     },
   };
@@ -929,6 +949,7 @@ if (
     JSON.stringify({
       url: app.url,
       phonePort: app.phonePort,
+      tailnetPort: app.tailnetPort,
       token: app.token,
       pid: process.pid,
     }),

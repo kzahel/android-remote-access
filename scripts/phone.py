@@ -34,10 +34,44 @@ def receipt():
 
 
 def adb(*args, **kwargs):
-    serial = receipt()['serial']
+    serial = route()
     if serial.startswith('emulator-'):
         raise RuntimeError('Physical phone required; use demo.py for an emulator')
     return run([ADB, '-s', serial, *args], **kwargs)
+
+
+def route():
+    """The recorded serial, or another ADB route to the same physical phone.
+
+    Wireless debugging picks a new port each time it is re-enabled.
+    """
+    data = receipt(); serial = data['serial']; hardware = data.get('hardwareSerial')
+    if not hardware or run([ADB, '-s', serial, 'get-state'], check=False).strip() == 'device':
+        return serial
+    for line in run([ADB, 'devices']).splitlines()[1:]:
+        candidate, _, state = line.partition('\t')
+        if state != 'device' or candidate.startswith('emulator-'): continue
+        if run([ADB, '-s', candidate, 'shell', 'getprop', 'ro.serialno'], check=False, timeout=5).strip() == hardware:
+            data['serial'] = candidate; private(RECEIPT, data)
+            if LINK.exists(): write_link(data)
+            print(f'Using another ADB route to this phone: {candidate}', file=sys.stderr)
+            return candidate
+    raise RuntimeError('This phone is not reachable over ADB; reconnect USB or wireless debugging')
+
+
+def tailnet_ip():
+    ip=run(['tailscale','ip','-4']).strip().splitlines()[0]
+    if not re.fullmatch(r'100\.\d+\.\d+\.\d+',ip): raise RuntimeError('This computer is not on a tailnet')
+    return ip
+
+
+def write_pairing(data,token):
+    # Routes in preference order: the owned ADB reverse, then Tailscale if enabled.
+    routes=[{'host':'127.0.0.1','port':data['reversePort']}]
+    if data.get('tailnetHost'): routes.append({'host':data['tailnetHost'],'port':data['tailnetPort']})
+    adb('shell','run-as',PACKAGE,'mkdir','-p','files')
+    adb('shell',f"run-as {PACKAGE} sh -c 'cat > files/pairing.json'",input=json.dumps({
+        'host':'127.0.0.1','port':data['reversePort'],'token':token,'routes':routes}).encode())
 
 
 def write_link(data):
@@ -108,6 +142,7 @@ def start(args):
         config={'port':args.port,'phonePort':0,'token':secrets.token_urlsafe(32),
                 'profile':'usb-phone','deviceName':data['model'],'adb':str(ADB),
                 'phoneUnlock':True,'savedPinFile':str(SAVED_PIN),'linkFile':str(LINK)}
+        if args.tailnet: config['tailnetHost']=data['tailnetHost']=tailnet_ip()
         private(STATE/'server.json',config)
         with (STATE/'server.log').open('w') as log:
             proc=subprocess.Popen(['node',str(ROOT/'server.mjs')],cwd=ROOT,
@@ -119,11 +154,9 @@ def start(args):
         # tcp:0 allocates a new device-side port without replacing any mapping.
         port=adb('reverse','tcp:0','tcp:'+str(running['phonePort'])).strip()
         if not port.isdigit(): raise RuntimeError('ADB did not allocate a fresh reverse port')
-        data.update(reversePort=int(port),nativePort=running['phonePort'],url=running['url'])
+        data.update(reversePort=int(port),nativePort=running['phonePort'],url=running['url'],tailnetPort=running.get('tailnetPort'))
         private(RECEIPT,data); write_link(data)
-        adb('shell','run-as',PACKAGE,'mkdir','-p','files')
-        adb('shell',f"run-as {PACKAGE} sh -c 'cat > files/pairing.json'",input=json.dumps({
-            'host':'127.0.0.1','port':int(port),'token':config['token']}).encode())
+        write_pairing(data,config['token'])
         adb('shell','am','start','-n',PACKAGE+'/.SetupActivity')
         print('Phone app installed and paired. Accept local permissions, then Start remote access.')
         print('Browser: '+running['url'])
@@ -183,6 +216,8 @@ def rearm(args):
         config=json.loads((STATE/'server.json').read_text())
         write_link(data)
         config.update(phonePort=data['nativePort'],phoneUnlock=True,savedPinFile=str(SAVED_PIN),linkFile=str(LINK))
+        if args.tailnet and not data.get('tailnetHost'): data['tailnetHost']=tailnet_ip()
+        if data.get('tailnetHost'): config.update(tailnetHost=data['tailnetHost'],tailnetPort=data.get('tailnetPort') or 0)
         private(STATE/'server.json',config)
         with (STATE/'server.log').open('w') as log:
             proc=subprocess.Popen(['node',str(ROOT/'server.mjs')],cwd=ROOT,
@@ -190,6 +225,9 @@ def rearm(args):
                 stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
         data['serverPid']=proc.pid;private(RECEIPT,data)
         wait_for(lambda:json.loads((STATE/'running.json').read_text()).get('pid')==proc.pid,15,'new phone server')
+        if data.get('tailnetHost'):
+            data['tailnetPort']=json.loads((STATE/'running.json').read_text())['tailnetPort'];private(RECEIPT,data)
+            write_pairing(data,config['token'])
     # Re-assert the owned mapping: a dropped ADB route may have removed it.
     data=receipt(); write_link(data)
     adb('reverse','tcp:'+str(data['reversePort']),'tcp:'+str(data['nativePort']))
@@ -254,8 +292,9 @@ def stop(args):
 def main():
     p=argparse.ArgumentParser(description=__doc__); sub=p.add_subparsers(dest='command',required=True)
     s=sub.add_parser('start');s.add_argument('--selector-file',required=True);s.add_argument('--port',type=int,default=4318);s.add_argument('--no-build',action='store_true')
+    s.add_argument('--tailnet',action='store_true',help="also accept the phone on this computer's Tailscale address")
     for name in ['allow','smooth']:sub.add_parser(name)
-    s=sub.add_parser('rearm');s.add_argument('--restart-server',action='store_true');s.add_argument('--install',action='store_true',help='replace the app with the current debug APK first')
+    s=sub.add_parser('rearm');s.add_argument('--restart-server',action='store_true');s.add_argument('--tailnet',action='store_true',help='with --restart-server, add the Tailscale route');s.add_argument('--install',action='store_true',help='replace the app with the current debug APK first')
     s=sub.add_parser('unlock');s.add_argument('--saved',action='store_true',help=f'use the PIN saved in {SAVED_PIN}')
     s=sub.add_parser('stop');s.add_argument('--restore',action='store_true')
     args=p.parse_args()

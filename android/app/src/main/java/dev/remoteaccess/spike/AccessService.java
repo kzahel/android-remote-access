@@ -28,6 +28,7 @@ public final class AccessService extends AccessibilityService {
     private final ThreadPoolExecutor outbound = new ThreadPoolExecutor(1,1,0,TimeUnit.SECONDS,new ArrayBlockingQueue<>(16));
     private volatile Socket connection;
     private volatile OutputStream writer;
+    private volatile InetSocketAddress linkRoute;
     private volatile long grant;
     private final String generation = UUID.randomUUID().toString();
     private long scene = 1;
@@ -74,15 +75,33 @@ public final class AccessService extends AccessibilityService {
         disarm();
         File config = new File(getFilesDir(),"pairing.json");
         JSONObject pairing = new JSONObject(new String(Files.readAllBytes(config.toPath()),StandardCharsets.UTF_8));
-        String host=pairing.getString("host"); int port=pairing.getInt("port"); String token=pairing.getString("token");
-        // Local emulator gateway or selected-device USB reverse; never a LAN listener.
-        if (!host.equals("10.0.2.2") && !host.equals("127.0.0.1")) throw new IOException("Local demo endpoint required");
+        String token=pairing.getString("token");
+        ArrayList<InetSocketAddress> routes=new ArrayList<>();
+        JSONArray listed=pairing.optJSONArray("routes");
+        if (listed==null) listed=new JSONArray().put(new JSONObject().put("host",pairing.getString("host")).put("port",pairing.getInt("port")));
+        for (int i=0;i<listed.length();i++) {
+            String host=listed.getJSONObject(i).getString("host");
+            if (!allowedHost(host)) throw new IOException("Local demo or Tailscale endpoint required");
+            routes.add(InetSocketAddress.createUnresolved(host,listed.getJSONObject(i).getInt("port")));
+        }
         armed=true; long session=++grant; deadline=SystemClock.elapsedRealtime()+4*60*60*1000;
         connectionAttempt=0;
         notification();
-        new Thread(() -> connect(host,port,token,session),"remote-access-link").start();
+        new Thread(() -> connect(routes,token,session),"remote-access-link").start();
         main.post(heartbeat);
     }
+    /** Emulator gateway, ADB reverse on loopback, or a Tailscale (100.64.0.0/10) literal; never a LAN listener. */
+    static boolean allowedHost(String host) {
+        if (host.equals("10.0.2.2") || host.equals("127.0.0.1")) return true;
+        String[] parts=host.split("\\.");
+        if (parts.length!=4) return false;
+        try {
+            int[] o=new int[4]; for (int i=0;i<4;i++) { o[i]=Integer.parseInt(parts[i]); if (o[i]<0 || o[i]>255) return false; }
+            return o[0]==100 && o[1]>=64 && o[1]<=127;
+        } catch (NumberFormatException e) { return false; }
+    }
+    /** The route the control connection currently uses; video follows it. */
+    InetSocketAddress link() { return linkRoute; }
     synchronized void disarm() {
         if (Looper.myLooper()==Looper.getMainLooper()) touch.release("Access stopped"); else main.post(() -> touch.release("Access stopped"));
         armed=false; grant++; capturing=false; captureSequence++; main.removeCallbacks(heartbeat); frames.clear(); focusNode=null; focusToken=null;
@@ -106,17 +125,22 @@ public final class AccessService extends AccessibilityService {
             .setContentTitle("Remote access is on").setContentText("Your paired browser can view and control this phone")
             .setOngoing(true).setContentIntent(action).addAction(new Notification.Action.Builder(null,"Stop access",action).build()).build());
     }
-    private void connect(String host,int port,String token,long session) {
+    private void connect(ArrayList<InetSocketAddress> routes,String token,long session) {
+        int next=0;
         while (armed && grant == session) {
+            // Rotate through routes on failure: ADB reverse when attached, otherwise Tailscale.
+            InetSocketAddress route=routes.get(next++ % routes.size());
             try (Socket socket = new Socket()) {
-                socket.connect(new InetSocketAddress(host,port),5000); socket.setTcpNoDelay(true); socket.setSoTimeout(15000);
-                synchronized (this) { if (!armed || grant != session) return; connection=socket; writer=socket.getOutputStream();
+                socket.connect(new InetSocketAddress(route.getHostString(),route.getPort()),5000); socket.setTcpNoDelay(true); socket.setSoTimeout(15000);
+                synchronized (this) { if (!armed || grant != session) return; connection=socket; writer=socket.getOutputStream(); linkRoute=route;
                     connectionAttempt++;
                     send(new JSONObject().put("type","hello").put("token",token).put("generation",generation+":"+session+":"+connectionAttempt).put("state",state()));
                 }
                 BufferedReader in=new BufferedReader(new InputStreamReader(socket.getInputStream(),StandardCharsets.UTF_8));
-                String line;
+                String line; boolean proven=false;
                 while (connection==socket && !socket.isClosed() && (line=readBounded(in)) != null) {
+                    // A stranded ADB reverse accepts but never answers; prefer a route only once it has.
+                    if (!proven) { proven=true; next--; }
                     JSONObject command=new JSONObject(line);
                     main.post(() -> {
                         if (!armed || grant != session || connection != socket) return;
@@ -160,7 +184,8 @@ public final class AccessService extends AccessibilityService {
             .put("rotation",getSystemService(android.hardware.display.DisplayManager.class).getDisplay(0).getRotation())
             .put("touchActive",touch.active()).put("touchRoute","Accessibility continuation batches").put("video",VideoService.status())
             .put("grantSeconds",Math.max(0,(deadline-SystemClock.elapsedRealtime())/1000))
-            .put("credentialCapturePaused",SystemClock.elapsedRealtime()<credentialCaptureUntil).put("wipeThreshold",getSystemService(android.app.admin.DevicePolicyManager.class).getMaximumFailedPasswordsForWipe(null)).put("unlockAttempted",unlockAttempted).put("route","Android accessibility · outbound app connection");
+            .put("credentialCapturePaused",SystemClock.elapsedRealtime()<credentialCaptureUntil).put("wipeThreshold",getSystemService(android.app.admin.DevicePolicyManager.class).getMaximumFailedPasswordsForWipe(null)).put("unlockAttempted",unlockAttempted).put("route","Android accessibility · outbound app connection")
+            .put("link",linkRoute==null?"":linkRoute.getHostString().startsWith("100.")?"tailscale":"adb");
     }
     private void dispatch(JSONObject c) throws Exception {
         String op=c.getString("op");

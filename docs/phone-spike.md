@@ -87,6 +87,39 @@ recovered the original incident by hand.
 Internet access, pairing/encryption for deployment, Doze, overnight survival and
 reboot recovery remain unqualified. Lock/debugging settings are preserved.
 
+## Tailscale route
+
+A stand-in for a hosted relay while that is designed. With Tailscale running on
+both the computer and the phone:
+
+```sh
+python3 scripts/phone.py start --selector-file .local/phone-selector.json --tailnet
+python3 scripts/phone.py rearm --restart-server --tailnet   # existing session
+```
+
+The server adds a second phone listener bound only to this computer's Tailscale
+address; it refuses any address outside 100.64.0.0/10, so it never opens a LAN
+listener. Browser access stays on loopback. Pairing lists routes in preference
+order, the owned ADB reverse then the Tailscale address. The app rotates on
+failure and keeps a route only after the server has answered on it, so a
+stranded ADB reverse cannot hold it. Video follows the control connection's
+route. The same per-session token authenticates; WireGuard encrypts the path.
+Tailscale occupies Android's single VPN slot, and nothing here addresses Doze.
+
+ADB is still used for installation and setup. Wireless debugging chooses a new
+port each time it is re-enabled; `phone.py` and the link supervisor select any
+connected ADB route whose `ro.serialno` matches the recorded phone, so a changed
+port needs only `adb connect` to the new address.
+
+Physically tested 2026-10-19 on the Pixel 9, USB unplugged: an accessibility tap
+on the Quick Settings Wi-Fi tile turned Wi-Fi off, and the app reconnected over
+Tailscale on cellular data (a direct path, about 73 ms). Over that route: still
+frames round-tripped in 0.30–0.41 s (about 50 KB each); a lock, saved-PIN unlock,
+reopen and accessibility screen-sharing consent completed in about 17 s; Auto
+chose Data saver and delivered 7.7 frames/s during swipes. A second tile tap
+restored Wi-Fi with the phone still connected. Wireless debugging came back by
+itself on a new port. Overnight, Doze and a relayed (DERP) path were not tested.
+
 ## Video quality
 
 The viewer's **Video quality** selector sets a mode remembered on the phone:
@@ -103,7 +136,8 @@ may choose Data saver while a USB-connected phone has cellular as its network.
 Physically tested 2026-10-19 on the Pixel 9 over unmetered Wi-Fi, frames received
 by the host during the same scripted swipes: Smooth 43.2, Standard 22.4, Data
 saver 8.7 and Auto 21.7–23.7 (chose Standard). Video stayed active through each
-switch. The metered Auto branch was not exercised physically.
+switch. On cellular data over Tailscale, Auto chose Data saver, then returned to
+Standard on its own when Wi-Fi came back.
 
 ## Owner PIN unlock
 
