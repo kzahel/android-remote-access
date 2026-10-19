@@ -90,14 +90,17 @@ function renderState(next) {
     ? `Android ${s.release} · API ${s.api}`
     : next.target || "Android";
   $("lab-controls").hidden = !next.lab;
-  $("quick-unlock").hidden =
-    !connected || !s?.locked || next.credentialExperiment === false;
-  $("quick-unlock").disabled = unlockSending || !!next.unlockBlocked;
-  $("quick-unlock").textContent = next.unlockBlocked
-    ? "Unlock attempted · unlock on the phone"
+  $("quick-unlock").hidden = next.credentialExperiment === false;
+  $("quick-unlock").disabled =
+    unlockSending || !!next.unlockBlocked || !connected || !s?.locked;
+  $("quick-unlock-label").textContent = next.unlockBlocked
+    ? "Unlock attempted"
+    : "Unlock";
+  $("quick-unlock").title = next.unlockBlocked
+    ? "Unlock on the phone before trying again"
     : next.testCredential
-      ? "Unlock phone with saved PIN"
-      : "Unlock phone…";
+      ? "Unlock with the PIN saved on this computer (one attempt)"
+      : "Enter the phone PIN";
   $("test-pin").hidden = !next.testCredential;
   $("test-pin").disabled =
     unlockSending || !!next.unlockBlocked || !connected || !s?.locked;
