@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <queries><intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent></queries>
     <application android:label="Remote access spike" android:allowBackup="false"
         android:fullBackupContent="false" android:dataExtractionRules="@xml/backup_rules"
@@ -13,6 +15,8 @@
             </intent-filter>
         </activity>
         <activity android:name=".StationActivity" android:exported="true" />
+        <activity android:name=".TouchLabActivity" android:exported="true" />
+        <service android:name=".VideoService" android:exported="false" android:foregroundServiceType="mediaProjection" />
         <activity android:name=".WakeActivity" android:exported="false"
             android:showWhenLocked="true" android:turnScreenOn="true"
             android:theme="@android:style/Theme.Material.Light.NoActionBar" />

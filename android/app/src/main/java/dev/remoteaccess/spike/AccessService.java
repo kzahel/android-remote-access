@@ -22,6 +22,7 @@ import org.json.*;
 public final class AccessService extends AccessibilityService {
     public static volatile AccessService current;
     volatile boolean armed;
+    private volatile boolean accessBound;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService compression = Executors.newSingleThreadExecutor();
     private final ThreadPoolExecutor outbound = new ThreadPoolExecutor(1,1,0,TimeUnit.SECONDS,new ArrayBlockingQueue<>(16));
@@ -40,6 +41,7 @@ public final class AccessService extends AccessibilityService {
     private final ConcurrentHashMap<String,long[]> frames = new ConcurrentHashMap<>();
     private int frameWidth, frameHeight;
     private boolean gestureBusy;
+    private final TouchRelay touch = new TouchRelay(this,main);
     private boolean unlockAttempted;
     private long credentialCaptureUntil;
     private int connectionAttempt;
@@ -54,7 +56,7 @@ public final class AccessService extends AccessibilityService {
         }
     };
 
-    @Override protected void onServiceConnected() { current=this; }
+    @Override protected void onServiceConnected() { accessBound=true; current=this; }
     @Override public void onAccessibilityEvent(AccessibilityEvent event) {
         AccessibilityNodeInfo root = getRootInActiveWindow();
         int next = root == null ? -1 : root.getWindowId();
@@ -63,10 +65,11 @@ public final class AccessService extends AccessibilityService {
         if (!getSystemService(KeyguardManager.class).isKeyguardLocked()) unlockAttempted=false;
     }
     @Override public void onInterrupt() { disarm(); }
-    @Override public boolean onUnbind(Intent intent) { disarm(); return false; }
-    @Override public void onDestroy() { disarm(); current=null; compression.shutdownNow(); outbound.shutdownNow(); super.onDestroy(); }
+    @Override public boolean onUnbind(Intent intent) { accessBound=false; if(current==this)current=null; disarm(); return super.onUnbind(intent); }
+    @Override public void onDestroy() { accessBound=false; disarm(); if(current==this)current=null; compression.shutdownNow(); outbound.shutdownNow(); super.onDestroy(); }
 
     synchronized void arm() throws Exception {
+        if(!accessBound)throw new IllegalStateException("Screen access is reconnecting; start again locally");
         disarm();
         File config = new File(getFilesDir(),"pairing.json");
         JSONObject pairing = new JSONObject(new String(Files.readAllBytes(config.toPath()),StandardCharsets.UTF_8));
@@ -80,11 +83,15 @@ public final class AccessService extends AccessibilityService {
         main.post(heartbeat);
     }
     synchronized void disarm() {
+        if (Looper.myLooper()==Looper.getMainLooper()) touch.release("Access stopped"); else main.post(() -> touch.release("Access stopped"));
         armed=false; grant++; capturing=false; captureSequence++; main.removeCallbacks(heartbeat); frames.clear(); focusNode=null; focusToken=null;
         try { if (connection != null) connection.close(); } catch (IOException ignored) { }
         connection=null; writer=null;
+        VideoService.end(this);
         getSystemService(NotificationManager.class).cancel(1);
     }
+    boolean videoAllowed() { return armed && connection!=null && SystemClock.elapsedRealtime()>=credentialCaptureUntil; }
+    String connectionGeneration() { return generation+":"+grant+":"+connectionAttempt; }
     private void notification() {
         NotificationManager nm = getSystemService(NotificationManager.class);
         nm.createNotificationChannel(new NotificationChannel("remote_access","Remote access",NotificationManager.IMPORTANCE_LOW));
@@ -113,7 +120,7 @@ public final class AccessService extends AccessibilityService {
                     });
                 }
             } catch (Exception ignored) { /* State in viewer explains loss; no actions are replayed. */ }
-            synchronized(this) { if (grant == session) { writer=null; connection=null; frames.clear(); } }
+            synchronized(this) { if (grant == session) { writer=null; connection=null; frames.clear(); main.post(() -> touch.release("Connection ended")); } }
             if (armed && grant == session) try { Thread.sleep(1500); } catch (InterruptedException e) { return; }
         }
     }
@@ -146,18 +153,36 @@ public final class AccessService extends AccessibilityService {
             .put("api",Build.VERSION.SDK_INT).put("release",Build.VERSION.RELEASE).put("targetSdk",getApplicationInfo().targetSdkVersion)
             .put("scene",scene).put("package",activePackage).put("width",dm.widthPixels).put("height",dm.heightPixels)
             .put("rotation",getSystemService(android.hardware.display.DisplayManager.class).getDisplay(0).getRotation())
+            .put("touchActive",touch.active()).put("touchRoute","Accessibility continuation batches").put("video",VideoService.status())
             .put("grantSeconds",Math.max(0,(deadline-SystemClock.elapsedRealtime())/1000))
             .put("credentialCapturePaused",SystemClock.elapsedRealtime()<credentialCaptureUntil).put("wipeThreshold",getSystemService(android.app.admin.DevicePolicyManager.class).getMaximumFailedPasswordsForWipe(null)).put("unlockAttempted",unlockAttempted).put("route","Android accessibility · outbound app connection");
     }
     private void dispatch(JSONObject c) throws Exception {
         String op=c.getString("op");
-        if (SystemClock.elapsedRealtime()<credentialCaptureUntil && java.util.Arrays.asList("tap","swipe","nav","text","wake","dismiss","lock","openFixture","openApp","unlock").contains(op))
+        if (SystemClock.elapsedRealtime()<credentialCaptureUntil && java.util.Arrays.asList("tap","swipe","nav","text","wake","dismiss","lock","openFixture","openApp","openTouchLab","touch","unlock").contains(op))
             throw new IllegalStateException("Credential delivery is in progress; wait for the observed result");
         if (op.equals("pauseCredentialCapture")) { credentialCaptureUntil=SystemClock.elapsedRealtime()+30000; frames.clear(); reply(c,true,"Screen capture paused for credential delivery",null); return; }
         if (op.equals("resumeCredentialCapture")) { credentialCaptureUntil=0; reply(c,true,"Credential capture pause ended",null); return; }
+        if (op.equals("touchEnd")) { touch.release("Viewer ended touch"); frames.clear(); scene++; reply(c,true,"Touch contacts released",null); return; }
+        if (op.equals("touch")) {
+            if (gestureBusy) throw new IllegalStateException("Another gesture is still running");
+            if (getSystemService(KeyguardManager.class).isKeyguardLocked()) throw new IllegalStateException("Use the explicit unlock controls for a locked phone");
+            if (!touch.active()) { checkFrame(c); scene++; frames.clear(); }
+            int rotation=getSystemService(android.hardware.display.DisplayManager.class).getDisplay(0).getRotation();
+            touch.accept(c,frameWidth,frameHeight,rotation,window,(ok,msg,data) -> reply(c,ok,msg,data)); return;
+        }
+        if (touch.active() && !java.util.Arrays.asList("state","capture","inspect","stop","ping").contains(op))
+            throw new IllegalStateException("Lift your fingers before using another control");
+        if (op.equals("videoKeyframe")) { VideoService.keyframe(); reply(c,true,"Fresh video keyframe requested",null); return; }
+        if (op.equals("openTouchLab")) {
+            if (getSystemService(KeyguardManager.class).isKeyguardLocked()) throw new IllegalStateException("Unlock the phone first");
+            scene++; frames.clear(); startActivity(new Intent(this,TouchLabActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP));
+            reply(c,true,"Touch playground opened",null); return;
+        }
         if (op.equals("state")) { reply(c,true,"Phone state observed",null); return; }
         if (op.equals("capture")) { capture(c); return; }
         if (op.equals("stop")) {
+            touch.release("Access stopped"); VideoService.end(this);
             armed=false; grant++; main.removeCallbacks(heartbeat); frames.clear(); focusNode=null; focusToken=null;
             reply(c,true,"Access stopped on the phone",null);
             try { outbound.execute(() -> main.post(this::disarm)); }

@@ -58,6 +58,7 @@
               alt="Live screen from the demo Android phone"
               draggable="false"
             />
+            <canvas id="video-screen" hidden aria-hidden="true"></canvas>
             <div id="screen-cover" class="screen-cover">
               <span class="cover-icon">▯</span
               ><strong id="cover-title">Reaching your phone</strong>
@@ -80,7 +81,7 @@
             </button>
           </nav>
           <p class="screen-hint">
-            Click to tap · drag to swipe · hold for a long press
+            Touch or click · drag to scroll · use two fingers to zoom and turn
           </p>
         </div>
         <div class="controls">
@@ -94,6 +95,9 @@
             <button class="primary" id="open-fixture">
               Open power station <span>↗</span></button
             ><small>Synthetic readings. No battery connected.</small>
+            <button id="open-touch-lab" class="text-button">
+              Try the touch playground ↗
+            </button>
           </section>
           <section class="card typing-card">
             <div class="card-title">
@@ -191,6 +195,13 @@
                 </div>
               </div>
               <div class="diagnostics">
+                <p id="smooth-status" class="helper">
+                  Smooth view needs screen-sharing permission on the phone.
+                  Still frames remain available.
+                </p>
+                <p id="touch-status" class="helper">
+                  Touch ready · accessibility continuation
+                </p>
                 <div class="card-title">
                   <h3>What the phone reports</h3>
                   <button class="text-button" id="inspect">

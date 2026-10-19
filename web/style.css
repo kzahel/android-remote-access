@@ -296,6 +296,17 @@ h1 {
   display: block;
   touch-action: none;
 }
+#video-screen {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+#video-screen[hidden] {
+  display: none;
+}
 .phone-camera {
   position: absolute;
   z-index: 2;

@@ -10,6 +10,7 @@ import android.widget.*;
 
 public final class SetupActivity extends Activity {
     private TextView status;
+    private static final int SMOOTH_VIEW=42;
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         if ("stop".equals(getIntent().getAction()) && AccessService.current != null)
@@ -29,6 +30,8 @@ public final class SetupActivity extends Activity {
             try { AccessService.current.arm(); refresh(); } catch (Exception e) { toast("Demo pairing is missing. Run the demo setup on your computer."); }
         });
         button(page,"Open demo power station", v -> startActivity(new Intent(this,StationActivity.class)));
+        button(page,"Allow smooth screen sharing", v -> smoothView());
+        button(page,"Open touch playground", v -> startActivity(new Intent(this,TouchLabActivity.class)));
         button(page,"Stop remote access", v -> { if (AccessService.current != null) AccessService.current.disarm(); refresh(); });
         setContentView(page);
         if (android.os.Build.VERSION.SDK_INT >= 33 && !getSystemService(NotificationManager.class).areNotificationsEnabled())
@@ -57,6 +60,20 @@ public final class SetupActivity extends Activity {
     private void refresh() {
         AccessService svc = AccessService.current;
         status.setText(svc == null ? "Screen access needs permission" : svc.armed ? "Remote access is on · use Stop to revoke" : "Screen access allowed · remote access is off");
+    }
+    private void smoothView() {
+        if(AccessService.current==null || !AccessService.current.armed) {toast("Start remote access first");return;}
+        if(VideoService.status().optBoolean("active"))return;
+        android.media.projection.MediaProjectionManager manager=getSystemService(android.media.projection.MediaProjectionManager.class);
+        Intent capture=android.os.Build.VERSION.SDK_INT>=34
+            ?manager.createScreenCaptureIntent(android.media.projection.MediaProjectionConfig.createConfigForDefaultDisplay())
+            :manager.createScreenCaptureIntent();
+        startActivityForResult(capture,SMOOTH_VIEW);
+    }
+    @Override protected void onActivityResult(int request,int result,Intent data) {
+        super.onActivityResult(request,result,data);
+        if(request==SMOOTH_VIEW && result==RESULT_OK && data!=null)
+            startForegroundService(new Intent(this,VideoService.class).putExtra("consent",data).putExtra("result",result));
     }
     private void button(LinearLayout parent,String text,View.OnClickListener action) {
         Button b = new Button(this); b.setText(text); b.setAllCaps(false); b.setOnClickListener(action); parent.addView(b);

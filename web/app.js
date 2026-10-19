@@ -1,3 +1,5 @@
+import { LiveSession } from "./live.js";
+let live;
 const $ = (id) => document.getElementById(id);
 let state = null,
   frame = null,
@@ -46,6 +48,7 @@ async function action(op, data = {}) {
   }
 }
 function cover(title, message, wake = false) {
+  live?.pauseVideo(message);
   $("screen-cover").hidden = false;
   $("cover-title").textContent = title;
   $("cover-message").textContent = message;
@@ -89,6 +92,8 @@ function renderState(next) {
   ))
     button.disabled = !connected;
   if (!connected) {
+    live?.cancel("Phone disconnected", false);
+    live?.pauseVideo("Phone disconnected");
     shownFirstFrame = false;
     fieldReadSequence++;
     frame = null;
@@ -102,17 +107,24 @@ function renderState(next) {
         : "Start remote access on the emulator to connect this viewer.",
     );
   } else if (!s.interactive) {
+    live?.cancel("Phone is asleep");
+    live?.pauseVideo("Phone is asleep");
     frame = null;
     cover(
       "The screen is asleep",
       "The phone is connected. Wake the display to see what’s there.",
       true,
     );
+  } else if (s.credentialCapturePaused) {
+    live?.pauseVideo("Unlocking · view paused");
+    cover("Unlocking · view paused", "Waiting for the observed lock state");
   } else if (paused)
     cover(
       "Viewer paused",
       "Screen refresh is paused. Resume when you’re ready.",
     );
+  if (s)
+    if (!s.video?.active && !live?.videoActive) $("smooth-status").textContent = s.video?.message || "Allow smooth screen sharing on the phone";
   if (s)
     $("diagnostics").textContent = [
       `Process reachable: ${connected ? "yes" : "no"}`,
@@ -152,7 +164,6 @@ async function refreshFrame() {
   if (
     capturing ||
     paused ||
-    pointer ||
     document.hidden ||
     !state?.connected ||
     !state.state?.interactive
@@ -179,12 +190,7 @@ async function refreshFrame() {
               : "Screen unavailable",
           result.message,
         );
-    } else if (
-      !paused &&
-      !pointer &&
-      state?.connected &&
-      state.state.interactive
-    ) {
+    } else if (!paused && state?.connected && state.state.interactive) {
       frame = result.data;
       if (!shownFirstFrame) {
         shownFirstFrame = true;
@@ -205,61 +211,40 @@ async function refreshFrame() {
     capturing = false;
   }
 }
-function point(event) {
-  const r = screen.getBoundingClientRect();
-  return {
-    x: Math.max(
-      0,
-      Math.min(
-        frame.width - 1,
-        ((event.clientX - r.left) / r.width) * frame.width,
-      ),
-    ),
-    y: Math.max(
-      0,
-      Math.min(
-        frame.height - 1,
-        ((event.clientY - r.top) / r.height) * frame.height,
-      ),
-    ),
-  };
-}
-screen.addEventListener("pointerdown", (e) => {
-  if (!frame || paused) return;
-  pointer = { ...point(e), frame: frame.frame, time: performance.now() };
-  screen.setPointerCapture(e.pointerId);
-  const r = screen.getBoundingClientRect();
-  $("tap-marker").style.left = `${e.clientX - r.left}px`;
-  $("tap-marker").style.top = `${e.clientY - r.top}px`;
-  $("tap-marker").classList.add("active");
+live = new LiveSession({
+  target: screen,
+  canvas: $("video-screen"),
+  getFrame: () => frame,
+  allowed: () =>
+    !paused &&
+    state?.connected &&
+    state.state?.interactive &&
+    !state.state?.locked &&
+    !state.state?.credentialCapturePaused &&
+    !state.captureError,
+  note: notify,
+  changed: (count, message) => {
+    $("view-mode").textContent = paused
+      ? "PAUSED"
+      : live?.videoActive
+        ? "SMOOTH VIEW"
+        : "LIVE STILLS";
+    if (count !== null)
+      $("touch-status").textContent = count
+        ? `${count} finger${count === 1 ? "" : "s"} down · sending movement`
+        : "Touch ready · accessibility continuation";
+    if (message) $("smooth-status").textContent = message;
+    else if (live?.videoActive)
+      $("smooth-status").textContent =
+        "Smooth view is on · consented screen sharing";
+  },
+  afterTouch: () => {
+    setTimeout(() => readField(false), 250);
+    setTimeout(refreshFrame, 50);
+  },
 });
-screen.addEventListener("pointerup", async (e) => {
-  if (!pointer || !frame) return;
-  const start = pointer,
-    end = point(e),
-    elapsed = performance.now() - start.time;
-  pointer = null;
-  $("tap-marker").classList.remove("active");
-  const swipe = Math.hypot(end.x - start.x, end.y - start.y) > 30;
-  const result = await action(swipe ? "swipe" : "tap", {
-    x: start.x,
-    y: start.y,
-    x2: end.x,
-    y2: end.y,
-    frame: start.frame,
-    duration: swipe
-      ? Math.max(200, Math.min(1000, elapsed))
-      : elapsed > 500
-        ? 800
-        : 60,
-  });
-  if (result.ok) setTimeout(() => readField(false), 250);
-});
-screen.addEventListener("pointercancel", () => {
-  pointer = null;
-  $("tap-marker").classList.remove("active");
-});
-screen.addEventListener("contextmenu", (e) => e.preventDefault());
+// Read-only metrics used by the browser acceptance runner.
+window.demoLive = live;
 async function readField(explicit = true) {
   if (sending || revision !== delivered) {
     if (explicit)
@@ -337,6 +322,7 @@ $("typing").addEventListener("compositionend", () => {
 $("send-text").onclick = sendEdit;
 $("read-field").onclick = () => readField();
 $("open-fixture").onclick = () => action("openFixture");
+$("open-touch-lab").onclick = () => action("openTouchLab");
 $("wake").onclick = $("cover-wake").onclick = () => action("wake");
 $("lock").onclick = () => action("lock");
 $("dismiss").onclick = () => action("dismiss");
@@ -352,6 +338,8 @@ $("disconnect").onclick = () => {
   $("disconnect").textContent = paused ? "Resume viewer" : "Pause viewer";
   $("view-mode").textContent = paused ? "PAUSED" : "LIVE STILLS";
   if (paused) {
+    live.cancel("Viewer paused");
+    live.pauseVideo("Viewer paused");
     frame = null;
     cover(
       "Viewer paused",
@@ -381,6 +369,8 @@ for (const button of document.querySelectorAll("[data-lab],[data-rotation]"))
 async function unlock(useTestPin = false) {
   if (unlockSending) return;
   unlockSending = true;
+  live.cancel("Unlocking");
+  live.pauseVideo("Unlocking · view paused");
   const input = $("pin");
   let pin = input.value;
   input.value = "";

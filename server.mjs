@@ -6,6 +6,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { WebSocketServer, WebSocket } from "ws";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const secret = () => randomBytes(32).toString("base64url");
@@ -28,6 +29,8 @@ const safeOps = new Set([
   "dismiss",
   "lock",
   "openFixture",
+  "openTouchLab",
+  "videoKeyframe",
   "unlock",
   "stop",
 ]);
@@ -59,6 +62,37 @@ export async function createDemo(options = {}) {
   let credentialChild = null;
   let credentialReserved = false;
   let credentialVersion = 0;
+  let videoDevice = null;
+  let lastVideoAt = 0;
+  let videoFrames = 0;
+  const viewers = new Set();
+  let touchOwner = null;
+  const live = new WebSocketServer({
+    noServer: true,
+    maxPayload: 32768,
+    perMessageDeflate: false,
+  });
+  function broadcast(message) {
+    for (const viewer of viewers)
+      if (
+        viewer.readyState === WebSocket.OPEN &&
+        viewer.bufferedAmount < 262144
+      )
+        viewer.send(JSON.stringify(message));
+  }
+  function endTouch(reason, owner = touchOwner) {
+    if (!owner || touchOwner !== owner) return;
+    touchOwner = null;
+    if (device) command("touchEnd", {}, 1200).catch(() => {});
+    if (owner.socket.readyState === WebSocket.OPEN)
+      owner.socket.send(
+        JSON.stringify({ type: "touchEnded", message: reason }),
+      );
+  }
+  function videoPause(message) {
+    for (const viewer of viewers) viewer.needsKey = true;
+    broadcast({ type: "videoPaused", message });
+  }
   const activity = (kind, message, ok = true) => {
     log.unshift({ at: Date.now(), kind, message, ok });
     log.splice(30);
@@ -76,6 +110,10 @@ export async function createDemo(options = {}) {
       p.reject(new Error(message));
     }
     pending.clear();
+    endTouch("Phone connection ended");
+    videoDevice?.destroy();
+    videoDevice = null;
+    videoPause("Phone connection ended");
     currentFrame = null;
     capturePromise = null;
   }
@@ -127,6 +165,8 @@ export async function createDemo(options = {}) {
         } else {
           currentFrame = null;
           lastFrameError = result.message;
+          if (/protected|credential|permission/.test(result.message))
+            videoPause(result.message);
         }
         return result.ok ? currentFrame : result;
       })
@@ -138,6 +178,7 @@ export async function createDemo(options = {}) {
   const phone = net.createServer((socket) => {
     socket.setNoDelay(true);
     let admitted = false,
+      role = "control",
       buffer = "";
     const authTimer = setTimeout(() => socket.destroy(), 3000);
     socket.on("data", (bytes) => {
@@ -158,7 +199,23 @@ export async function createDemo(options = {}) {
           return;
         }
         if (!admitted) {
-          if (data.type !== "hello" || !equal(data.token, token) || device) {
+          if (data.type !== "hello" || !equal(data.token, token)) {
+            socket.destroy();
+            return;
+          }
+          if (data.role === "video") {
+            if (!device || data.generation !== generation) {
+              socket.destroy();
+              return;
+            }
+            videoDevice?.destroy();
+            videoDevice = socket;
+            admitted = true;
+            role = "video";
+            clearTimeout(authTimer);
+            continue;
+          }
+          if (device) {
             socket.destroy();
             return;
           }
@@ -169,6 +226,41 @@ export async function createDemo(options = {}) {
           update(data.state);
           invalidate();
           activity("connection", "Phone connected");
+          continue;
+        }
+        if (role === "video") {
+          if (socket !== videoDevice || !device) {
+            socket.destroy();
+            return;
+          }
+          if (
+            data.type !== "video" ||
+            typeof data.data !== "string" ||
+            data.data.length > 1048576
+          ) {
+            socket.destroy();
+            return;
+          }
+          lastVideoAt = Date.now();
+          videoFrames++;
+          if (
+            credentialReserved ||
+            credentialInProgress ||
+            !state?.interactive ||
+            state?.locked ||
+            lastFrameError
+          )
+            continue;
+          for (const viewer of viewers) {
+            if (viewer.readyState !== WebSocket.OPEN) continue;
+            if (viewer.bufferedAmount > 262144) {
+              viewer.needsKey = true;
+              continue;
+            }
+            if (viewer.needsKey && !data.key) continue;
+            viewer.needsKey = false;
+            viewer.send(JSON.stringify(data));
+          }
           continue;
         }
         if (socket !== device) return;
@@ -192,6 +284,10 @@ export async function createDemo(options = {}) {
         device = null;
         invalidate();
         activity("connection", "Phone disconnected", false);
+      }
+      if (socket === videoDevice) {
+        videoDevice = null;
+        videoPause("Smooth view connection ended");
       }
     });
   });
@@ -220,6 +316,12 @@ export async function createDemo(options = {}) {
     lab: !!options.emulator,
     testCredential: !!options.testPinFile && existsSync(options.testPinFile),
     unlockBlocked,
+    live: {
+      videoConnected: !!videoDevice,
+      lastVideoAt,
+      videoFrames,
+      touchHeld: !!touchOwner,
+    },
     transport: "Local emulator demo · app connects outward · no ADB forwarding",
     limits:
       "Local prototype. Internet reachability, Doze and unattended reboot recovery are unqualified.",
@@ -475,6 +577,8 @@ export async function createDemo(options = {}) {
           )
             throw new Error("Credential delivery is already in progress");
           if (op === "stop") {
+            endTouch("Remote access stopped");
+            videoPause("Remote access stopped");
             credentialVersion++;
             if (credentialChild) credentialChild.kill("SIGKILL");
           }
@@ -483,6 +587,8 @@ export async function createDemo(options = {}) {
             return;
           }
           if (op === "unlock") {
+            endTouch("Unlocking");
+            videoPause("Unlocking · view paused");
             credentialReserved = true;
             ownsCredentialReservation = true;
             const version = credentialVersion;
@@ -548,6 +654,7 @@ export async function createDemo(options = {}) {
       const files = {
         "/": "index.html",
         "/app.js": "app.js",
+        "/live.js": "live.js",
         "/style.css": "style.css",
       };
       const file = files[url.pathname];
@@ -568,6 +675,107 @@ export async function createDemo(options = {}) {
       if (ownsCredentialReservation) credentialReserved = false;
     }
   });
+  server.on("upgrade", (req, socket, head) => {
+    const origin = `http://127.0.0.1:${server.address().port}`;
+    const cookie = req.headers.cookie
+      ?.split(";")
+      .map((s) => s.trim())
+      .find((s) => s.startsWith("remote_demo="))
+      ?.slice(12);
+    if (
+      req.url !== "/api/live" ||
+      req.headers.host !== new URL(origin).host ||
+      req.headers.origin !== origin ||
+      !equal(cookie, session)
+    ) {
+      socket.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n");
+      return;
+    }
+    live.handleUpgrade(req, socket, head, (viewer) =>
+      live.emit("connection", viewer),
+    );
+  });
+  live.on("connection", (viewer) => {
+    viewers.add(viewer);
+    viewer.needsKey = true;
+    command("videoKeyframe").catch(() => {});
+    let busy = false;
+    viewer.on("error", () => {});
+    viewer.on("close", () => {
+      viewers.delete(viewer);
+      if (touchOwner?.socket === viewer) endTouch("Viewer connection ended");
+    });
+    viewer.on("message", async (bytes) => {
+      let request;
+      let dispatched = false;
+      try {
+        const data = JSON.parse(bytes.toString());
+        request = data.request;
+        if (!Number.isSafeInteger(request) || request < 0)
+          throw new Error("Invalid request identity");
+        if (data.op === "touchEnd") {
+          if (touchOwner?.socket === viewer) endTouch("Viewer released touch");
+          viewer.send(
+            JSON.stringify({
+              type: "touchResult",
+              request,
+              ok: true,
+              message: "Touch ended",
+            }),
+          );
+          return;
+        }
+        if (data.op !== "touch")
+          throw new Error("Only touch messages are accepted on this channel");
+        if (
+          credentialReserved ||
+          credentialInProgress ||
+          state?.locked ||
+          !state?.interactive
+        )
+          throw new Error(
+            "Touch is unavailable while locked, asleep or unlocking",
+          );
+        if (busy)
+          throw new Error("Previous touch batch is still in flight; no replay");
+        if (
+          touchOwner &&
+          (touchOwner.socket !== viewer || touchOwner.gesture !== data.gesture)
+        )
+          throw new Error("Another viewer owns touch");
+        if (!touchOwner) {
+          if (data.sequence !== 0)
+            throw new Error("Touch session ended; start again");
+          touchOwner = { socket: viewer, gesture: data.gesture };
+        }
+        busy = true;
+        dispatched = true;
+        const owner = touchOwner;
+        const { op, request: ignored, ...payload } = data;
+        const result = await command("touch", payload, 1600);
+        if (touchOwner === owner && (!result.ok || result.data?.held === 0))
+          touchOwner = null;
+        if (viewer.readyState === WebSocket.OPEN)
+          viewer.send(
+            JSON.stringify({ ...result, type: "touchResult", request }),
+          );
+      } catch (error) {
+        if (touchOwner?.socket === viewer)
+          endTouch("Touch delivery unconfirmed; no replay");
+        if (viewer.readyState === WebSocket.OPEN)
+          viewer.send(
+            JSON.stringify({
+              type: "touchResult",
+              request,
+              ok: false,
+              message: error.message,
+            }),
+          );
+      } finally {
+        if (dispatched) busy = false;
+      }
+    });
+  });
   server.requestTimeout = 10000;
   await new Promise((resolve, reject) => {
     server.once("error", reject);
@@ -585,6 +793,10 @@ export async function createDemo(options = {}) {
     command,
     async close() {
       closing = true;
+      endTouch("Demo closed");
+      for (const viewer of viewers) viewer.terminate();
+      live.close();
+      videoDevice?.destroy();
       clearInterval(ping);
       device?.destroy();
       invalidate();

@@ -129,7 +129,7 @@ def provision(serial, pairing):
     adb(serial,'shell','wm','dismiss-keyguard')
     now=int(adb(serial,'shell','date','+%s').strip())*1000
     adb(serial,'shell',f"run-as {PACKAGE} sh -c 'cat > files/start-request.json'",input=json.dumps({'createdAtMillis':now}).encode())
-    adb(serial,'shell','am','start','-n',PACKAGE+'/.SetupActivity')
+    adb(serial,'shell','am','start','-n',PACKAGE+'/.SetupActivity','--activity-clear-top')
     from client import Client
     client=Client()
     wait_for(lambda:client.state()['connected'],15,'native access grant')
@@ -207,6 +207,27 @@ def rearm(args):
     print('Demo access re-armed on the owned emulator.')
 
 
+def smooth(args):
+    data=json.loads((LOCAL/'demo.json').read_text());serial=data['serial']
+    assert_owned(serial,data['avd'])
+    from client import Client
+    client=Client()
+    if not client.state()['connected']: raise RuntimeError('Re-arm remote access first')
+    adb(serial,'shell','am','start','-n',PACKAGE+'/.SetupActivity','--activity-clear-top')
+    wait_for(lambda:click(serial,'Allow smooth screen sharing'),10,'local screen-sharing setup button')
+    def accept_consent():
+        # This is the disposable emulator's visible platform consent, not an
+        # app-op grant or a reusable MediaProjection token.
+        nodes=tree(serial)
+        labels=[n.get('text','') for n in nodes.iter('node')]
+        if not any('screen' in label.lower() for label in labels): return False
+        return any(click(serial,label) for label in ['Start now','Start','Share screen'])
+    wait_for(accept_consent,15,'visible emulator screen-sharing consent')
+    wait_for(lambda:client.state()['state'].get('video',{}).get('active'),15,'consented video service')
+    adb(serial,'shell','am','start','-n',PACKAGE+'/.TouchLabActivity')
+    print('Smooth view enabled through visible consent on the owned emulator.')
+
+
 def stop(args):
     path=LOCAL/'demo.json'
     if not path.exists(): print('No owned demo is running.'); return
@@ -234,10 +255,11 @@ def main():
     start_cmd=sub.add_parser('start'); start_cmd.add_argument('--api',choices=['35','36'],default='36')
     start_cmd.add_argument('--port',type=int,default=4317); start_cmd.add_argument('--emulator-port',type=int,default=5580); start_cmd.add_argument('--no-build',action='store_true'); start_cmd.add_argument('--with-test-pin',action='store_true')
     sub.add_parser('stop'); sub.add_parser('build')
+    sub.add_parser('smooth')
     rearm_cmd=sub.add_parser('rearm'); rearm_cmd.add_argument('--restart-server',action='store_true')
     args=parser.parse_args()
     try:
-        {'start':start,'stop':stop,'rearm':rearm,'build':lambda _:build()}[args.command](args)
+        {'start':start,'stop':stop,'rearm':rearm,'smooth':smooth,'build':lambda _:build()}[args.command](args)
     except Exception as exc: print(str(exc),file=sys.stderr); sys.exit(1)
 
 if __name__=='__main__': main()
