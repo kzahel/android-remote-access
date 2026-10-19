@@ -83,13 +83,6 @@ a:focus-visible {
   font-weight: 650;
   letter-spacing: -0.5px;
 }
-.wordmark small {
-  display: block;
-  font-size: 8px;
-  letter-spacing: 1.6px;
-  color: #8a9488;
-  margin-top: 6px;
-}
 .mark {
   width: 34px;
   height: 34px;
@@ -146,16 +139,6 @@ a:focus-visible {
   letter-spacing: 1.4px;
   padding: 5px 7px;
 }
-.sidebar-bottom p {
-  font-family: Georgia, serif;
-  color: #788871;
-  font-size: 19px;
-  line-height: 1.5;
-}
-.sidebar-bottom small {
-  font-size: 10px;
-  color: #99a08e;
-}
 main {
   margin-left: 226px;
   padding: 35px 47px 20px;
@@ -168,12 +151,6 @@ header {
   align-items: center;
   gap: 24px;
 }
-.eyebrow {
-  font-size: 10px;
-  letter-spacing: 2px;
-  color: #839079;
-  margin-bottom: 12px;
-}
 h1 {
   font-family: Georgia, "Times New Roman", serif;
   font-weight: 400;
@@ -181,11 +158,6 @@ h1 {
   letter-spacing: -1px;
   line-height: 1.1;
   margin: 0 0 12px;
-}
-.lede {
-  font-size: 13px;
-  color: #83907d;
-  margin: 0;
 }
 .quiet {
   font-size: 11px;
@@ -385,11 +357,6 @@ h1 {
   font-size: 33px;
   padding: 0;
 }
-.screen-hint {
-  font-size: 9px;
-  color: #99a28f;
-  margin-top: 8px;
-}
 .controls {
   display: flex;
   flex-direction: column;
@@ -400,12 +367,6 @@ h1 {
   border: 1px solid var(--line);
   border-radius: 13px;
   padding: 22px;
-}
-.card-kicker {
-  font-size: 9px;
-  letter-spacing: 1.5px;
-  color: #8b9a7c;
-  margin-bottom: 12px;
 }
 h2 {
   font-size: 17px;
@@ -769,12 +730,6 @@ body.paused .live-dot {
     font-size: 9px;
     padding: 8px;
   }
-  .eyebrow {
-    font-size: 8px;
-  }
-  .lede {
-    font-size: 11px;
-  }
   .readiness {
     flex-wrap: wrap;
     row-gap: 12px;
@@ -804,9 +759,6 @@ body.paused .live-dot {
   }
   .controls {
     width: 100%;
-  }
-  .screen-hint {
-    font-size: 8px;
   }
   footer {
     line-height: 1.6;

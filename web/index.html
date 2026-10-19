@@ -11,9 +11,9 @@
     <aside class="sidebar">
       <a class="wordmark" href="/" aria-label="Remote access home"
         ><span class="mark">↗</span
-        ><span>Remote access<small>WORKING PROTOTYPE</small></span></a
+        ><span>Remote access</span></a
       >
-      <div class="section-label">YOUR DEVICES</div>
+      <div class="section-label">DEVICES</div>
       <button class="device selected" id="device-card">
         <span class="device-icon">▯</span
         ><span><span id="device-name">Demo phone</span><small id="device-subtitle">Connecting…</small></span
@@ -21,17 +21,11 @@
       </button>
       <div class="sidebar-bottom">
         <span class="lab-tag" id="target-label">LOCAL PROTOTYPE</span>
-        <p>A small experiment in feeling a little closer.</p>
-        <small>No account. No AI session.</small>
       </div>
     </aside>
     <main>
       <header>
-        <div>
-          <div class="eyebrow">YOUR PHONE, WITHIN REACH</div>
-          <h1>A window to your phone.</h1>
-          <p class="lede">Check in. Make a change. Get on with your day.</p>
-        </div>
+        <div></div>
         <button class="quiet" id="disconnect">Pause viewer</button>
       </header>
       <div class="readiness" aria-label="Phone readiness">
@@ -62,9 +56,7 @@
             <div id="screen-cover" class="screen-cover">
               <span class="cover-icon">▯</span
               ><strong id="cover-title">Reaching your phone</strong>
-              <p id="cover-message">
-                The demo phone will appear here when its session is ready.
-              </p>
+              <p id="cover-message"></p>
               <button id="cover-wake">Wake phone</button>
             </div>
             <div class="tap-marker" id="tap-marker"></div>
@@ -83,40 +75,30 @@
           <button id="quick-unlock" class="quick-unlock" hidden>
             Unlock phone
           </button>
-          <p class="screen-hint">
-            Touch or click · drag to scroll · use two fingers to zoom and turn
-          </p>
         </div>
         <div class="controls">
           <section class="card task-card">
-            <div class="card-kicker">TRY SOMETHING SMALL</div>
-            <h2>How’s the solar doing?</h2>
-            <p>
-              Open the demo power station. Refresh its reading, switch the
-              output, or give it a new name.
-            </p>
+            <h2>Test apps</h2>
             <button class="primary" id="open-fixture">
-              Open power station <span>↗</span></button
-            ><small>Synthetic readings. No battery connected.</small>
-            <button id="open-touch-lab" class="text-button">
-              Try the touch playground ↗
+              Power station (synthetic) <span>↗</span></button
+            ><button id="open-touch-lab" class="text-button">
+              Touch playground ↗
             </button>
           </section>
           <section class="card typing-card">
             <div class="card-title">
-              <h2>Type on your phone</h2>
+              <h2>Type</h2>
               <button class="text-button" id="read-field">
                 Read focused field
               </button>
             </div>
             <p class="helper" id="typing-help">
-              Tap a text field on the phone, then read it here.
+              Tap a text field on the phone, then Read focused field.
             </p>
             <textarea
               id="typing"
               rows="2"
               aria-label="Edit the focused phone field"
-              placeholder="Your keyboard, their screen."
               disabled
               spellcheck="false"
             ></textarea>
@@ -137,7 +119,7 @@
             ><button id="refresh">↻ <span>Refresh view</span></button>
           </div>
           <div class="notice" id="notice" role="status" aria-live="polite">
-            Waiting for the phone’s first response.
+            Connecting…
           </div>
           <details class="advanced" id="advanced">
             <summary>Advanced controls <span>＋</span></summary>
@@ -157,7 +139,7 @@
                 ><button id="dismiss">Show unlock screen</button>
               </div>
               <div class="unlock-box" id="unlock-experiment">
-                <h3>Known-PIN experiment</h3>
+                <h3>Unlock</h3>
                 <p id="unlock-note">
                   Use only this disposable emulator’s known PIN. One submission,
                   no saved credential, no automatic retry.
@@ -199,8 +181,7 @@
               </div>
               <div class="diagnostics">
                 <p id="smooth-status" class="helper">
-                  Smooth view needs screen-sharing permission on the phone.
-                  Still frames remain available.
+                  Smooth view off · still frames
                 </p>
                 <label class="video-mode"
                   >Video quality
@@ -215,7 +196,7 @@
                   Touch ready · accessibility continuation
                 </p>
                 <div class="card-title">
-                  <h3>What the phone reports</h3>
+                  <h3>Phone state</h3>
                   <button class="text-button" id="inspect">
                     Inspect controls
                   </button>
@@ -228,10 +209,7 @@
               <button id="stop-access" class="danger">
                 Stop access on the phone
               </button>
-              <p class="helper">
-                Restarting access requires the phone’s Start remote access
-                button.
-              </p>
+              <p class="helper">Restart from the phone app.</p>
             </div>
           </details>
         </div>
@@ -240,9 +218,6 @@
         <span
           >LOCAL DEMO <span class="footer-sep">/</span>
           <span id="platform">Android emulator</span></span
-        ><span
-          >Internet, overnight and reboot recovery are still experiments.</span
-        >
       </footer>
     </main>
   </body>

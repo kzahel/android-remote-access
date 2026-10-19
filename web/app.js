@@ -57,11 +57,14 @@ function cover(title, message, wake = false) {
 function renderState(next) {
   state = next;
   $("device-name").textContent = next.deviceName || "Demo phone";
-  $("target-label").textContent = next.target || "Local prototype";
+  $("target-label").textContent =
+    next.target === "USB-connected phone"
+      ? `Phone · ${next.link === "tailscale" ? "via Tailscale" : next.link ? "via ADB" : "offline"}`
+      : next.target || "Local prototype";
   $("unlock-experiment").hidden = next.credentialExperiment === false;
   if (next.target === "USB-connected phone") {
     $("unlock-note").textContent =
-      "Your phone’s own PIN. One submission, no automatic retry; a wrong PIN counts toward Android’s lockout.";
+      "One attempt, no retry. A wrong PIN counts toward Android’s lockout.";
     $("pin").placeholder = "Phone PIN";
     $("test-pin").textContent = "Use PIN saved on this computer";
   }
@@ -103,7 +106,7 @@ function renderState(next) {
     unlockSending || !!next.unlockBlocked || !connected || !s?.locked;
   if (next.unlockBlocked)
     $("unlock-status").textContent =
-      "An attempt was made. Unlock locally before another experiment.";
+      "Unlock attempted. Unlock on the phone before trying again.";
   for (const button of document.querySelectorAll(
     "[data-nav],#wake,#lock,#open-fixture,#dismiss",
   ))
@@ -120,8 +123,8 @@ function renderState(next) {
     cover(
       "Phone not responding",
       next.lastSeen
-        ? "The connection ended. If it does not return, open Remote access on the phone and choose Start remote access. No action will be replayed."
-        : "Open Remote access on the phone and choose Start remote access.",
+        ? "Connection lost. If it doesn’t return, press Start remote access in the phone app."
+        : "Press Start remote access in the phone app.",
     );
   } else if (!s.interactive) {
     live?.cancel("Phone is asleep");
@@ -129,7 +132,7 @@ function renderState(next) {
     frame = null;
     cover(
       "The screen is asleep",
-      "The phone is connected. Wake the display to see what’s there.",
+      "",
       true,
     );
   } else if (s.credentialCapturePaused) {
@@ -138,7 +141,7 @@ function renderState(next) {
   } else if (paused)
     cover(
       "Viewer paused",
-      "Screen refresh is paused. Resume when you’re ready.",
+      "Screen refresh paused.",
     );
   if (s)
     if (!s.video?.active && !live?.videoActive) $("smooth-status").textContent = s.video?.message || "Allow smooth screen sharing on the phone";
@@ -223,7 +226,7 @@ async function refreshFrame() {
       frame = result.data;
       if (!shownFirstFrame) {
         shownFirstFrame = true;
-        notify("Connected. Use the screen or open the demo power station.");
+        notify("Connected.");
       }
       screen.src = `data:image/jpeg;base64,${frame.image}`;
       $("phone").classList.toggle("landscape", frame.width > frame.height);
@@ -300,7 +303,7 @@ async function readField(explicit = true) {
       revision = delivered = 0;
     }
     $("typing-help").textContent =
-      "Editing the phone’s focused field. Your cursor and Unicode text are supported.";
+      "Editing the focused field.";
     $("typing-status").textContent = "Field ready";
     if (explicit) $("typing").focus();
   } else if (explicit) {
@@ -372,7 +375,7 @@ $("disconnect").onclick = () => {
     frame = null;
     cover(
       "Viewer paused",
-      "Screen refresh is paused. Resume when you’re ready.",
+      "Screen refresh paused.",
     );
   } else refreshFrame();
 };
