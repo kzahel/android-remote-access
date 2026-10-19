@@ -155,6 +155,25 @@ accessibility still frame succeeded. The old socket closed cleanly, so the
 replacement path is covered by the transport test, not this run. Whether
 Tailscale reconnects at boot without being started by hand was not tested.
 
+## Forced Doze
+
+Physically tested 2026-10-19 on the Pixel 9 over wireless debugging, unplugged,
+screen off, with `dumpsys deviceidle force-idle` (deep `IDLE`) for about four
+minutes, then `unforce`. The app is not on the Doze allowlist. Network policy
+listed `blocked=DOZE|APP_BACKGROUND` but `effective=NONE`: the bound
+accessibility service keeps the process at important-foreground state (`IMPF`,
+5 with the screen on, 6 off), which Android counts as foreground for network
+access. The Tailscale control connection stayed open. During three minutes with
+no ADB activity the once-a-second state report arrived every 1–4 s (longest gap
+6.1 s), consistent with the CPU sleeping between wakes. A command then answered
+in 0.8 s, and a display wake request in 0.3 s turned the screen on.
+
+Forced deep idle is not natural overnight Doze: maintenance windows, App
+Standby buckets, OEM behavior and hours of idleness were not exercised, and the
+route ran through Tailscale's own process. It shows that Doze's network block
+alone does not cut this app off; FCM remains the candidate for a reclaimed,
+force-stopped or disconnected process.
+
 ## Video quality
 
 The viewer's **Video quality** selector sets a mode remembered on the phone:
