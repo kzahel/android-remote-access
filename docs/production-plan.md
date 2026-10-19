@@ -1,0 +1,156 @@
+# Production plan
+
+Written 2026-10-19 at the owner's request, after the phone spikes. It is a plan,
+not an implementation: no production repository, brand, relay service or store
+listing exists. Evidence references point to the spike documents; anything
+not listed there as tested is a hypothesis.
+
+## Goal
+
+Turn the manual-access spikes into an Android app that can be published on
+Google Play, plus a web viewer and a hosted relay, for someone who wants to
+reach their own spare phone left somewhere else. The RV power-station check is
+the reference job: open one app on an unattended phone, read it, act on it.
+
+Manual, human-directed control remains the product. Autonomous or AI control,
+MDM, a combined camera/Bluetooth product and a remote-support suite are out of
+scope.
+
+## Decisions made so far
+
+These are owner decisions from 2026-10-19; everything else below is open.
+
+1. Aim for a Play-published consumer app, not a research artifact.
+2. A hosted relay carries traffic. Consumers will not need a VPN; Tailscale was
+   only the spike's stand-in.
+3. Account-free pairing comes first: a QR code shown in the browser, scanned on
+   the phone, confirmed with **Grant**. Sign-in may be added later as an option.
+4. The pairing flow was prototyped in this repository before any production
+   code ([QR pairing](phone-spike.md#qr-pairing-without-an-account)).
+
+## What the spikes established
+
+Physically tested on a Pixel 9 (Android 17) unless noted; see the linked
+sections for exact limits.
+
+| Capability | Evidence | Limit to carry forward |
+| --- | --- | --- |
+| Screen stills and input through accessibility | [phone spike](phone-spike.md) | Protected screens and Android 16+ sensitive views can refuse |
+| Continuous touch and smooth H.264 video | [touch spike](touch-spike.md), [video quality](phone-spike.md#video-quality) | Video needs fresh screen-sharing consent after lock or restart |
+| Saved-PIN remote unlock, one attempt | [owner PIN unlock](phone-spike.md#owner-pin-unlock) | Not before first unlock after a restart; Play-policy fit untested |
+| Resume after restart, opt-in | [start after restart](phone-spike.md#start-after-restart) | Owner must unlock once on the phone after every restart |
+| Connection survives forced deep Doze | [forced Doze](phone-spike.md#forced-doze) | Natural overnight idle and a real relay untested |
+| Reconnect across Wi-Fi/cellular changes | [Tailscale route](phone-spike.md#tailscale-route) | Measured over Tailscale, not a relay |
+| Account-free QR pairing and revocation | [QR pairing](phone-spike.md#qr-pairing-without-an-account) | Camera scan, multi-phone and end-to-end encryption untested |
+
+## Gates before production code
+
+Each gate can stop or reshape the product, and each is cheaper than the code it
+protects. Record results in this repository.
+
+1. **Play accessibility policy.** Read the current
+   [accessibility API policy](https://support.google.com/googleplay/android-developer/answer/10964491?hl=en)
+   and draft the in-app prominent disclosure and Play Console declaration for
+   human-directed remote control. Do not set `isAccessibilityTool`. Submit an
+   early closed-testing build to get a real review verdict.
+2. **Saved-PIN unlock.** Decide whether version 1 ships it. It is the feature a
+   reviewer is most likely to read as weakening the lock screen. Options: omit
+   it, ship it behind explicit opt-in with clear disclosure, or keep it for a
+   later release once the base app is approved.
+3. **Developer account.** Choose personal or organization. Recheck the current
+   new-account testing requirement (reported as a closed test with about 12
+   testers for 14 days for new personal accounts) and organization verification.
+4. **Natural overnight test.** Unplugged phone, normal screen timeout, real
+   idle for several hours, then remote wake and control. Repeat once a relay
+   exists, because the forced-Doze run went through Tailscale's own process.
+5. **Camera scan.** Pair by actually scanning the code; check the Play services
+   scanner's availability and first-use module download.
+6. **Licenses.** Review Google's code-scanner terms, `uqr` (MIT) and any code
+   ported from scrcpy, RustDesk or droidVNC-NG (see [competitors](competitors.md#pricing-and-reuse-limits)).
+
+## Architecture to decide
+
+Write a short decision record for each before building it.
+
+- **Relay and transport.** Leading candidate: WebRTC, with the relay as
+  signaling plus a TURN fallback. It provides NAT traversal, encryption between
+  phone and browser, and native browser video. The alternative is extending the
+  spike's custom framed connection through an application relay. Compare APK
+  size, server cost on cellular data, and latency.
+- **End-to-end encryption.** If the product claims the relay cannot see the
+  screen, keys must be the paired keys and the browser must verify them. A
+  relay-served web viewer weakens that claim against the operator itself; say
+  so, or offer an installable viewer later.
+- **Identity and sessions.** Keep pairing (QR, done), device identity (Keystore
+  key, done), session authority (short-lived grants, step-up before unlock) and
+  optional account sign-in separate. Sign-in, if added, recovers and syncs
+  paired keys; it must not be required for an unattended phone to reconnect.
+- **Wake.** A persistent outbound connection while Android allows it, with FCM
+  as a wake hint when the relay sees the phone offline. Push payloads carry no
+  credentials or commands. Force-stopped phones and phones without Google Play
+  services cannot be woken; the viewer must say so.
+- **Multiple phones and browsers.** The spike server holds one phone. The relay
+  needs per-account or per-pairing routing, rate limits for anonymous pairing,
+  and revocation that takes effect immediately.
+- **Hosting and cost.** Relay bandwidth (especially video over TURN) is the main
+  running cost and will shape any free tier. No pricing has been decided.
+
+## Build in a new repository
+
+Keep this repository as research and test bed. Start the product in a new
+repository and port proven pieces deliberately, each with its tests:
+
+- Android: Kotlin and Jetpack Compose. Port the accessibility capture and
+  input, touch relay, video encoder, unlock sequence, start-after-restart and
+  Keystore pairing. Leave behind the fixtures, ADB provisioning and test-only
+  shell paths.
+- Relay: pairing records, challenge sign-in, routing, revocation and FCM
+  sending.
+- Web viewer: rebuilt around the readiness model below; reuse the spike
+  viewer's interaction lessons rather than its code wholesale.
+
+Automated tests should cover protocol and security properties (as
+`tests/pairing.test.mjs` does) and a small physical-device acceptance run per
+release.
+
+## Onboarding and readiness
+
+Design the readiness model before the screens. Each state maps to one
+plain-language next step: paired, screen access allowed, input working,
+reachable from another network, locked-phone preparation, battery and
+restart settings, last successful test. The candidate first-run flow is in
+[UX](ux.md#candidate-first-run-flow). Main screens:
+
+1. Welcome and role: the phone being left behind, or the viewer.
+2. Pair (the QR flow) and name the phone.
+3. The accessibility disclosure, written as the policy requires, then the
+   system settings step.
+4. Test drive from the viewer.
+5. "Before you leave" checklist, including start after restart and what
+   happens if the phone loses power.
+6. Status home with paired browsers and Stop.
+
+Material 3 with light branding is enough for testing; a designer helps most on
+the disclosure and the checklist. Prototype screens in Compose previews and
+emulator screenshots.
+
+## Phases
+
+| Phase | Done when |
+| --- | --- |
+| 0. Gates | Every gate above has a recorded result and the saved-PIN decision is made |
+| 1. Decisions | Decision records for transport, encryption, wake, routing and hosting |
+| 2. Core | New app pairs, views and controls a phone through the hosted relay; overnight test passes |
+| 3. Onboarding | First-run flow and readiness checks complete; a non-technical tester sets up a phone unaided |
+| 4. Closed testing | Play closed track with the accessibility declaration accepted; issues from testers fixed |
+| 5. Production | Store listing, privacy policy, support page and a tested recovery story |
+
+## Open owner decisions
+
+- Name and brand.
+- First audience: spare-phone owners, owners of remote Android workloads, or
+  broader remote support.
+- Whether version 1 includes saved-PIN unlock and smooth video.
+- Pricing and what a free tier includes.
+- Supported Android versions, OEMs and devices without Google Play services.
+- Play-only or also a direct APK.

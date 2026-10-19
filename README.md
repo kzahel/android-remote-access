@@ -19,6 +19,7 @@ test case, not the product's identity.
 - [Control an attached phone](docs/phone-spike.md)
 - [Continuous touch and smooth-view experiment](docs/touch-spike.md)
 - [Product inspiration, use cases and open decisions](docs/product.md)
+- [Production plan: gates, architecture and phases toward a Play release](docs/production-plan.md)
 - [Android capabilities, unlock, wake and background reliability](docs/android-platform.md)
 - [Competitors and alternatives](docs/competitors.md)
 - [UX analysis and research questions](docs/ux.md)
