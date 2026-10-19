@@ -52,9 +52,10 @@ Google APIs ARM64 API 36, target SDK 36:
   cancellation during ordinary continuation, H.264 decoding, socket loss,
   native lost-packet watchdog, pause/recovery and rotation interruption. Mobile
   layout and uncaught-error checks also pass within this suite.
-- **Six boundary checks passed** against the actual service: fractional
+- **Seven boundary checks passed** against the actual service: fractional
   duration/identity, non-boolean hold and off-screen paths fail before touch;
   skipped sequence releases contact; ordinary Settings scrolls while held;
+  an unsupported codec falls back cleanly and a valid keyframe restores video;
   protected capture covers video and stops browser decoding; leaving that
   screen resumes video under the existing consent; Stop releases contact,
   stops the projection service, hides video and stays stopped.
@@ -69,6 +70,45 @@ These are local lab measurements, not physical-finger motion-to-photon latency.
 The slider timing field measures the complete scripted drag plus witness read;
 it is deliberately not advertised as first-response latency. A stationary
 screen need not emit 30 distinct encoded frames per second.
+
+The existing native/control regression also passed **26 checks on API 36**,
+including both explicitly authorized one-shot synthetic-PIN routes. Lock was
+observed to revoke the active projection while the separate accessibility
+connection remained reachable. Five browser regression checks and eight common
+host authority/delivery tests passed; Android assembly and lint passed.
+The updated runner then passed all **nine lifecycle checks**: force-stop,
+explicit preparation, actual reboot, locked first-unlock storage, no spontaneous
+grant recovery, one host-assisted synthetic first unlock and verified local
+re-arming. This remains host-assisted emulator recovery.
+
+Repeated cold-start/reboot work exposed a stale framework connection: the app
+could answer over TCP while `getServiceInfo()` was null and capture returned
+internal error 1. An Android accessibility `init(null, -1)` can revoke authority
+before a Java `onUnbind` callback. Native Start and heartbeat now check the actual
+framework connection and revoke the grant when it disappears. Emulator setup
+disables the fixture service, waits for unbind, reaps only that app process,
+skips an identical APK replacement and waits for package broadcasts to become
+idle before re-enabling it. Setup still requires a real successful capture and
+retains private failure diagnostics; an answering socket alone is not readiness.
+
+### Android 15 host
+
+Google APIs ARM64 API 35, target SDK 36: **12 continuous-touch checks, six
+boundary checks and five browser checks passed**. The browser regression includes
+real sequential typing, cursor deletion, Unicode and a delayed field read that
+cannot overwrite newer keys. The continuous run decoded **82 frames over 6.56
+seconds (12.5 fps)**, with touch-batch ACKs of **44.3 ms median, 62.4 ms p95 and
+101.4 ms maximum**. Native two-finger zoom/rotation and interruption outcomes
+matched API 36. This older base image has a September 2024 security patch;
+its projection behavior must not be generalized to Android 15 QPR1+.
+The existing native/control regression passed **25 checks**. Projection remained
+active across lock on this pre-QPR1 image; the host still withholds its video
+while keyguard is showing. Known-PIN input and viewing recovered independently.
+
+An initial API 35 interruption check started while coordinate refresh was
+temporarily unavailable. The runner now waits for input readiness before each
+new gesture, without retrying a delivered gesture; the viewer explicitly asks
+the user to touch again when coordinates are refreshing.
 
 ### Physical browser client
 
@@ -142,6 +182,9 @@ Reviewed 2026-10-19, platform source/documentation:
 - [AccessibilityService](https://developer.android.com/reference/android/accessibilityservice/AccessibilityService):
   `dispatchGesture` can cancel existing touch. This is not unrestricted
   MotionEvent input.
+- [AccessibilityService, pinned Android 16 source](https://github.com/aosp-mirror/platform_frameworks_base/blob/android-16.0.0_r1/core/java/android/accessibilityservice/AccessibilityService.java):
+  connection lookup for `getServiceInfo()` and screenshot error 1 when the
+  framework connection is absent. This informed the readiness check above.
 - [MotionEventInjector, pinned Android 16 source](https://github.com/aosp-mirror/platform_frameworks_base/blob/android-16.0.0_r1/services/accessibility/java/com/android/server/accessibility/MotionEventInjector.java):
   reviewed while diagnosing continuation validation. A stationary continuation
   yields no generated events; retain the existing stroke and renew only the

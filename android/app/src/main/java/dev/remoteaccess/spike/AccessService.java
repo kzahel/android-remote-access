@@ -50,6 +50,7 @@ public final class AccessService extends AccessibilityService {
     private final Runnable heartbeat = new Runnable() {
         @Override public void run() {
             if (!armed) return;
+            if (!authorityReady()) { disarm(); return; }
             if (SystemClock.elapsedRealtime() >= deadline) { disarm(); return; }
             try { send(new JSONObject().put("type","state").put("state",state())); } catch (Exception ignored) { }
             main.postDelayed(this,1000);
@@ -69,7 +70,7 @@ public final class AccessService extends AccessibilityService {
     @Override public void onDestroy() { accessBound=false; disarm(); if(current==this)current=null; compression.shutdownNow(); outbound.shutdownNow(); super.onDestroy(); }
 
     synchronized void arm() throws Exception {
-        if(!accessBound)throw new IllegalStateException("Screen access is reconnecting; start again locally");
+        if(!authorityReady())throw new IllegalStateException("Screen access is reconnecting; start again locally");
         disarm();
         File config = new File(getFilesDir(),"pairing.json");
         JSONObject pairing = new JSONObject(new String(Files.readAllBytes(config.toPath()),StandardCharsets.UTF_8));
@@ -91,6 +92,10 @@ public final class AccessService extends AccessibilityService {
         getSystemService(NotificationManager.class).cancel(1);
     }
     boolean videoAllowed() { return armed && connection!=null && SystemClock.elapsedRealtime()>=credentialCaptureUntil; }
+    boolean authorityReady() {
+        // Framework init(null, -1) can revoke the connection before onUnbind.
+        try { return accessBound && getServiceInfo()!=null; } catch(RuntimeException e) { return false; }
+    }
     String connectionGeneration() { return generation+":"+grant+":"+connectionAttempt; }
     private void notification() {
         NotificationManager nm = getSystemService(NotificationManager.class);

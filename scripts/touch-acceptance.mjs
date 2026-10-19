@@ -82,8 +82,19 @@ try {
     force: 0.5,
   });
   const cdp = await context.newCDPSession(page);
-  const touch = (type, points) =>
-    cdp.send("Input.dispatchTouchEvent", { type, touchPoints: points });
+  const touch = async (type, points) => {
+    // Wait before starting a new gesture; never retry an already sent action.
+    if (type === "touchStart" && points.length === 1)
+      await page.waitForFunction(
+        () =>
+          window.demoLive.allowed() &&
+          window.demoLive.getFrame() &&
+          !window.demoLive.gesture &&
+          !window.demoLive.busy &&
+          document.getElementById("screen-cover").hidden,
+      );
+    return cdp.send("Input.dispatchTouchEvent", { type, touchPoints: points });
+  };
   await touch("touchStart", [p(1, 400, 435)]);
   await page.waitForTimeout(160);
   const interactionStarted = await page.evaluate(() => ({
@@ -331,6 +342,21 @@ try {
   report.checks.push("Mobile layout fits; no uncaught browser errors");
   report.passed = true;
   console.log(JSON.stringify(report, null, 2));
+} catch (error) {
+  report.error = error.message;
+  report.diagnostics = await page.evaluate(() => ({
+    allowed: window.demoLive.allowed(),
+    notice: document.getElementById("notice").textContent,
+    cover: document.getElementById("cover-title").textContent,
+    frame: window.demoLive.getFrame() && {
+      scene: window.demoLive.getFrame().scene,
+      width: window.demoLive.getFrame().width,
+      height: window.demoLive.getFrame().height,
+    },
+    stats: window.demoLive.stats,
+    contacts: [...window.demoLive.contacts.keys()],
+  }));
+  throw error;
 } finally {
   await writeFile(
     `.local/touch-acceptance-api${receipt.api}.json`,

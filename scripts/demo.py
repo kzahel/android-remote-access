@@ -2,6 +2,7 @@
 """Own one isolated emulator and local demo. Never select a physical device."""
 import argparse
 import glob
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -113,8 +114,24 @@ def provision(serial, pairing):
     # Settings writes return before AccessibilityManager has removed the old
     # binder. Installing/re-enabling in that gap can bind a stale service on 36.
     wait_for(fixture_unbound,10,'old fixture accessibility connection to unbind')
+    # Framework unbinding and the Java service's teardown are asynchronous.
+    # Reap only our disposable fixture process before APK replacement so a
+    # late onUnbind/onDestroy cannot overlap the next local access grant.
+    adb(serial,'shell','am','force-stop',PACKAGE)
+    wait_for(lambda:not adb(serial,'shell','pidof',PACKAGE,check=False).strip(),10,'old fixture process to exit')
     apk=ROOT/'android/app/build/outputs/apk/debug/app-debug.apk'
-    adb(serial,'install','-r',str(apk),timeout=90)
+    installed=adb(serial,'shell','pm','path',PACKAGE,check=False).strip().removeprefix('package:')
+    same_apk=False
+    if installed.startswith('/data/app/') and installed.endswith('/base.apk') and '\n' not in installed:
+        digest=adb(serial,'shell','sha256sum',installed,check=False).split()
+        same_apk=bool(digest) and digest[0]==hashlib.sha256(apk.read_bytes()).hexdigest()
+    if not same_apk:
+        adb(serial,'install','-r',str(apk),timeout=90)
+    # Package replacement broadcasts can outlive `adb install` and revoke a
+    # newly rebound accessibility connection. Drain them before enabling it.
+    barrier=adb(serial,'shell','am','wait-for-broadcast-idle',timeout=30)
+    if 'All broadcast queues are idle' not in barrier:
+        raise RuntimeError('Package changes have not settled; accessibility was left disabled')
     adb(serial,'shell','run-as',PACKAGE,'mkdir','-p','files')
     adb(serial,'shell',f"run-as {PACKAGE} sh -c 'cat > files/pairing.json'",input=json.dumps(pairing).encode())
     adb(serial,'shell','pm','grant',PACKAGE,'android.permission.POST_NOTIFICATIONS')
@@ -133,7 +150,17 @@ def provision(serial, pairing):
     from client import Client
     client=Client()
     wait_for(lambda:client.state()['connected'],15,'native access grant')
-    wait_for(lambda:client.call('/api/frame')['ok'],15,'verified native screen capture')
+    capture_status={}
+    def verified_capture():
+        result=client.call('/api/frame')
+        capture_status.update(ok=result.get('ok'),message=result.get('message'))
+        return result.get('ok')
+    try:
+        wait_for(verified_capture,15,'verified native screen capture')
+    except RuntimeError:
+        private(LOCAL/'provision-capture-failure.json',capture_status)
+        (LOCAL/'provision-accessibility.txt').write_text(adb(serial,'shell','dumpsys','accessibility'))
+        raise RuntimeError('Native screen capture did not become ready: '+str(capture_status.get('message','no response'))) from None
 
 
 def start(args):

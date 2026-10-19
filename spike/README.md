@@ -103,6 +103,7 @@ python3 scripts/demo.py rearm
 node scripts/browser-acceptance.mjs  # real sequential input + visual captures
 python3 scripts/demo.py smooth
 node scripts/touch-acceptance.mjs    # continuous paths, multi-contact, video, interruptions
+node scripts/pixel-client-acceptance.mjs # optional authorized attached Pixel browser
 node scripts/touch-boundaries.mjs    # malformed input, Settings, protected video, ends Stop
 python3 scripts/lifecycle.py     # force-stop/reboot/first-unlock observations
 ```

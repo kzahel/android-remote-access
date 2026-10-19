@@ -105,7 +105,14 @@ try {
   ws.close();
   ws = null;
   await call("openApp", { package: "com.android.settings" });
-  await page.waitForTimeout(1500);
+  await expect
+    .poll(async () => (await call("state")).state.package)
+    .toBe("com.android.settings");
+  const settingsScene = (await call("state")).state.scene;
+  await page.waitForFunction(
+    (scene) => window.demoLive.getFrame()?.scene === scene,
+    settingsScene,
+  );
   await ready();
   const texts = async () =>
     (await call("inspect")).data.nodes.filter((n) => n.text).map((n) => n.text);
@@ -149,6 +156,33 @@ try {
   await call("openFixture");
   await page.waitForTimeout(900);
   await page.waitForFunction(() => window.demoLive.videoActive);
+  await page.evaluate(() => {
+    const live = window.demoLive;
+    live.savedVideo = live.video;
+    live.video = () => {}; // Isolate decoder failure from new valid native frames.
+    live.savedVideo({
+      codec: "unsupported-codec",
+      key: true,
+      width: 16,
+      height: 16,
+      data: "AA==",
+      timestamp: 1,
+    });
+  });
+  await page.waitForFunction(
+    () =>
+      !window.demoLive.decoder &&
+      document.getElementById("video-screen").hidden,
+  );
+  await page.evaluate(() => {
+    const live = window.demoLive;
+    live.video = live.savedVideo;
+    delete live.savedVideo;
+  });
+  await page.waitForFunction(() => window.demoLive.videoActive);
+  report.checks.push(
+    "Unsupported video configuration falls back cleanly and a valid native keyframe restores video",
+  );
   const inspection = await call("inspect"),
     button = inspection.data.nodes.find(
       (n) => n.text === "Test protected screen",
@@ -237,6 +271,7 @@ try {
   report.diagnostics = await page?.evaluate(() => ({
     allowed: window.demoLive.allowed(),
     cover: document.getElementById("cover-title").textContent,
+    notice: document.getElementById("notice").textContent,
     stats: window.demoLive.stats,
     contacts: [...window.demoLive.contacts.keys()],
     notes: [...document.querySelectorAll("#activity li")]

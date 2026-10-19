@@ -51,7 +51,7 @@ public final class SetupActivity extends Activity {
     }
     private void startPreparedDemo(int attempt) {
         if (isFinishing() || isDestroyed()) return;
-        if (AccessService.current==null && attempt<30) {
+        if ((AccessService.current==null || !AccessService.current.authorityReady()) && attempt<30) {
             new android.os.Handler(getMainLooper()).postDelayed(() -> startPreparedDemo(attempt+1),100); return;
         }
         if (AccessService.current!=null) try { AccessService.current.arm(); refresh(); }

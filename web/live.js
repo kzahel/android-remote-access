@@ -105,10 +105,15 @@ export class LiveSession {
     ];
   }
   down(e) {
+    if (!this.allowed() || !this.getFrame()) {
+      this.note?.(
+        "The screen is refreshing. Try touching again in a moment.",
+        true,
+      );
+      return;
+    }
     if (
       (e.pointerType === "mouse" && e.button !== 0) ||
-      !this.allowed() ||
-      !this.getFrame() ||
       this.ws.readyState !== WebSocket.OPEN ||
       this.contacts.size >= 10
     )
@@ -244,13 +249,13 @@ export class LiveSession {
   pauseVideo(message) {
     this.videoActive = false;
     this.canvas.hidden = true;
-    this.decoder?.close();
+    if (this.decoder && this.decoder.state !== "closed") this.decoder.close();
     this.decoder = null;
     this.codec = null;
     this.stats.resets++;
     this.changed?.(null, message);
   }
-  async video(packet) {
+  video(packet) {
     if (!this.allowed() || document.hidden || !globalThis.VideoDecoder) return;
     if (
       !this.decoder ||
@@ -259,7 +264,7 @@ export class LiveSession {
       this.videoHeight !== packet.height
     ) {
       if (!packet.key) return;
-      this.decoder?.close();
+      if (this.decoder && this.decoder.state !== "closed") this.decoder.close();
       this.codec = packet.codec;
       this.videoWidth = packet.width;
       this.videoHeight = packet.height;
@@ -282,7 +287,15 @@ export class LiveSession {
         error: () =>
           this.pauseVideo("Video decoder stopped; using still frames"),
       });
-      this.decoder.configure({ codec: packet.codec, optimizeForLatency: true });
+      try {
+        this.decoder.configure({
+          codec: packet.codec,
+          optimizeForLatency: true,
+        });
+      } catch {
+        this.pauseVideo("Smooth view is unsupported here; using still frames");
+        return;
+      }
     }
     if (this.decoder.decodeQueueSize > 3) {
       this.pauseVideo("Video catching up");
