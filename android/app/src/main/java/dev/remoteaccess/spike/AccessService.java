@@ -205,6 +205,7 @@ public final class AccessService extends AccessibilityService {
         if (touch.active() && !java.util.Arrays.asList("state","capture","inspect","stop","ping").contains(op))
             throw new IllegalStateException("Lift your fingers before using another control");
         if (op.equals("videoKeyframe")) { VideoService.keyframe(); reply(c,true,"Fresh video keyframe requested",null); return; }
+        if (op.equals("smooth")) { smooth(c); return; }
         if (op.equals("videoMode")) { VideoService.setMode(this,c.optString("mode")); reply(c,true,"Video quality set",VideoService.status()); return; }
         if (op.equals("openTouchLab")) {
             if (getSystemService(KeyguardManager.class).isKeyguardLocked()) throw new IllegalStateException("Unlock the phone first");
@@ -441,6 +442,35 @@ public final class AccessService extends AccessibilityService {
                 && "com.android.systemui".equals(String.valueOf(n.getPackageName())),found,0,new int[]{0});
         // Ambiguous or missing: never guess which control is the digit.
         return found.size()==1 ? found.get(0) : null;
+    }
+    /**
+     * Sideload convenience: open Android's screen-sharing consent and approve it
+     * by accessibility. The visible prompt and sharing notification still appear.
+     */
+    private void smooth(JSONObject c) throws Exception {
+        if (getSystemService(KeyguardManager.class).isKeyguardLocked()) throw new IllegalStateException("Unlock the phone first");
+        if (VideoService.status().optBoolean("active")) { reply(c,true,"Smooth view is already on",VideoService.status()); return; }
+        scene++; frames.clear();
+        startActivity(new Intent(this,SetupActivity.class).setAction("smooth")
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_SINGLE_TOP|Intent.FLAG_ACTIVITY_CLEAR_TOP));
+        long session=grant, until=SystemClock.elapsedRealtime()+12000; boolean[] approved={false};
+        Runnable[] poll={null};
+        poll[0]=() -> {
+            if (!armed || grant!=session) return;
+            if (VideoService.status().optBoolean("active")) { reply(c,true,"Smooth view is on",VideoService.status()); return; }
+            if (SystemClock.elapsedRealtime()>until) { reply(c,false,approved[0]?"Screen sharing did not start":"Screen-sharing prompt not found",null); return; }
+            if (!approved[0]) {
+                ArrayList<AccessibilityNodeInfo> found=new ArrayList<>();
+                for (AccessibilityWindowInfo w:getWindows()) collect(w.getRoot(),n -> {
+                    String pkg=String.valueOf(n.getPackageName()), text=String.valueOf(n.getText());
+                    return n.isClickable() && (pkg.equals("com.android.systemui") || pkg.equals("android"))
+                        && (text.equals("Share screen") || text.equals("Start now") || text.equals("Start"));
+                },found,0,new int[]{0});
+                if (found.size()==1) approved[0]=found.get(0).performAction(AccessibilityNodeInfo.ACTION_CLICK);
+            }
+            main.postDelayed(poll[0],250);
+        };
+        main.postDelayed(poll[0],500);
     }
     /** Pixel's fingerprint-only bouncer hides the PIN pad until the screen is tapped once. */
     private void revealPinPad(JSONObject c) throws Exception {

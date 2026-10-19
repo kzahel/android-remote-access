@@ -11,6 +11,7 @@ import android.widget.*;
 public final class SetupActivity extends Activity {
     private TextView status;
     private static final int SMOOTH_VIEW=42;
+    private boolean remoteSmooth;
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         if ("stop".equals(getIntent().getAction()) && AccessService.current != null)
@@ -33,6 +34,7 @@ public final class SetupActivity extends Activity {
         button(page,"Allow smooth screen sharing", v -> smoothView());
         button(page,"Open touch playground", v -> startActivity(new Intent(this,TouchLabActivity.class)));
         button(page,"Stop remote access", v -> { if (AccessService.current != null) AccessService.current.disarm(); refresh(); });
+        handle(getIntent());
         setContentView(page);
         if (android.os.Build.VERSION.SDK_INT >= 33 && !getSystemService(NotificationManager.class).areNotificationsEnabled())
             requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 1);
@@ -57,13 +59,18 @@ public final class SetupActivity extends Activity {
         if (AccessService.current!=null) try { AccessService.current.arm(); refresh(); }
         catch (Exception ignored) { toast("Demo pairing is unavailable"); }
     }
+    @Override protected void onNewIntent(Intent intent) { super.onNewIntent(intent); setIntent(intent); handle(intent); }
+    /** A browser Smooth view request: show Android's consent, then return to the previous screen. */
+    private void handle(Intent intent) {
+        if (intent!=null && "smooth".equals(intent.getAction())) { remoteSmooth=true; smoothView(); }
+    }
     private void refresh() {
         AccessService svc = AccessService.current;
         status.setText(svc == null || !svc.authorityReady() ? "Screen access needs permission or is reconnecting" : svc.armed ? "Remote access is on · use Stop to revoke" : "Screen access allowed · remote access is off");
     }
     private void smoothView() {
         if(AccessService.current==null || !AccessService.current.armed) {toast("Start remote access first");return;}
-        if(VideoService.status().optBoolean("active"))return;
+        if(VideoService.status().optBoolean("active")) { if(remoteSmooth){remoteSmooth=false;moveTaskToBack(true);} return; }
         android.media.projection.MediaProjectionManager manager=getSystemService(android.media.projection.MediaProjectionManager.class);
         Intent capture=android.os.Build.VERSION.SDK_INT>=34
             ?manager.createScreenCaptureIntent(android.media.projection.MediaProjectionConfig.createConfigForDefaultDisplay())
@@ -74,6 +81,7 @@ public final class SetupActivity extends Activity {
         super.onActivityResult(request,result,data);
         if(request==SMOOTH_VIEW && result==RESULT_OK && data!=null)
             startForegroundService(new Intent(this,VideoService.class).putExtra("consent",data).putExtra("result",result));
+        if(request==SMOOTH_VIEW && remoteSmooth) { remoteSmooth=false; moveTaskToBack(true); }
     }
     private void button(LinearLayout parent,String text,View.OnClickListener action) {
         Button b = new Button(this); b.setText(text); b.setAllCaps(false); b.setOnClickListener(action); parent.addView(b);

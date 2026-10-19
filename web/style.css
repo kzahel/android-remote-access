@@ -817,3 +817,8 @@ body.paused .live-dot {
   border-radius: 6px;
   background: white;
 }
+
+#smooth-start {
+  margin-left: 10px;
+  font-size: 9px;
+}

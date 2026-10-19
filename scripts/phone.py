@@ -236,8 +236,13 @@ def rearm(args):
         barrier=adb('shell','am','wait-for-broadcast-idle',timeout=30)
         if 'All broadcast queues are idle' not in barrier: raise RuntimeError('Package broadcasts still pending')
     adb('shell','am','start','-n',PACKAGE+'/.SetupActivity','--activity-clear-top')
-    wait_for(lambda:click('2 · Start remote access'),10,'local Start button')
-    wait_for(lambda:client().state()['connected'],15,'native phone connection')
+    # After an update the accessibility service rebinds asynchronously; an early
+    # Start only shows "wait", so press again until the phone connects.
+    def started():
+        if not click('2 · Start remote access'): return False
+        try: return wait_for(lambda:client().state()['connected'],4,'connection')
+        except RuntimeError: return False
+    wait_for(started,30,'native phone connection')
     print('Phone access re-armed locally: '+receipt()['url'])
 
 

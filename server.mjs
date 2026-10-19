@@ -32,6 +32,7 @@ const safeOps = new Set([
   "openTouchLab",
   "videoKeyframe",
   "videoMode",
+  "smooth",
   "unlock",
   "stop",
 ]);
@@ -651,7 +652,7 @@ export async function createDemo(options = {}) {
           let result;
           try {
             // Unlock may first tap past Pixel's fingerprint-only screen.
-            result = await command(op, data, op === "unlock" ? 12000 : undefined);
+            result = await command(op, data, op === "unlock" || op === "smooth" ? 15000 : undefined);
           } finally {
             if (op === "unlock") {
               delete data.pin;

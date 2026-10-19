@@ -90,6 +90,8 @@ function renderState(next) {
     ? `Android ${s.release} · API ${s.api}`
     : next.target || "Android";
   $("lab-controls").hidden = !next.lab;
+  $("smooth-start").hidden =
+    !connected || !s || s.locked || !s.interactive || !!s.video?.active;
   $("quick-unlock").hidden = next.credentialExperiment === false;
   $("quick-unlock").disabled =
     unlockSending || !!next.unlockBlocked || !connected || !s?.locked;
@@ -429,6 +431,9 @@ async function unlock(useTestPin = false) {
     pin = "";
     notify(result.message, !result.ok);
     $("unlock-status").textContent = result.message;
+    // Locking ended screen sharing; bring smooth view back after a remote unlock.
+    if (result.ok && result.data?.locked === false && route !== "shell")
+      action("smooth");
   } catch (e) {
     pin = "";
     notify(e.message, true);
@@ -444,6 +449,7 @@ $("unlock-form").onsubmit = (e) => {
   unlock();
 };
 $("test-pin").onclick = () => unlock(true);
+$("smooth-start").onclick = () => action("smooth");
 $("quick-unlock").onclick = async () => {
   if (!state?.testCredential) {
     $("advanced").open = true;
