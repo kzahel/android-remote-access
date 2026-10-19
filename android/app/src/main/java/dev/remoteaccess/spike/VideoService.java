@@ -119,7 +119,6 @@ public final class VideoService extends Service {
         boolean awaitKey=true;
         try {
             Point p=new Point();getSystemService(DisplayManager.class).getDisplay(0).getRealSize(p);configure(p.x,p.y);
-            JSONObject pairing=new JSONObject(new String(Files.readAllBytes(new File(getFilesDir(),"pairing.json").toPath()),StandardCharsets.UTF_8));
             MediaCodec.BufferInfo info=new MediaCodec.BufferInfo();
             while(running) {
                 AccessService access=AccessService.current;
@@ -149,7 +148,7 @@ public final class VideoService extends Service {
                         closeSocket();InetSocketAddress route=access.link();
                         if(route==null||!AccessService.allowedHost(route.getHostString()))throw new IOException("No current remote-access route");
                         socket=new Socket();socket.connect(new InetSocketAddress(route.getHostString(),route.getPort()),3000);socket.setTcpNoDelay(true);linkedGeneration=generation;
-                        write(new JSONObject().put("type","hello").put("role","video").put("token",pairing.getString("token")).put("generation",generation));awaitKey=true;requestKeyframe=true;
+                        JSONObject hello=new JSONObject().put("type","hello").put("role","video").put("generation",generation);String token=access.linkToken();if(token!=null)hello.put("token",token);write(hello);awaitKey=true;requestKeyframe=true;
                     }
                     if(awaitKey&&!key){requestKeyframe=true;continue;}
                     if(key&&configuration.length>0){byte[] combined=new byte[configuration.length+bytes.length];System.arraycopy(configuration,0,combined,0,configuration.length);System.arraycopy(bytes,0,combined,configuration.length,bytes.length);bytes=combined;}

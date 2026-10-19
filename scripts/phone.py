@@ -93,7 +93,8 @@ def doctor():
 
 
 def client():
-    return Client(json.loads((STATE / 'running.json').read_text())['url'])
+    running=json.loads((STATE / 'running.json').read_text())
+    return Client(running['url'],running.get('token'))
 
 
 def nodes():
@@ -218,6 +219,12 @@ def rearm(args):
         config.update(phonePort=data['nativePort'],phoneUnlock=True,savedPinFile=str(SAVED_PIN),linkFile=str(LINK))
         if args.tailnet and not data.get('tailnetHost'): data['tailnetHost']=tailnet_ip()
         if data.get('tailnetHost'): config.update(tailnetHost=data['tailnetHost'],tailnetPort=data.get('tailnetPort') or 0)
+        if args.qr_pairing:
+            # Browsers must pair by QR; the phone keeps the owned ADB reverse
+            # first and the server appends its Tailscale route.
+            config.update(pairingFile=str(STATE/'pairings.json'),pairRoutes=[{'host':'127.0.0.1','port':data['reversePort']}])
+        else:
+            for key in ['pairingFile','pairRoutes']: config.pop(key,None)
         private(STATE/'server.json',config)
         with (STATE/'server.log').open('w') as log:
             proc=subprocess.Popen(['node',str(ROOT/'server.mjs')],cwd=ROOT,
@@ -299,7 +306,7 @@ def main():
     s=sub.add_parser('start');s.add_argument('--selector-file',required=True);s.add_argument('--port',type=int,default=4318);s.add_argument('--no-build',action='store_true')
     s.add_argument('--tailnet',action='store_true',help="also accept the phone on this computer's Tailscale address")
     for name in ['allow','smooth']:sub.add_parser(name)
-    s=sub.add_parser('rearm');s.add_argument('--restart-server',action='store_true');s.add_argument('--tailnet',action='store_true',help='with --restart-server, add the Tailscale route');s.add_argument('--install',action='store_true',help='replace the app with the current debug APK first')
+    s=sub.add_parser('rearm');s.add_argument('--restart-server',action='store_true');s.add_argument('--tailnet',action='store_true',help='with --restart-server, add the Tailscale route');s.add_argument('--install',action='store_true',help='replace the app with the current debug APK first');s.add_argument('--qr-pairing',action='store_true',help='with --restart-server, require browsers to pair by QR code')
     s=sub.add_parser('unlock');s.add_argument('--saved',action='store_true',help=f'use the PIN saved in {SAVED_PIN}')
     s=sub.add_parser('stop');s.add_argument('--restore',action='store_true')
     args=p.parse_args()

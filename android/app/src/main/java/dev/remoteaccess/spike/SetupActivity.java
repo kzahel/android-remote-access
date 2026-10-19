@@ -10,6 +10,7 @@ import android.widget.*;
 
 public final class SetupActivity extends Activity {
     private TextView status;
+    private LinearLayout browsers;
     private static final int SMOOTH_VIEW=42;
     private boolean remoteSmooth;
     @Override public void onCreate(Bundle state) {
@@ -25,6 +26,8 @@ public final class SetupActivity extends Activity {
         intro.setText("LOCAL PROTOTYPE\n\nAllow screen access, then start a session. The paired browser can see your screen and send your actions. Stop here at any time.");
         intro.setTextSize(16); intro.setPadding(0,32,0,32); page.addView(intro);
         status = new TextView(this); status.setTextSize(16); page.addView(status);
+        button(page,"Pair with a browser", v -> startActivity(new Intent(this,PairActivity.class)));
+        browsers = new LinearLayout(this); browsers.setOrientation(LinearLayout.VERTICAL); page.addView(browsers);
         button(page,"1 · Allow screen access", v -> startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
         button(page,"2 · Start remote access", v -> {
             if (AccessService.current == null || !AccessService.current.authorityReady()) { toast("Allow screen access first, or wait for it to reconnect"); return; }
@@ -70,7 +73,28 @@ public final class SetupActivity extends Activity {
     private void handle(Intent intent) {
         if (intent!=null && "smooth".equals(intent.getAction())) { remoteSmooth=true; smoothView(); }
     }
+    /** Browsers this phone has granted; removing one revokes it at the relay. */
+    private void listBrowsers() {
+        browsers.removeAllViews();
+        org.json.JSONObject paired=Paired.load(this);
+        org.json.JSONArray viewers=paired==null ? null : paired.optJSONArray("viewers");
+        for (int i=0;viewers!=null && i<viewers.length();i++) {
+            org.json.JSONObject viewer=viewers.optJSONObject(i);
+            LinearLayout row=new LinearLayout(this); row.setPadding(0,8,0,8);
+            TextView name=new TextView(this); name.setTextSize(16);
+            name.setText(viewer.optString("name")+"\npaired "+android.text.format.DateFormat.getMediumDateFormat(this).format(new java.util.Date(viewer.optLong("pairedAt"))));
+            row.addView(name,new LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.WRAP_CONTENT,1));
+            Button remove=new Button(this); remove.setText("Remove"); remove.setAllCaps(false);
+            remove.setOnClickListener(v -> {
+                try { Paired.removeViewer(this,viewer.optString("fpr")); } catch (Exception e) { toast("Could not remove: "+e.getMessage()); }
+                if (AccessService.current!=null) AccessService.current.viewersChanged();
+                refresh();
+            });
+            row.addView(remove); browsers.addView(row);
+        }
+    }
     private void refresh() {
+        listBrowsers();
         AccessService svc = AccessService.current;
         status.setText(svc == null || !svc.authorityReady() ? "Screen access needs permission or is reconnecting" : svc.armed ? "Remote access is on · use Stop to revoke" : "Screen access allowed · remote access is off");
     }

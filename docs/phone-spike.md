@@ -155,6 +155,50 @@ accessibility still frame succeeded. The old socket closed cleanly, so the
 replacement path is covered by the transport test, not this run. Whether
 Tailscale reconnects at boot without being started by hand was not tested.
 
+## QR pairing without an account
+
+Prototype of account-free pairing, with the demo server standing in for a relay:
+
+```sh
+python3 scripts/phone.py rearm --restart-server --tailnet --qr-pairing
+```
+
+Open **http://127.0.0.1:4318**; an unpaired browser is sent to `/pair`, which
+shows a one-time code valid for five minutes. On the phone, tap **Pair with a
+browser**, scan it with Google's code scanner (Play services; no camera
+permission), check the browser's name and tap **Grant**. The phone then signs in
+with its own key and the browser opens the viewer. Paired browsers are listed on
+the setup screen; **Remove** revokes one at the relay at once.
+
+- The browser keeps a non-extractable P-256 key in IndexedDB; the phone keeps a
+  P-256 Android Keystore key without user-authentication binding, so it can
+  sign after a restart. Each signs a server challenge to connect.
+- The code carries routes, a one-time id, the browser key's fingerprint and a
+  32-byte secret generated in the browser. The relay never sees the secret.
+  The phone returns an HMAC over its key with that secret; the browser checks
+  it before confirming, and the phone checks the browser key against the
+  fingerprint. A relay that substitutes either key is detected.
+- The relay stores only paired public keys (`.local/phone/pairings.json`). Each
+  phone hello lists its browsers; the relay drops any the phone no longer has.
+- Without an account the browser key is the only credential: clearing that
+  browser's site data loses access until the owner is back at the phone.
+- Token-provisioned phones still connect. Local test runners present the
+  owner-only demo token from `running.json` in place of a paired browser.
+- Video authenticates by the paired control link's unguessable generation.
+  Traffic is not end-to-end encrypted beyond the Tailscale/ADB transport.
+
+Physically tested 2026-10-19 on the Pixel 9 over Tailscale and wireless
+debugging (`node scripts/pair-acceptance.mjs`, all eight checks): an unpaired
+browser is refused; opening the code's link on the phone (standing in for the
+camera) and tapping Grant pairs it; the phone reconnects with its key as
+“Pixel 9”; a still frame arrives; a new session in the same browser profile
+signs in by key; Remove on the phone revokes the browser at the relay. The first
+run found that removing the last browser disconnected before telling the relay;
+the phone now sends the empty list first. Scanning with the camera, ML Kit
+scanner availability and Play-policy fit were not tested. The scanner is Google's
+proprietary Play services component and `uqr` (MIT) renders the browser's code;
+both need license review before any production use.
+
 ## Forced Doze
 
 Physically tested 2026-10-19 on the Pixel 9 over wireless debugging, unplugged,

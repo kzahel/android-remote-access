@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { WebSocketServer, WebSocket } from "ws";
+import { createPairing } from "./pairing.mjs";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const secret = () => randomBytes(32).toString("base64url");
@@ -53,7 +54,27 @@ export async function createDemo(options = {}) {
   const pinFile = phoneProfile
     ? options.phoneUnlock && options.savedPinFile
     : options.emulator && options.testPinFile;
-  const session = secret();
+  // One entry per browser. Without pairing, any page on this loopback origin
+  // is a viewer; with pairing, only a browser that proved a paired key.
+  const sessions = new Map();
+  const newSession = () => {
+    const id = secret();
+    sessions.set(id, { viewer: null, challenge: null });
+    if (sessions.size > 200) sessions.delete(sessions.keys().next().value);
+    return id;
+  };
+  const sessionId = (req) =>
+    req.headers.cookie
+      ?.split(";")
+      .map((s) => s.trim())
+      .find((s) => s.startsWith("remote_demo="))
+      ?.slice(12);
+  const pairRoutes = [...(options.pairRoutes || [])];
+  const pairing = options.pairingFile
+    ? await createPairing({ file: options.pairingFile, routes: pairRoutes })
+    : null;
+  // The paired phone key behind the current control connection, if any.
+  let deviceFpr = null;
   const pending = new Map();
   const log = [];
   let device = null;
@@ -197,6 +218,10 @@ export async function createDemo(options = {}) {
       role = "control",
       buffer = "";
     const authTimer = setTimeout(() => socket.destroy(), 3000);
+    // Paired phones sign this; token phones ignore it.
+    const challenge = pairing?.challenge();
+    if (pairing)
+      socket.write(JSON.stringify({ type: "challenge", nonce: challenge }) + "\n");
     socket.on("data", (bytes) => {
       buffer += bytes.toString("utf8");
       if (buffer.length > 2 * 1024 * 1024) {
@@ -214,12 +239,26 @@ export async function createDemo(options = {}) {
           socket.destroy();
           return;
         }
+        if (role === "pair") continue;
         if (!admitted) {
-          if (data.type !== "hello" || !equal(data.token, token)) {
+          if (pairing && data.type === "pair") {
+            // Held open, up to the code's lifetime, until the browser confirms.
+            clearTimeout(authTimer);
+            admitted = true;
+            role = "pair";
+            pairing.phonePair(socket, data, challenge);
+            continue;
+          }
+          const phoneFpr =
+            pairing && data.role !== "video" ? pairing.phoneHello(data, challenge) : null;
+          const tokenOk = equal(data.token, token);
+          if (data.type !== "hello" || !(tokenOk || phoneFpr || (data.role === "video" && deviceFpr))) {
             socket.destroy();
             return;
           }
           if (data.role === "video") {
+            // A paired phone's video proves itself by the control link's
+            // unguessable generation rather than a shared token.
             if (!device || data.generation !== generation) {
               socket.destroy();
               return;
@@ -234,7 +273,7 @@ export async function createDemo(options = {}) {
           if (device) {
             // A rebooted or re-routed phone may never have closed its old
             // socket, and a sleeping phone falls silent, so no idle timeout
-            // can tell them apart. The phone's own token wins the slot.
+            // can tell them apart. The phone's own token or key wins the slot.
             credentialVersion++;
             if (credentialChild) credentialChild.kill("SIGKILL");
             const stale = device;
@@ -245,6 +284,8 @@ export async function createDemo(options = {}) {
           clearTimeout(authTimer);
           admitted = true;
           device = socket;
+          deviceFpr = phoneFpr;
+          if (phoneFpr) pairing.reconcile(phoneFpr, data.viewers).catch(() => {});
           deviceRoute = route;
           generation = data.generation;
           viewerStopped = false;
@@ -289,6 +330,8 @@ export async function createDemo(options = {}) {
           continue;
         }
         if (socket !== device) return;
+        if (data.type === "viewers" && deviceFpr)
+          pairing.reconcile(deviceFpr, data.viewers).catch(() => {});
         if (data.state) update(data.state);
         if (data.type === "result") {
           const p = pending.get(data.id);
@@ -307,6 +350,7 @@ export async function createDemo(options = {}) {
         credentialVersion++;
         if (credentialChild) credentialChild.kill("SIGKILL");
         device = null;
+        deviceFpr = null;
         invalidate();
         activity("connection", "Phone disconnected", false);
       }
@@ -331,6 +375,8 @@ export async function createDemo(options = {}) {
       tailnet.once("error", reject);
       tailnet.listen(options.tailnetPort ?? 0, options.tailnetHost, resolve);
     });
+  if (tailnet)
+    pairRoutes.push({ host: options.tailnetHost, port: tailnet.address().port });
 
   async function body(req) {
     const bytes = [];
@@ -352,7 +398,11 @@ export async function createDemo(options = {}) {
     captureErrorTransient: transientFrameError(),
     lab: !!options.emulator,
     target: options.profile === "usb-phone" ? "USB-connected phone" : "Local emulator",
-    deviceName: options.deviceName || "Demo phone",
+    deviceName:
+      (deviceFpr && pairing.phones()[deviceFpr]?.name) ||
+      options.deviceName ||
+      "Demo phone",
+    pairing: !!pairing,
     credentialExperiment: !phoneProfile || !!options.phoneUnlock,
     testCredential: !!pinFile && existsSync(pinFile),
     unlockBlocked,
@@ -592,18 +642,39 @@ export async function createDemo(options = {}) {
         return;
       }
       const url = new URL(req.url, origin);
+      const sess = sessions.get(sessionId(req));
       if (url.pathname.startsWith("/api/")) {
-        const cookie = req.headers.cookie
-          ?.split(";")
-          .map((s) => s.trim())
-          .find((s) => s.startsWith("remote_demo="))
-          ?.slice(12);
-        if (!equal(cookie, session)) {
+        if (!sess) {
           json(401, { error: "Open the demo page first" });
           return;
         }
         if (req.method === "POST" && req.headers.origin !== origin) {
           json(403, { error: "Same-origin action required" });
+          return;
+        }
+        if (pairing && url.pathname.startsWith("/api/viewer/")) {
+          if (req.method === "POST" && url.pathname === "/api/viewer/challenge") {
+            sess.challenge = pairing.challenge();
+            json(200, { nonce: sess.challenge });
+          } else if (req.method === "POST" && url.pathname === "/api/viewer/login")
+            json(200, { ok: pairing.viewerLogin(sess, await body(req)) });
+          else json(404, { error: "Unknown endpoint" });
+          return;
+        }
+        if (pairing && url.pathname.startsWith("/api/pair/")) {
+          if (req.method === "POST" && url.pathname === "/api/pair/start")
+            json(200, pairing.start(sess, await body(req)));
+          else if (req.method === "GET" && url.pathname === "/api/pair/status")
+            json(200, pairing.status(sess, url.searchParams.get("id")));
+          else if (req.method === "POST" && url.pathname === "/api/pair/confirm")
+            json(200, await pairing.confirm(sess, await body(req)));
+          else json(404, { error: "Unknown endpoint" });
+          return;
+        }
+        // The owner-only demo token lets local test runners act as a viewer.
+        const testRunner = equal(req.headers["x-demo-token"], token);
+        if (pairing && !testRunner && !pairing.viewerPaired(sess.viewer, deviceFpr)) {
+          json(401, { error: "Pair this browser with the phone first", pair: true });
           return;
         }
         if (req.method === "GET" && url.pathname === "/api/state") {
@@ -703,23 +774,35 @@ export async function createDemo(options = {}) {
         return;
       }
       const files = {
-        "/": "index.html",
-        "/app.js": "app.js",
-        "/live.js": "live.js",
-        "/style.css": "style.css",
+        "/": "web/index.html",
+        "/app.js": "web/app.js",
+        "/live.js": "web/live.js",
+        "/style.css": "web/style.css",
+        ...(pairing && {
+          "/pair": "web/pair.html",
+          "/pair.js": "web/pair.js",
+          "/vendor/uqr.mjs": "node_modules/uqr/dist/index.mjs",
+        }),
       };
       const file = files[url.pathname];
       if (!file) {
         json(404, { error: "Not found" });
         return;
       }
-      if (url.pathname === "/")
+      if ((url.pathname === "/" || url.pathname === "/pair") && !sess)
         res.setHeader(
           "Set-Cookie",
-          `remote_demo=${session}; HttpOnly; SameSite=Strict; Path=/`,
+          `remote_demo=${newSession()}; HttpOnly; SameSite=Strict; Path=/`,
         );
-      res.writeHead(200, { "Content-Type": types[path.extname(file)] });
-      res.end(await readFile(path.join(root, "web", file)));
+      if (pairing && url.pathname === "/" && !pairing.viewerPaired(sess?.viewer)) {
+        res.writeHead(302, { Location: "/pair" });
+        res.end();
+        return;
+      }
+      res.writeHead(200, {
+        "Content-Type": types[path.extname(file)] || types[".js"],
+      });
+      res.end(await readFile(path.join(root, file)));
     } catch (error) {
       json(400, { error: error.message || "Request failed" });
     } finally {
@@ -728,16 +811,13 @@ export async function createDemo(options = {}) {
   });
   server.on("upgrade", (req, socket, head) => {
     const origin = `http://127.0.0.1:${server.address().port}`;
-    const cookie = req.headers.cookie
-      ?.split(";")
-      .map((s) => s.trim())
-      .find((s) => s.startsWith("remote_demo="))
-      ?.slice(12);
+    const sess = sessions.get(sessionId(req));
     if (
       req.url !== "/api/live" ||
       req.headers.host !== new URL(origin).host ||
       req.headers.origin !== origin ||
-      !equal(cookie, session)
+      !sess ||
+      (pairing && !pairing.viewerPaired(sess.viewer, deviceFpr))
     ) {
       socket.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n");
       return;

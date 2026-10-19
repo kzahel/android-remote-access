@@ -15,6 +15,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Opens a scanned or tapped pairing link; nothing is sent until the owner taps Grant. -->
+        <activity android:name=".PairActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="rapair" android:host="pair" />
+            </intent-filter>
+        </activity>
+        <meta-data android:name="com.google.mlkit.vision.DEPENDENCIES" android:value="barcode_ui" />
         <activity android:name=".StationActivity" android:exported="true" />
         <activity android:name=".TouchLabActivity" android:exported="true" />
         <service android:name=".VideoService" android:exported="false" android:foregroundServiceType="mediaProjection" />

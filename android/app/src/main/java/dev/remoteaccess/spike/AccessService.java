@@ -33,6 +33,7 @@ public final class AccessService extends AccessibilityService {
     private volatile Socket connection;
     private volatile OutputStream writer;
     private volatile InetSocketAddress linkRoute;
+    private volatile String linkToken;
     private volatile long grant;
     private final String generation = UUID.randomUUID().toString();
     private long scene = 1;
@@ -92,12 +93,19 @@ public final class AccessService extends AccessibilityService {
     synchronized void arm() throws Exception {
         if(!authorityReady())throw new IllegalStateException("Screen access is reconnecting; start again locally");
         disarm();
-        File config = new File(getFilesDir(),"pairing.json");
-        JSONObject pairing = new JSONObject(new String(Files.readAllBytes(config.toPath()),StandardCharsets.UTF_8));
-        String token=pairing.getString("token");
+        // A QR-paired browser signs in with this phone's key; otherwise the
+        // ADB-provisioned demo token.
+        String token=null; JSONArray listed;
+        if (Paired.any(this)) listed=Paired.load(this).getJSONArray("routes");
+        else {
+            File config = new File(getFilesDir(),"pairing.json");
+            JSONObject pairing = new JSONObject(new String(Files.readAllBytes(config.toPath()),StandardCharsets.UTF_8));
+            token=pairing.getString("token");
+            listed=pairing.optJSONArray("routes");
+            if (listed==null) listed=new JSONArray().put(new JSONObject().put("host",pairing.getString("host")).put("port",pairing.getInt("port")));
+        }
+        linkToken=token;
         ArrayList<InetSocketAddress> routes=new ArrayList<>();
-        JSONArray listed=pairing.optJSONArray("routes");
-        if (listed==null) listed=new JSONArray().put(new JSONObject().put("host",pairing.getString("host")).put("port",pairing.getInt("port")));
         for (int i=0;i<listed.length();i++) {
             String host=listed.getJSONObject(i).getString("host");
             if (!allowedHost(host)) throw new IOException("Local demo or Tailscale endpoint required");
@@ -107,7 +115,8 @@ public final class AccessService extends AccessibilityService {
         armed=true; long session=++grant; deadline=Long.MAX_VALUE;
         connectionAttempt=0;
         notification();
-        new Thread(() -> connect(routes,token,session),"remote-access-link").start();
+        String linkSecret=token;
+        new Thread(() -> connect(routes,linkSecret,session),"remote-access-link").start();
         main.post(heartbeat);
     }
     /** Emulator gateway, ADB reverse on loopback, or a Tailscale (100.64.0.0/10) literal; never a LAN listener. */
@@ -119,6 +128,16 @@ public final class AccessService extends AccessibilityService {
             int[] o=new int[4]; for (int i=0;i<4;i++) { o[i]=Integer.parseInt(parts[i]); if (o[i]<0 || o[i]>255) return false; }
             return o[0]==100 && o[1]>=64 && o[1]<=127;
         } catch (NumberFormatException e) { return false; }
+    }
+    /** The demo token, or null when this phone signs in with its paired key. */
+    String linkToken() { return linkToken; }
+    /** Tell the relay at once when the owner removes a browser; the next hello repeats it. */
+    void viewersChanged() {
+        if (linkToken!=null) return;
+        try { send(new JSONObject().put("type","viewers").put("viewers",Paired.fingerprints(this))); } catch (Exception ignored) { }
+        // With no browser left, stop only after the relay has been told.
+        if (!Paired.any(this))
+            try { outbound.execute(() -> main.post(this::disarm)); } catch (RejectedExecutionException e) { disarm(); }
     }
     /** The route the control connection currently uses; video follows it. */
     InetSocketAddress link() { return linkRoute; }
@@ -152,16 +171,27 @@ public final class AccessService extends AccessibilityService {
             InetSocketAddress route=routes.get(next++ % routes.size());
             try (Socket socket = new Socket()) {
                 socket.connect(new InetSocketAddress(route.getHostString(),route.getPort()),5000); socket.setTcpNoDelay(true); socket.setSoTimeout(15000);
+                BufferedReader in=new BufferedReader(new InputStreamReader(socket.getInputStream(),StandardCharsets.UTF_8));
+                String nonce=null;
+                if (token==null) {
+                    JSONObject challenge=new JSONObject(readBounded(in));
+                    if (!"challenge".equals(challenge.optString("type"))) throw new IOException("No relay challenge");
+                    nonce=challenge.getString("nonce");
+                }
                 synchronized (this) { if (!armed || grant != session) return; connection=socket; writer=socket.getOutputStream(); linkRoute=route;
                     connectionAttempt++;
-                    send(new JSONObject().put("type","hello").put("token",token).put("generation",generation+":"+session+":"+connectionAttempt).put("state",state()));
+                    String linkGeneration=generation+":"+session+":"+connectionAttempt;
+                    JSONObject hello=new JSONObject().put("type","hello").put("generation",linkGeneration).put("state",state());
+                    if (token!=null) hello.put("token",token);
+                    else hello.put("phoneKey",Paired.publicKey()).put("signature",Paired.sign("rap1-phone-hello|"+nonce+"|"+linkGeneration)).put("viewers",Paired.fingerprints(this));
+                    send(hello);
                 }
-                BufferedReader in=new BufferedReader(new InputStreamReader(socket.getInputStream(),StandardCharsets.UTF_8));
                 String line; boolean proven=false;
                 while (connection==socket && !socket.isClosed() && (line=readBounded(in)) != null) {
                     // A stranded ADB reverse accepts but never answers; prefer a route only once it has.
                     if (!proven) { proven=true; next--; }
                     JSONObject command=new JSONObject(line);
+                    if (!command.has("op")) continue; // A pairing relay's challenge to a token phone.
                     main.post(() -> {
                         if (!armed || grant != session || connection != socket) return;
                         if (command.optString("op").equals("ping")) { reply(command,true,"Reachable",null); return; }

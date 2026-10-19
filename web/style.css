@@ -836,3 +836,39 @@ body.paused .live-dot {
   border-radius: 6px;
   background: white;
 }
+body.pairing {
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.pair-card {
+  width: min(460px, 100%);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 28px;
+}
+.pair-card h1 {
+  font-size: 24px;
+  margin: 22px 0 8px;
+}
+.pair-card p {
+  line-height: 1.5;
+}
+.pair-code img {
+  display: block;
+  width: 260px;
+  height: 260px;
+  margin: 16px auto;
+  image-rendering: pixelated;
+}
+.pair-code ol {
+  padding-left: 20px;
+  line-height: 1.7;
+}
+.pair-code code {
+  display: block;
+  word-break: break-all;
+  font-size: 12px;
+  user-select: all;
+}
