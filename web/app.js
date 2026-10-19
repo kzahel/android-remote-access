@@ -87,6 +87,14 @@ function renderState(next) {
     ? `Android ${s.release} · API ${s.api}`
     : next.target || "Android";
   $("lab-controls").hidden = !next.lab;
+  $("quick-unlock").hidden =
+    !connected || !s?.locked || next.credentialExperiment === false;
+  $("quick-unlock").disabled = unlockSending || !!next.unlockBlocked;
+  $("quick-unlock").textContent = next.unlockBlocked
+    ? "Unlock attempted · unlock on the phone"
+    : next.testCredential
+      ? "Unlock phone with saved PIN"
+      : "Unlock phone…";
   $("test-pin").hidden = !next.testCredential;
   $("test-pin").disabled =
     unlockSending || !!next.unlockBlocked || !connected || !s?.locked;
@@ -423,6 +431,18 @@ $("unlock-form").onsubmit = (e) => {
   unlock();
 };
 $("test-pin").onclick = () => unlock(true);
+$("quick-unlock").onclick = async () => {
+  if (!state?.testCredential) {
+    $("advanced").open = true;
+    $("pin").focus();
+    return;
+  }
+  // Wake and show the PIN pad first; the phone enters the saved PIN once.
+  await action("wake");
+  await action("dismiss");
+  await new Promise((resolve) => setTimeout(resolve, 1500));
+  unlock(true);
+};
 $("video-mode").onchange = (e) => action("videoMode", { mode: e.target.value });
 $("stop-access").onclick = () => action("stop");
 $("device-card").onclick = () => {

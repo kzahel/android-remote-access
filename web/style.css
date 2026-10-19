@@ -865,3 +865,12 @@ body.paused .live-dot {
   border-radius: 6px;
   background: white;
 }
+
+.quick-unlock {
+  display: block;
+  margin: 10px auto 0;
+  font-size: 12px;
+}
+.quick-unlock[hidden] {
+  display: none;
+}
