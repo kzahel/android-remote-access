@@ -75,8 +75,8 @@ public final class AccessService extends AccessibilityService {
         File config = new File(getFilesDir(),"pairing.json");
         JSONObject pairing = new JSONObject(new String(Files.readAllBytes(config.toPath()),StandardCharsets.UTF_8));
         String host=pairing.getString("host"); int port=pairing.getInt("port"); String token=pairing.getString("token");
-        // This is deliberately a local emulator transport, not a plaintext LAN server.
-        if (!host.equals("10.0.2.2") && !host.equals("127.0.0.1")) throw new IOException("Emulator demo endpoint required");
+        // Local emulator gateway or selected-device USB reverse; never a LAN listener.
+        if (!host.equals("10.0.2.2") && !host.equals("127.0.0.1")) throw new IOException("Local demo endpoint required");
         armed=true; long session=++grant; deadline=SystemClock.elapsedRealtime()+4*60*60*1000;
         connectionAttempt=0;
         notification();

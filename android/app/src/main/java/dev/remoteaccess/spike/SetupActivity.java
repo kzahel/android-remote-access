@@ -21,7 +21,7 @@ public final class SetupActivity extends Activity {
         TextView title = new TextView(this); title.setText("Your phone, within reach");
         title.setTextSize(28); title.setTextColor(0xff18352b); page.addView(title);
         TextView intro = new TextView(this);
-        intro.setText("EMULATOR SPIKE\n\nAllow screen access, then start a session. The paired browser can see your screen and send your actions. Stop here at any time.");
+        intro.setText("LOCAL PROTOTYPE\n\nAllow screen access, then start a session. The paired browser can see your screen and send your actions. Stop here at any time.");
         intro.setTextSize(16); intro.setPadding(0,32,0,32); page.addView(intro);
         status = new TextView(this); status.setTextSize(16); page.addView(status);
         button(page,"1 · Allow screen access", v -> startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));

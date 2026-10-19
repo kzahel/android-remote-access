@@ -35,6 +35,14 @@ implementation, tests and incremental commits. It does not authorize changing
 physical-phone settings, publication or a production architecture. See
 `spike/README.md` and `docs/spike.md` for the runbook and measured scope.
 
+The subsequent explicit request to control the attached Pixel 7a authorizes
+installing this test host and accepting its visible accessibility/screen-sharing
+permissions, with automated physical-host tests and incremental commits. Keep
+this separate from the earlier Pixel browser-client trial. Preserve other
+services, apps and transports; do not change lock credentials or debugging
+settings. Physical credential entry, reboot/Doze qualification and publication
+are outside this extension. See `docs/phone-spike.md`.
+
 The 2026-10-19 follow-up authorizes continuous touch/smooth viewing, automated
 tests and use of the attached Pixel 7a. The current hardware trial uses it as
 the browser client; it does not install the host APK or change its lock/debugging

@@ -6,11 +6,20 @@ import { readFile, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 const exec = promisify(execFile);
-const { url } = JSON.parse(await readFile(".local/running.json", "utf8"));
-const receipt = JSON.parse(await readFile(".local/demo.json", "utf8"));
-const config = JSON.parse(await readFile(".local/server.json", "utf8"));
-if (!/^emulator-\d+$/.test(receipt.serial))
+const physical = process.argv.includes("--phone");
+const local = physical ? ".local/phone" : ".local";
+const { url } = JSON.parse(await readFile(`${local}/running.json`, "utf8"));
+const receipt = JSON.parse(await readFile(`${local}/${physical ? "device" : "demo"}.json`, "utf8"));
+const config = JSON.parse(await readFile(`${local}/server.json`, "utf8"));
+if (physical) {
+  if (config.profile !== "usb-phone" || receipt.serial.startsWith("emulator-") || !receipt.installedByUs)
+    throw new Error("Explicit owned phone setup receipt required");
+  const { stdout: model } = await exec(config.adb, ["-s", receipt.serial, "shell", "getprop", "ro.product.model"]);
+  if (model.trim() !== receipt.model) throw new Error("Phone identity changed");
+} else if (!/^emulator-\d+$/.test(receipt.serial)) {
   throw new Error("Owned emulator required");
+}
+
 const adb = (...args) => exec(config.adb, ["-s", receipt.serial, ...args]);
 const witness = async () =>
   JSON.parse(
@@ -283,7 +292,7 @@ try {
   ws?.terminate();
   await browser.close();
   await writeFile(
-    `.local/touch-boundaries-api${receipt.api}.json`,
+    `${local}/touch-boundaries-api${receipt.api}.json`,
     JSON.stringify(report, null, 2),
   );
 }

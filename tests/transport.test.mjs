@@ -182,3 +182,23 @@ test("timed-out commands do not accept late results as another action", async ()
     await app.close();
   }
 });
+
+test("USB phone profile refuses emulator credentials before native dispatch", async () => {
+  const app = await createDemo({ profile: "usb-phone", deviceName: "Test phone" });
+  try {
+    const socket = await device(app, app.token, { locked: true, secure: true });
+    await new Promise((r) => setTimeout(r, 20));
+    const call = await viewer(app);
+    const response = await call("/api/action", { op: "unlock", useTestPin: true });
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).error, /emulator-only/);
+    assert.equal(app.status().unlockBlocked, false);
+    assert.equal(app.status().credentialExperiment, false);
+    assert.equal(app.status().lab, false);
+    assert.equal(app.status().deviceName, "Test phone");
+    assert.equal((await call("/api/lab", { action: "wake" })).status, 400);
+    socket.destroy();
+  } finally {
+    await app.close();
+  }
+});

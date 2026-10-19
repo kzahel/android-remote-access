@@ -56,6 +56,9 @@ function cover(title, message, wake = false) {
 }
 function renderState(next) {
   state = next;
+  $("device-name").textContent = next.deviceName || "Demo phone";
+  $("target-label").textContent = next.target || "Local prototype";
+  $("unlock-experiment").hidden = next.credentialExperiment === false;
   const connected = !!next.connected,
     s = next.state;
   $("connection-dot").className = "dot" + (connected ? " on" : " warn");
@@ -76,7 +79,7 @@ function renderState(next) {
     : "Lock · unknown";
   $("platform").textContent = s
     ? `Android ${s.release} · API ${s.api}`
-    : "Android emulator";
+    : next.target || "Android";
   $("lab-controls").hidden = !next.lab;
   $("test-pin").hidden = !next.testCredential;
   $("test-pin").disabled =
@@ -104,7 +107,7 @@ function renderState(next) {
       "Phone not responding",
       next.lastSeen
         ? "The connection ended. If it does not return, open Remote access on the phone and choose Start remote access. No action will be replayed."
-        : "Start remote access on the emulator to connect this viewer.",
+        : "Open Remote access on the phone and choose Start remote access.",
     );
   } else if (!s.interactive) {
     live?.cancel("Phone is asleep");
@@ -221,7 +224,7 @@ live = new LiveSession({
     state.state?.interactive &&
     !state.state?.locked &&
     !state.state?.credentialCapturePaused &&
-    !state.captureError,
+    (!state.captureError || state.captureErrorTransient),
   note: notify,
   changed: (count, message) => {
     $("view-mode").textContent = paused

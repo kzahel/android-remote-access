@@ -8,7 +8,7 @@ and check whether solar is charging the big power station. Other examples are
 using the phone as a camera, recovering an app login, and operating a dedicated
 phone without visiting it physically.
 
-**Stage: research plus an authorized emulator prototype.** The
+**Stage: research plus emulator and USB-connected phone prototypes.** The
 [manual-access spike](docs/spike.md) is experimental; its acceptance evidence
 does not establish consumer readiness. This project is
 independent of Yep Anywhere (YA) and must work without AI subscriptions or an
@@ -16,6 +16,7 @@ agent being signed in. Repairing YA Android-host authentication is one useful
 test case, not the product's identity.
 
 - [Run the emulator demo](spike/README.md)
+- [Control an attached phone](docs/phone-spike.md)
 - [Continuous touch and smooth-view experiment](docs/touch-spike.md)
 - [Product inspiration, use cases and open decisions](docs/product.md)
 - [Android capabilities, unlock, wake and background reliability](docs/android-platform.md)

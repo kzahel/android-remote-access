@@ -105,7 +105,7 @@ export class LiveSession {
     ];
   }
   down(e) {
-    if (!this.allowed() || !this.getFrame()) {
+    if (!this.allowed() || !(this.gesture ? this.touchFrame : this.getFrame())) {
       this.note?.(
         "The screen is refreshing. Try touching again in a moment.",
         true,

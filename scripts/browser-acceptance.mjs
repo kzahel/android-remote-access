@@ -3,11 +3,20 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 const exec = promisify(execFile);
-const running = JSON.parse(await readFile(".local/running.json", "utf8"));
-const receipt = JSON.parse(await readFile(".local/demo.json", "utf8"));
-const config = JSON.parse(await readFile(".local/server.json", "utf8"));
-if (!/^emulator-\d+$/.test(receipt.serial))
+const physical = process.argv.includes("--phone");
+const local = physical ? ".local/phone" : ".local";
+const evidence = physical ? ".local/phone/evidence" : ".local/evidence";
+const running = JSON.parse(await readFile(`${local}/running.json`, "utf8"));
+const receipt = JSON.parse(await readFile(`${local}/${physical ? "device" : "demo"}.json`, "utf8"));
+const config = JSON.parse(await readFile(`${local}/server.json`, "utf8"));
+if (physical) {
+  if (config.profile !== "usb-phone" || receipt.serial.startsWith("emulator-") || !receipt.installedByUs)
+    throw new Error("Explicit owned phone setup receipt required");
+  const { stdout: model } = await exec(config.adb, ["-s", receipt.serial, "shell", "getprop", "ro.product.model"]);
+  if (model.trim() !== receipt.model) throw new Error("Phone identity changed");
+} else if (!/^emulator-\d+$/.test(receipt.serial)) {
   throw new Error("Owned emulator required");
+}
 const witness = async () =>
   JSON.parse(
     (
@@ -24,7 +33,7 @@ const witness = async () =>
   );
 const report = { checks: [] };
 const browser = await chromium.launch({ headless: true });
-await mkdir(".local/evidence", { recursive: true });
+await mkdir(evidence, { recursive: true });
 try {
   const page = await browser.newPage({
     viewport: { width: 1440, height: 1050 },
@@ -135,7 +144,7 @@ try {
   report.maxLocalKeyboardAcknowledgementMs = latency;
   await page.keyboard.press("Tab");
   await page.screenshot({
-    path: ".local/evidence/viewer-desktop.png",
+    path: `${evidence}/viewer-desktop.png`,
     fullPage: true,
   });
   await page.setViewportSize({ width: 390, height: 844 });
@@ -145,7 +154,7 @@ try {
   );
   if (overflow) throw new Error("Mobile layout overflows horizontally");
   await page.screenshot({
-    path: ".local/evidence/viewer-mobile.png",
+    path: `${evidence}/viewer-mobile.png`,
     fullPage: true,
   });
   report.checks.push(
@@ -157,7 +166,7 @@ try {
   console.log(JSON.stringify(report, null, 2));
 } finally {
   await writeFile(
-    `.local/browser-acceptance-api${receipt.api}.json`,
+    `${local}/browser-acceptance-api${receipt.api}.json`,
     JSON.stringify(report, null, 2),
   );
   await browser.close();

@@ -8,7 +8,7 @@ import android.view.accessibility.AccessibilityNodeInfo;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-/** Emulator-only shell observation. No screenshots, mutations or password text. */
+/** Selected-device shell observation. No screenshots, mutations or password text. */
 public final class ShellUi {
     private static final JSONArray nodes=new JSONArray();
     private static int count;

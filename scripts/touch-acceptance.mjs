@@ -3,11 +3,20 @@ import { readFile, writeFile, mkdir, copyFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 const exec = promisify(execFile);
-const { url } = JSON.parse(await readFile(".local/running.json", "utf8"));
-const receipt = JSON.parse(await readFile(".local/demo.json", "utf8"));
-const config = JSON.parse(await readFile(".local/server.json", "utf8"));
-if (!/^emulator-\d+$/.test(receipt.serial))
+const physical = process.argv.includes("--phone");
+const local = physical ? ".local/phone" : ".local";
+const evidence = physical ? ".local/phone/evidence" : ".local/evidence";
+const { url } = JSON.parse(await readFile(`${local}/running.json`, "utf8"));
+const receipt = JSON.parse(await readFile(`${local}/${physical ? "device" : "demo"}.json`, "utf8"));
+const config = JSON.parse(await readFile(`${local}/server.json`, "utf8"));
+if (physical) {
+  if (config.profile !== "usb-phone" || receipt.serial.startsWith("emulator-") || !receipt.installedByUs)
+    throw new Error("Explicit owned phone setup receipt required");
+  const { stdout: model } = await exec(config.adb, ["-s", receipt.serial, "shell", "getprop", "ro.product.model"]);
+  if (model.trim() !== receipt.model) throw new Error("Phone identity changed");
+} else if (!/^emulator-\d+$/.test(receipt.serial)) {
   throw new Error("Owned emulator required");
+}
 const witness = async () => {
   try {
     return JSON.parse(
@@ -29,16 +38,17 @@ const witness = async () => {
 };
 const report = {
   api: receipt.api,
+  host: physical ? receipt.model + " physical Android host" : "Owned emulator",
   client: "Managed Chromium CDP touch injection; no physical finger trial",
   checks: [],
 };
 const browser = await chromium.launch({ headless: true });
-await mkdir(".local/evidence/touch-video", { recursive: true });
+await mkdir(`${evidence}/touch-video`, { recursive: true });
 const context = await browser.newContext({
   viewport: { width: 1440, height: 1050 },
   hasTouch: true,
   recordVideo: {
-    dir: ".local/evidence/touch-video",
+    dir: `${evidence}/touch-video`,
     size: { width: 1440, height: 1050 },
   },
 });
@@ -75,8 +85,8 @@ try {
   const r = await page.locator("#screen").boundingBox();
   const p = (id, x, y) => ({
     id,
-    x: r.x + (x / frame.data.width) * r.width,
-    y: r.y + ((y + top) / frame.data.height) * r.height,
+    x: r.x + (x / 1080) * r.width,
+    y: r.y + ((y * (frame.data.width / 1080) + top) / frame.data.height) * r.height,
     radiusX: 5,
     radiusY: 5,
     force: 0.5,
@@ -255,7 +265,7 @@ try {
     );
   }
   await page.screenshot({
-    path: `.local/evidence/touch-desktop-api${receipt.api}.png`,
+    path: `${evidence}/touch-desktop-api${receipt.api}.png`,
     fullPage: true,
   });
   await page.waitForTimeout(1000);
@@ -309,25 +319,29 @@ try {
   report.checks.push(
     "Pausing the viewer releases touch and resumes without replay",
   );
-  await touch("touchStart", [p(1, 600, 925)]);
-  await expect.poll(async () => (await witness())?.held).toBe(1);
-  const rotation = await page.request.post(url + "/api/lab", {
-    headers: { Origin: url },
-    data: { action: "rotate", rotation: 1 },
-  });
-  if (!rotation.ok()) throw new Error("Emulator rotation failed");
-  await expect
-    .poll(async () => (await call("state")).state.touchActive)
-    .toBe(false);
-  await touch("touchCancel", []);
-  await page.request.post(url + "/api/lab", {
-    headers: { Origin: url },
-    data: { action: "rotate", rotation: 0 },
-  });
-  await page.waitForTimeout(1500);
-  report.checks.push(
-    "Phone rotation interrupts the old coordinate stream without replay",
-  );
+  if (!physical) {
+    await touch("touchStart", [p(1, 600, 925)]);
+    await expect.poll(async () => (await witness())?.held).toBe(1);
+    const rotation = await page.request.post(url + "/api/lab", {
+      headers: { Origin: url },
+      data: { action: "rotate", rotation: 1 },
+    });
+    if (!rotation.ok()) throw new Error("Emulator rotation failed");
+    await expect
+      .poll(async () => (await call("state")).state.touchActive)
+      .toBe(false);
+    await touch("touchCancel", []);
+    await page.request.post(url + "/api/lab", {
+      headers: { Origin: url },
+      data: { action: "rotate", rotation: 0 },
+    });
+    await page.waitForTimeout(1500);
+    report.checks.push(
+      "Phone rotation interrupts the old coordinate stream without replay",
+    );
+  } else {
+    report.skipped = ["Physical rotation setting mutation; emulator-only qualification"];
+  }
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForTimeout(500);
   if (
@@ -335,7 +349,7 @@ try {
   )
     throw new Error("Mobile horizontal overflow");
   await page.screenshot({
-    path: `.local/evidence/touch-mobile-api${receipt.api}.png`,
+    path: `${evidence}/touch-mobile-api${receipt.api}.png`,
     fullPage: true,
   });
   if (errors.length) throw new Error(errors.join("; "));
@@ -359,13 +373,13 @@ try {
   throw error;
 } finally {
   await writeFile(
-    `.local/touch-acceptance-api${receipt.api}.json`,
+    `${local}/touch-acceptance-api${receipt.api}.json`,
     JSON.stringify(report, null, 2),
   );
   await context.close();
   await copyFile(
     await video.path(),
-    `.local/evidence/touch-api${receipt.api}.webm`,
+    `${evidence}/touch-api${receipt.api}.webm`,
   );
   await browser.close();
 }

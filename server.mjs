@@ -313,7 +313,11 @@ export async function createDemo(options = {}) {
     state,
     log,
     captureError: lastFrameError,
+    captureErrorTransient: /rate limited|changed|already in progress|timed out/.test(lastFrameError),
     lab: !!options.emulator,
+    target: options.profile === "usb-phone" ? "USB-connected phone" : "Local emulator",
+    deviceName: options.deviceName || "Demo phone",
+    credentialExperiment: options.profile !== "usb-phone",
     testCredential: !!options.testPinFile && existsSync(options.testPinFile),
     unlockBlocked,
     live: {
@@ -322,7 +326,9 @@ export async function createDemo(options = {}) {
       videoFrames,
       touchHeld: !!touchOwner,
     },
-    transport: "Local emulator demo · app connects outward · no ADB forwarding",
+    transport: options.profile === "usb-phone"
+      ? "USB demo · native phone control · local ADB reverse transport"
+      : "Local emulator demo · app connects outward · no ADB forwarding",
     limits:
       "Local prototype. Internet reachability, Doze and unattended reboot recovery are unqualified.",
   });
@@ -587,6 +593,8 @@ export async function createDemo(options = {}) {
             return;
           }
           if (op === "unlock") {
+            if (options.profile === "usb-phone")
+              throw new Error("Unlock this phone locally; credential experiments are emulator-only");
             endTouch("Unlocking");
             videoPause("Unlocking · view paused");
             credentialReserved = true;
@@ -821,7 +829,7 @@ if (
   const app = await createDemo(config);
   await mkdir(path.join(root, ".local"), { recursive: true });
   await writeFile(
-    path.join(root, ".local", "running.json"),
+    process.env.DEMO_RUNNING || path.join(root, ".local", "running.json"),
     JSON.stringify({
       url: app.url,
       phonePort: app.phonePort,
@@ -831,9 +839,7 @@ if (
     { mode: 0o600 },
   );
   console.log(`Remote access spike: ${app.url}`);
-  console.log(
-    "Local emulator only. No ADB forwarding in the app control path.",
-  );
+  console.log(app.status().transport);
   for (const signal of ["SIGTERM", "SIGINT"])
     process.on(signal, async () => {
       await app.close();
