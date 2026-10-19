@@ -34,7 +34,9 @@ and [accessibility configuration](https://github.com/ghorbelhamdi/buddy-android/
 Reviewed for screenshot/gesture/text primitives and the native API boundary.
 Machine Control's resident spike supplies evidence about fixture verification
 and independent effect observations. No upstream code, binaries, fonts or icons
-are copied. The spike uses Android SDK and Node built-ins.
+are copied. The original spike used Android SDK and Node built-ins. The
+[touch extension](touch-spike.md) adds the exact-pinned MIT-licensed `ws`
+WebSocket dependency; Playwright remains a development-only test dependency.
 
 ## Results
 
@@ -116,13 +118,16 @@ remain in ignored `.local/`.
 
 A native Android accessibility service can make manual remote viewing, input and
 known-PIN experiments useful without an AI runtime or ordinary ADB input. This
-spike uses live JPEG stills rather than video. ADB remains an explicitly labeled
+original milestone used live JPEG stills. The [touch extension](touch-spike.md)
+adds separately consented H.264 video. ADB remains an explicitly labeled
 emulator setup, independent-observation and optional shell-comparison tool.
 
 Physical Pixel 7a behavior, secure unlock across OEMs, phone-local first unlock,
 Doze/overnight endurance, Bluetooth/vendor-app behavior, Internet relay and
 production pairing/encryption are untested. The current transport is confined
-to the local emulator host gateway. No attached physical phone was changed.
+to the local emulator host gateway. No attached physical phone was changed
+during this original milestone; later client trials are recorded in the touch
+extension.
 
 ### Implementation observations
 

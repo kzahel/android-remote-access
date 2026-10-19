@@ -16,6 +16,7 @@ agent being signed in. Repairing YA Android-host authentication is one useful
 test case, not the product's identity.
 
 - [Run the emulator demo](spike/README.md)
+- [Continuous touch and smooth-view experiment](docs/touch-spike.md)
 - [Product inspiration, use cases and open decisions](docs/product.md)
 - [Android capabilities, unlock, wake and background reliability](docs/android-platform.md)
 - [Competitors and alternatives](docs/competitors.md)

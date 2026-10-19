@@ -47,6 +47,12 @@ def lock_and_show():
     result=c.action('lock'); assert result['ok']
     wait_for(lambda:c.action('state')['state']['locked'],10,'secure lock')
     asleep=c.action('state')['state']
+    if initial.get('video',{}).get('active'):
+        if initial['api']>=36:
+            wait_for(lambda:not c.action('state')['state'].get('video',{}).get('active'),8,'Android lock revokes projection')
+            if 'projectionAfterLock' not in report:
+                check('Android 16 lock revokes consented smooth sharing separately from accessibility',True)
+        report.setdefault('projectionAfterLock',[]).append(c.action('state')['state'].get('video',{}).get('active'))
     check('Secure lock preserves process reachability',asleep['locked'] and asleep['secure'])
     result=c.action('wake'); assert result['ok']
     wait_for(lambda:c.action('state')['state']['interactive'],10,'native display wake')

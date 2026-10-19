@@ -64,6 +64,11 @@ public final class TouchLabActivity extends Activity {
             if(a==MotionEvent.ACTION_CANCEL)cancels++;
             maxHeld=Math.max(maxHeld,held);
             lastX=x;lastY=y;lastSpan=(a==MotionEvent.ACTION_POINTER_UP)?0:span;lastAngle=theta;
+            if(a==MotionEvent.ACTION_POINTER_UP && count>1) {
+                lastX=0;lastY=0;
+                for(int i=0;i<count;i++)if(i!=e.getActionIndex()){lastX+=e.getX(i)/u;lastY+=e.getY(i)/u;}
+                lastX/=(count-1);lastY/=(count-1);
+            }
             try {
                 JSONArray ids=new JSONArray();for(int i=0;i<count;i++)ids.put(e.getPointerId(i));
                 events.put(new JSONObject().put("sequence",++sequence).put("action",a).put("ids",ids).put("held",held).put("time",e.getEventTime()));

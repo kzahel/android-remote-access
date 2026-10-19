@@ -29,6 +29,14 @@ final class TouchRelay {
     TouchRelay(AccessibilityService service,Handler main) { this.service=service; this.main=main; }
     boolean active() { return owner!=null; }
     boolean busy() { return busy; }
+    private static long integer(JSONObject object,String key,long min,long max) throws Exception {
+        Object value=object.get(key);
+        if (!(value instanceof Number)) throw new IllegalArgumentException("Expected an integer: "+key);
+        double number=((Number)value).doubleValue();
+        if (!Double.isFinite(number) || number!=Math.rint(number) || number<min || number>max)
+            throw new IllegalArgumentException("Invalid integer: "+key);
+        return ((Number)value).longValue();
+    }
     private final Runnable watchdog=new Runnable() {
         @Override public void run() {
             if (!active()) return;
@@ -41,14 +49,14 @@ final class TouchRelay {
     void accept(JSONObject c,int screenWidth,int screenHeight,int currentRotation,int currentWindow,Reply reply) throws Exception {
         String gesture=c.getString("gesture");
         if (!gesture.matches("[A-Za-z0-9-]{16,80}")) throw new IllegalArgumentException("Invalid touch session");
-        long seq=c.getLong("sequence");
+        long seq=integer(c,"sequence",0,1000000);
         if (busy) throw new IllegalStateException("Previous touch batch is still running");
         if (active() && (!owner.equals(gesture) || seq!=sequence+1)) throw new IllegalStateException("Touch owner or sequence changed; no replay");
         if (!active() && seq!=0) throw new IllegalStateException("Touch session ended; start again from a fresh frame");
         if (active() && (rotation!=currentRotation || window!=currentWindow)) {
             release("Phone window or rotation changed"); throw new IllegalStateException("Phone changed; lift your fingers and start again");
         }
-        int duration=c.getInt("duration");
+        int duration=(int)integer(c,"duration",16,100);
         if (duration<16 || duration>100) throw new IllegalArgumentException("Touch batch duration must be 16–100 ms");
         JSONArray points=c.getJSONArray("points");
         if (points.length()<1 || points.length()>10) throw new IllegalArgumentException("Use 1–10 fingers");
@@ -58,7 +66,7 @@ final class TouchRelay {
         HashSet<Integer> included=new HashSet<>();
         boolean hasEvent=false;
         for (int i=0;i<points.length();i++) {
-            JSONObject p=points.getJSONObject(i); int id=p.getInt("id");
+            JSONObject p=points.getJSONObject(i); int id=(int)integer(p,"id",0,1000000);
             if (id<0 || id>1000000 || !included.add(id)) throw new IllegalArgumentException("Invalid or duplicate finger identity");
             JSONArray samples=p.getJSONArray("path");
             if (samples.length()<1 || samples.length()>24) throw new IllegalArgumentException("Touch path must contain 1–24 samples");
@@ -76,6 +84,7 @@ final class TouchRelay {
                 if(previous!=null&&(x!=previous.x||y!=previous.y))hasEvent=true;
                 if (j==0 && previous==null) path.moveTo(x,y); else path.lineTo(x,y);
             }
+            if (!(p.get("held") instanceof Boolean)) throw new IllegalArgumentException("Expected held flag");
             boolean held=p.getBoolean("held");
             if(!held)hasEvent=true;
             int start=previous==null&&active()?1:0;

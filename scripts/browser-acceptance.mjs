@@ -61,6 +61,8 @@ try {
       r.y + ((y + y2) / 2 / f.data.height) * r.height,
     );
   };
+  await call("openFixture");
+  await page.waitForTimeout(1000);
   const before = await witness();
   await control("Refresh solar reading");
   await expect

@@ -35,6 +35,11 @@ implementation, tests and incremental commits. It does not authorize changing
 physical-phone settings, publication or a production architecture. See
 `spike/README.md` and `docs/spike.md` for the runbook and measured scope.
 
+The 2026-10-19 follow-up authorizes continuous touch/smooth viewing, automated
+tests and use of the attached Pixel 7a. The current hardware trial uses it as
+the browser client; it does not install the host APK or change its lock/debugging
+settings. See `docs/touch-spike.md` for the measured role and limits.
+
 Read README.md and the applicable documents under docs/ before proposing work.
 Keep product decisions separate from hypotheses and implementation evidence.
 Do not mark something implemented or authorized beyond what the user requested.

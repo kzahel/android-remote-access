@@ -28,6 +28,7 @@ export class LiveSession {
       maxAckMs: 0,
       lastVideoAt: 0,
       resets: 0,
+      acknowledgements: [],
     };
     this.connect();
     target.addEventListener("pointerdown", (e) => this.down(e));
@@ -45,6 +46,9 @@ export class LiveSession {
       if (document.hidden) this.cancel("Viewer hidden");
     });
     window.addEventListener("blur", () => this.cancel("Viewer lost focus"));
+    window.addEventListener("resize", () =>
+      this.cancel("Viewer size changed; start touch again"),
+    );
     window.addEventListener("pagehide", () => {
       this.closed = true;
       this.cancel("Viewer closed");
@@ -156,6 +160,15 @@ export class LiveSession {
       this.cancel("Touch is unavailable");
       return;
     }
+    const currentFrame = this.getFrame();
+    if (
+      currentFrame &&
+      (currentFrame.width !== this.touchFrame.width ||
+        currentFrame.height !== this.touchFrame.height)
+    ) {
+      this.cancel("Phone size changed; start touch again");
+      return;
+    }
     const gesture = this.gesture;
     const points = [...this.contacts].map(([id, f]) => {
       const samples = f.path.splice(0).slice(-24);
@@ -194,6 +207,9 @@ export class LiveSession {
     const result = await response;
     this.busy = false;
     this.stats.batches++;
+    this.stats.acknowledgements.push(performance.now() - before);
+    if (this.stats.acknowledgements.length > 500)
+      this.stats.acknowledgements.shift();
     this.stats.maxAckMs = Math.max(
       this.stats.maxAckMs,
       performance.now() - before,
@@ -209,7 +225,11 @@ export class LiveSession {
       this.touchFrame = null;
       this.changed?.(0);
       this.afterTouch?.();
-    } else setTimeout(() => this.pump(), Math.max(0,45-(performance.now()-before)));
+    } else
+      setTimeout(
+        () => this.pump(),
+        Math.max(0, 45 - (performance.now() - before)),
+      );
   }
   cancel(message, send = true) {
     const had = !!this.gesture;

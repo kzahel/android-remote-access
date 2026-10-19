@@ -1,7 +1,8 @@
 # Remote-access demo
 
-Experimental manual Android control on an **isolated emulator**. The attached
-physical phones are not selected, installed on, or reconfigured by these tools.
+Experimental manual Android control on an **isolated emulator**. Ordinary demo
+commands never select or reconfigure physical phones. A separate, explicitly
+invoked test can use the authorized attached Pixel 7a as the browser client.
 The product identity and eventual architecture remain open.
 
 ## Run
@@ -29,6 +30,7 @@ or physical device is changed. First boot may take several minutes.
 python3 scripts/demo.py start --api 35 --emulator-port 5582 --port 4318
 python3 scripts/demo.py rearm          # explicit local setup after Stop
 python3 scripts/demo.py build         # assembleDebug + lint
+python3 scripts/demo.py smooth        # visible screen-sharing consent on owned AVD
 npm run stop
 ```
 
@@ -39,10 +41,21 @@ Logs, pairing material, AVD disks, credentials and captures stay under ignored
 
 ## Interaction
 
-Click the phone to tap, drag to swipe, hold to long-press. Back/Home/Recents sit
+Touch or click the phone to tap, drag to scroll, hold to long-press. Two fingers
+can zoom and rotate together on a touchscreen client. Movement is delivered
+while held, including joining or lifting a finger. Back/Home/Recents sit
 below the screen. Open the synthetic power-station app for a task with fresh
 values, an output switch and a station-name field. It does not access Bluetooth
 or an actual power station.
+
+**Try the touch playground** opens a native slider, a map you can pinch, turn
+and pan, and a scrollable checklist. Smooth view uses Android's visible
+screen-sharing permission; allow it locally through the setup activity, or
+use `python3 scripts/demo.py smooth` on the owned emulator. The viewer decodes
+H.264 in browsers with WebCodecs support and keeps still viewing as a fallback.
+It requires a secure browser context (loopback qualifies). Android 16 revokes
+screen sharing on lock: allow it again locally after unlocking. This is separate
+from the accessibility input grant and still-frame viewing.
 
 Tap an editable field, then use **Read focused field**. Edits acknowledge locally
 as you type and are delivered in order. Screen refresh does not rewrite the
@@ -88,6 +101,9 @@ npm test                         # host authority and delivery regression tests
 npm run acceptance               # live native/control checks; ends with Stop
 python3 scripts/demo.py rearm
 node scripts/browser-acceptance.mjs  # real sequential input + visual captures
+python3 scripts/demo.py smooth
+node scripts/touch-acceptance.mjs    # continuous paths, multi-contact, video, interruptions
+node scripts/touch-boundaries.mjs    # malformed input, Settings, protected video, ends Stop
 python3 scripts/lifecycle.py     # force-stop/reboot/first-unlock observations
 ```
 
