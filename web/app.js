@@ -155,7 +155,9 @@ function renderState(next) {
       `Foreground: ${s.package || "unknown"}`,
       `Capture: ${next.captureError || (frame ? "last request succeeded" : "waiting")}`,
       `Android API / target SDK: ${s.api} / ${s.targetSdk}`,
-      `Grant remaining: ${Math.ceil(s.grantSeconds / 60)} min`,
+      s.grantSeconds < 0
+        ? "Grant: until stopped"
+        : `Grant remaining: ${Math.ceil(s.grantSeconds / 60)} min`,
       "",
       s.route,
       next.transport,

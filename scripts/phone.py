@@ -83,7 +83,7 @@ def write_link(data):
 def doctor():
     adapter = ROOT.parent / 'machine-control/platforms/android/bin/android-device'
     result = json.loads(subprocess.check_output([str(adapter), 'doctor', '--json'],
-            env={**os.environ, 'ANDROID_TESTBED_SERIAL': receipt()['serial']}, timeout=30))
+            env={**os.environ, 'ANDROID_TESTBED_SERIAL': route()}, timeout=30))
     private(STATE / 'doctor.json', result)
     if not result['ready'] or result['states']['interaction'] != 'unlocked':
         raise RuntimeError('Phone must already be unlocked and authorized; no credential is entered')

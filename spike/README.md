@@ -142,6 +142,6 @@ random per-demo secret. Traffic is plaintext **inside this local emulator demo**
 this is not a LAN/Internet deployment. Pairing, TLS/end-to-end encryption, accounts,
 relay, Play approval and a hardened multi-viewer security boundary remain work.
 
-The user-armed native service holds a four-hour in-memory grant and a visible
+The user-armed native service holds an in-memory grant until Stop and a visible
 notification. It does not claim foreground-service endurance, autonomous control,
 reboot recovery or Doze exemptions. See [scope and evidence](../docs/spike.md).

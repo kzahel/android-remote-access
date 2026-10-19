@@ -84,7 +84,8 @@ public final class AccessService extends AccessibilityService {
             if (!allowedHost(host)) throw new IOException("Local demo or Tailscale endpoint required");
             routes.add(InetSocketAddress.createUnresolved(host,listed.getJSONObject(i).getInt("port")));
         }
-        armed=true; long session=++grant; deadline=SystemClock.elapsedRealtime()+4*60*60*1000;
+        // Access lasts until Stop, on the phone or in the browser.
+        armed=true; long session=++grant; deadline=Long.MAX_VALUE;
         connectionAttempt=0;
         notification();
         new Thread(() -> connect(routes,token,session),"remote-access-link").start();
@@ -183,7 +184,7 @@ public final class AccessService extends AccessibilityService {
             .put("scene",scene).put("package",activePackage).put("width",dm.widthPixels).put("height",dm.heightPixels)
             .put("rotation",getSystemService(android.hardware.display.DisplayManager.class).getDisplay(0).getRotation())
             .put("touchActive",touch.active()).put("touchRoute","Accessibility continuation batches").put("video",VideoService.status())
-            .put("grantSeconds",Math.max(0,(deadline-SystemClock.elapsedRealtime())/1000))
+            .put("grantSeconds",deadline==Long.MAX_VALUE?-1:Math.max(0,(deadline-SystemClock.elapsedRealtime())/1000))
             .put("credentialCapturePaused",SystemClock.elapsedRealtime()<credentialCaptureUntil).put("wipeThreshold",getSystemService(android.app.admin.DevicePolicyManager.class).getMaximumFailedPasswordsForWipe(null)).put("unlockAttempted",unlockAttempted).put("route","Android accessibility · outbound app connection")
             .put("link",linkRoute==null?"":linkRoute.getHostString().startsWith("100.")?"tailscale":"adb");
     }
