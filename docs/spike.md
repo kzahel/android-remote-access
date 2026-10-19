@@ -1,9 +1,10 @@
 # Manual-access emulator spike
 
 Authorized 2026-10-18: build a working demo, test emulator screen lock/unlock,
-and commit milestones. Physical-phone setup and lock changes are outside this
-spike. This is implementation evidence gathering, not a product architecture
-or distribution decision.
+and commit milestones. Physical-phone setup was outside this original milestone;
+the later explicit request is implemented in the [USB phone host extension](phone-spike.md).
+Physical lock changes remain outside the spike. This is implementation evidence
+gathering, not a product architecture or distribution decision.
 
 ## Completion criteria
 
@@ -122,12 +123,12 @@ original milestone used live JPEG stills. The [touch extension](touch-spike.md)
 adds separately consented H.264 video. ADB remains an explicitly labeled
 emulator setup, independent-observation and optional shell-comparison tool.
 
-Physical Pixel 7a behavior, secure unlock across OEMs, phone-local first unlock,
+At this original milestone, physical Pixel 7a behavior, secure unlock across OEMs, phone-local first unlock,
 Doze/overnight endurance, Bluetooth/vendor-app behavior, Internet relay and
 production pairing/encryption are untested. The current transport is confined
 to the local emulator host gateway. No attached physical phone was changed
-during this original milestone; later client trials are recorded in the touch
-extension.
+during this original milestone. Later client trials are recorded in the touch
+extension, and physical-host tests in the [USB phone extension](phone-spike.md).
 
 ### Implementation observations
 

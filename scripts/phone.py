@@ -88,6 +88,7 @@ def start(args):
             originalAccessibility=adb('shell','settings','get','secure','accessibility_enabled').strip(),
             model=adb('shell','getprop','ro.product.model').strip(), installedByUs=False)
         private(RECEIPT,data)
+        data['installAttempted']=True;private(RECEIPT,data)
         adb('install',str(ROOT/'android/app/build/outputs/apk/debug/app-debug.apk'),timeout=90)
         data['installedByUs']=True; private(RECEIPT,data)
         barrier=adb('shell','am','wait-for-broadcast-idle',timeout=30)
@@ -124,7 +125,9 @@ def allow(args):
     doctor()
     adb('shell','am','start','-n',PACKAGE+'/.SetupActivity','--activity-clear-top')
     # Notification permission is a visible, optional Android prompt.
-    click('Allow')
+    labels=[n.get('text','').casefold() for n in nodes()]
+    if any('remote access spike' in label and 'notification' in label for label in labels):
+        click('Allow')
     if not client().state()['connected']:
         services=adb('shell','settings','get','secure','enabled_accessibility_services')
         if PACKAGE not in services:
@@ -192,7 +195,8 @@ def stop(args):
         command=run(['ps','-p',str(data['serverPid']),'-o','command='],check=False)
         if str(ROOT/'server.mjs') in command: os.kill(data['serverPid'],signal.SIGTERM)
     if args.restore:
-        if data.get('installedByUs'): adb('uninstall',PACKAGE)
+        if data.get('installedByUs') or data.get('installAttempted'):
+            if adb('shell','pm','path',PACKAGE,check=False).strip(): adb('uninstall',PACKAGE)
         # Uninstall only removes this service; Android retains the other grants.
         if data.get('previous'): adb('shell','am','start','-n',data['previous'])
     private(STATE/'last-device.json',data)

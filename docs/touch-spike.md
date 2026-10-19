@@ -131,6 +131,16 @@ lock/debugging settings and installed apps. No host APK was installed on the
 physical phone. The remote screen must be within the client viewport for input;
 the runner scrolls it into view before injecting contacts.
 
+### Physical Android host
+
+The subsequent explicit request to control the attached phone was implemented
+and tested on the Pixel 7a itself. See [the USB phone host runbook and measured
+results](phone-spike.md): eleven touch checks, five browser checks and seven
+boundary checks passed on Android 17/API 37. This is native phone input and
+capture over a local USB transport, distinct from the browser-client trial
+above. Physical secure unlock, Internet reachability and overnight survival
+remain unqualified.
+
 ## Fidelity and remaining limits
 
 This proves useful continuous touch, rather than isolated swipes replayed after

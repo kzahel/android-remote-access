@@ -48,7 +48,9 @@ and reopen the previous foreground app:
 python3 scripts/phone.py stop --restore
 ```
 
-Plain `stop` leaves the app installed. Setup refuses a pre-existing installation
+Plain `stop` leaves the app installed and retains the receipt so a subsequent
+`stop --restore` can remove it. Use `stop --restore` before a fresh `start`.
+Setup refuses a pre-existing installation
 without an owned receipt rather than silently replacing someone else's app.
 Private receipts, pairing material and evidence stay in `.local/phone/`.
 
@@ -83,4 +85,47 @@ read native fixture effects through app-private witnesses. They never run the
 emulator rotation-setting experiment on a phone. Recordings and reports remain
 private. These are scripted browser inputs, not a physical-finger usability test.
 
-Physical-host measured results are recorded after qualification below.
+## Measured results
+
+Physically tested 2026-10-19: Pixel 7a, Android 17/API 37, APK target SDK 36,
+USB transport, managed desktop Chromium client. Eleven continuous-touch checks,
+five browser editing/layout checks and seven native boundary checks passed.
+Android assembly/lint and ten host authority/viewer tests also passed.
+
+- The independent native fixture observed slider changes before lift, a held
+  stationary contact, two simultaneous contacts, 1.63× zoom and 36° rotation,
+  partial lift with continued pan, and curved scrolling. Ordinary continuation
+  produced zero unexpected native cancellations.
+- The defined interaction window decoded 114 native H.264 frames over 7.07
+  seconds (16.1 fps). Touch-batch acknowledgements were 48.6 ms median, 78.7 ms
+  p95 and 101.4 ms maximum, including native execution. These are local scripted
+  measurements, not physical motion-to-photon latency.
+- Viewer socket loss, missing touch packets and Pause released held contacts
+  without replay. The native watchdog release was observed within 1.09 seconds,
+  including polling and ADB observation overhead. No phone rotation setting
+  was changed; that specific test remains emulator-only.
+- Browser pointer input refreshed the native power-station reading. Sequential
+  typing, cursor deletion and Unicode matched independent native state. A late
+  field read did not overwrite newer local edits. Desktop/mobile layouts fit
+  and no uncaught browser errors occurred.
+- A curved held gesture scrolled ordinary Android Settings, observed through
+  changed native visible nodes before lift. No setting was changed.
+- Malformed and out-of-order touch was refused. Unsupported video configuration
+  recovered through the fallback. A protected native window covered the viewer
+  and stopped decoding; leaving it resumed under the existing consent. Stop
+  released touch, ended projection, hid video and remained stopped.
+
+The first physical pinch run exposed a still-capture race: starting touch
+advances the scene while an earlier screenshot may still be completing. The
+viewer formerly treated that transient refresh as revoked input authority.
+It now distinguishes transient capture refresh from permission/protected-screen
+failure and lets an additional finger use the active gesture's pinned frame.
+Native window/rotation checks remain in force. The repeated physical touch and
+protected-window suites passed after the fix; a host regression checks joining
+during refresh and continued refusal when input authority is unavailable.
+
+The cleanup run also passed five independent checks: the test package was
+removed, both the enabled-service set and global accessibility-enabled value
+matched their original state, the owned reverse was gone, and the previous
+foreground app was restored. The phone demo was then installed and consented
+again for the live handoff. No lock credential or debugging setting was changed.

@@ -2,8 +2,8 @@
 
 Experimental manual Android control on an **isolated emulator**. For the later
 explicitly authorized physical-host mode, see [the phone runbook](../docs/phone-spike.md).
-Ordinary emulator demo
-commands never select or reconfigure physical phones. A separate, explicitly
+Ordinary emulator demo commands never select or reconfigure physical phones.
+A separate, explicitly
 invoked test can use the authorized attached Pixel 7a as the browser client.
 The product identity and eventual architecture remain open.
 
