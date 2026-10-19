@@ -1,5 +1,9 @@
 import { LiveSession } from "./live.js";
 let live;
+// Write only on change: rewriting identical text every refresh clears selections.
+const text = (element, value) => {
+  if (element.textContent !== value) element.textContent = value;
+};
 const $ = (id) => document.getElementById(id);
 let state = null,
   frame = null,
@@ -16,7 +20,7 @@ let shownFirstFrame = false;
 let fieldReadSequence = 0;
 const screen = $("screen");
 const notify = (message, error = false) => {
-  $("notice").textContent = message;
+  text($("notice"), message);
   $("notice").classList.toggle("error", error);
 };
 async function api(path, data) {
@@ -50,45 +54,58 @@ async function action(op, data = {}) {
 function cover(title, message, wake = false) {
   live?.pauseVideo(message);
   $("screen-cover").hidden = false;
-  $("cover-title").textContent = title;
-  $("cover-message").textContent = message;
+  text($("cover-title"), title);
+  text($("cover-message"), message);
   $("cover-wake").hidden = !wake;
 }
 function renderState(next) {
   state = next;
-  $("device-name").textContent = next.deviceName || "Demo phone";
-  $("target-label").textContent =
+  text($("device-name"), next.deviceName || "Demo phone");
+  text(
+    $("target-label"),
     next.target === "USB-connected phone"
       ? `Phone · ${next.link === "tailscale" ? "via Tailscale" : next.link ? "via ADB" : "offline"}`
-      : next.target || "Local prototype";
+      : next.target || "Local prototype",
+  );
   $("unlock-experiment").hidden = next.credentialExperiment === false;
   if (next.target === "USB-connected phone") {
-    $("unlock-note").textContent =
-      "One attempt, no retry. A wrong PIN counts toward Android’s lockout.";
+    text(
+      $("unlock-note"),
+      "One attempt, no retry. A wrong PIN counts toward Android’s lockout.",
+    );
     $("pin").placeholder = "Phone PIN";
-    $("test-pin").textContent = "Use PIN saved on this computer";
+    text($("test-pin"), "Use PIN saved on this computer");
   }
   const connected = !!next.connected,
     s = next.state;
   $("connection-dot").className = "dot" + (connected ? " on" : " warn");
   $("side-dot").className = "dot" + (connected ? " on" : " warn");
-  $("connection-label").textContent = connected
-    ? "Phone connected"
-    : "Phone not responding";
-  $("device-subtitle").textContent = connected
-    ? `Android ${s.release} · ${s.locked ? "Locked" : frame && !next.captureError ? "Ready" : next.captureError ? "View unavailable" : "Connected"}`
-    : next.lastSeen
-      ? "Connection interrupted"
-      : "Waiting for session";
-  $("display-state").textContent = s
-    ? `Display · ${s.interactive ? "awake" : "asleep"}`
-    : "Display · unknown";
-  $("lock-state").textContent = s
-    ? `Lock · ${s.locked ? (s.secure ? "securely locked" : "swipe to open") : "unlocked"}`
-    : "Lock · unknown";
-  $("platform").textContent = s
-    ? `Android ${s.release} · API ${s.api}`
-    : next.target || "Android";
+  text(
+    $("connection-label"),
+    connected ? "Phone connected" : "Phone not responding",
+  );
+  text(
+    $("device-subtitle"),
+    connected
+      ? `Android ${s.release} · ${s.locked ? "Locked" : frame && !next.captureError ? "Ready" : next.captureError ? "View unavailable" : "Connected"}`
+      : next.lastSeen
+        ? "Connection interrupted"
+        : "Waiting for session",
+  );
+  text(
+    $("display-state"),
+    s ? `Display · ${s.interactive ? "awake" : "asleep"}` : "Display · unknown",
+  );
+  text(
+    $("lock-state"),
+    s
+      ? `Lock · ${s.locked ? (s.secure ? "securely locked" : "swipe to open") : "unlocked"}`
+      : "Lock · unknown",
+  );
+  text(
+    $("platform"),
+    s ? `Android ${s.release} · API ${s.api}` : next.target || "Android",
+  );
   $("lab-controls").hidden = !next.lab;
   const viewable = connected && s && !s.locked && s.interactive;
   $("view-smooth").disabled = $("view-stills").disabled = !viewable;
@@ -97,9 +114,10 @@ function renderState(next) {
   $("quick-unlock").hidden = next.credentialExperiment === false;
   $("quick-unlock").disabled =
     unlockSending || !!next.unlockBlocked || !connected || !s?.locked;
-  $("quick-unlock-label").textContent = next.unlockBlocked
-    ? "Unlock attempted"
-    : "Unlock";
+  text(
+    $("quick-unlock-label"),
+    next.unlockBlocked ? "Unlock attempted" : "Unlock",
+  );
   $("quick-unlock").title = next.unlockBlocked
     ? "Unlock on the phone before trying again"
     : next.testCredential
@@ -112,8 +130,10 @@ function renderState(next) {
   $("unlock-form").querySelector("button").disabled =
     unlockSending || !!next.unlockBlocked || !connected || !s?.locked;
   if (next.unlockBlocked)
-    $("unlock-status").textContent =
-      "Unlock attempted. Unlock on the phone before trying again.";
+    text(
+      $("unlock-status"),
+      "Unlock attempted. Unlock on the phone before trying again.",
+    );
   for (const button of document.querySelectorAll(
     "[data-nav],#wake,#lock,#open-fixture,#dismiss",
   ))
@@ -137,61 +157,70 @@ function renderState(next) {
     live?.cancel("Phone is asleep");
     live?.pauseVideo("Phone is asleep");
     frame = null;
-    cover(
-      "The screen is asleep",
-      "",
-      true,
-    );
+    cover("The screen is asleep", "", true);
   } else if (s.credentialCapturePaused) {
     live?.pauseVideo("Unlocking · view paused");
     cover("Unlocking · view paused", "Waiting for the observed lock state");
-  } else if (paused)
-    cover(
-      "Viewer paused",
-      "Screen refresh paused.",
-    );
+  } else if (paused) cover("Viewer paused", "Screen refresh paused.");
   if (s)
-    if (!s.video?.active && !live?.videoActive) $("smooth-status").textContent = s.video?.message || "Allow smooth screen sharing on the phone";
+    if (!s.video?.active && !live?.videoActive)
+      text(
+        $("smooth-status"),
+        s.video?.message || "Allow smooth screen sharing on the phone",
+      );
   if (s?.video?.mode && document.activeElement !== $("video-mode"))
     $("video-mode").value = s.video.mode;
   if (s?.video?.active && s.video.fps)
-    $("smooth-status").textContent =
+    text(
+      $("smooth-status"),
       `Smooth view · up to ${s.video.fps} fps` +
-      (s.video.mode === "auto"
-        ? s.video.profile === "saver"
-          ? " · Auto chose data saver (metered network)"
-          : " · Auto chose standard (unmetered network)"
-        : "");
+        (s.video.mode === "auto"
+          ? s.video.profile === "saver"
+            ? " · Auto chose data saver (metered network)"
+            : " · Auto chose standard (unmetered network)"
+          : ""),
+    );
   if (s)
-    $("diagnostics").textContent = [
-      `Process reachable: ${connected ? "yes" : "no"}`,
-      `Display awake: ${s.interactive}`,
-      `Keyguard showing: ${s.locked}`,
-      `Device credential locked: ${s.deviceLocked}`,
-      `Secure credential: ${s.secure}`,
-      `User storage unlocked: ${s.userUnlocked}`,
-      `Foreground: ${s.package || "unknown"}`,
-      `Capture: ${next.captureError || (frame ? "last request succeeded" : "waiting")}`,
-      `Android API / target SDK: ${s.api} / ${s.targetSdk}`,
-      s.grantSeconds < 0
-        ? "Grant: until stopped"
-        : `Grant remaining: ${Math.ceil(s.grantSeconds / 60)} min`,
-      "",
-      s.route,
-      next.transport,
-      "",
-      next.limits,
-    ].join("\n");
-  $("activity").replaceChildren(
-    ...(next.log || []).slice(0, 15).map((entry) => {
-      const li = document.createElement("li"),
-        time = document.createElement("time");
-      time.textContent = new Date(entry.at).toLocaleTimeString();
-      li.append(time, document.createTextNode(entry.message));
-      return li;
-    }),
+    text(
+      $("diagnostics"),
+      [
+        `Process reachable: ${connected ? "yes" : "no"}`,
+        `Display awake: ${s.interactive}`,
+        `Keyguard showing: ${s.locked}`,
+        `Device credential locked: ${s.deviceLocked}`,
+        `Secure credential: ${s.secure}`,
+        `User storage unlocked: ${s.userUnlocked}`,
+        `Foreground: ${s.package || "unknown"}`,
+        `Capture: ${next.captureError || (frame ? "last request succeeded" : "waiting")}`,
+        `Android API / target SDK: ${s.api} / ${s.targetSdk}`,
+        s.grantSeconds < 0
+          ? "Grant: until stopped"
+          : `Grant remaining: ${Math.ceil(s.grantSeconds / 60)} min`,
+        "",
+        s.route,
+        next.transport,
+        "",
+        next.limits,
+      ].join("\n"),
+    );
+  const entries = (next.log || []).slice(0, 15);
+  const activityKey = JSON.stringify(
+    entries.map((entry) => [entry.at, entry.message]),
   );
+  if (activityKey !== lastActivity) {
+    lastActivity = activityKey;
+    $("activity").replaceChildren(
+      ...entries.map((entry) => {
+        const li = document.createElement("li"),
+          time = document.createElement("time");
+        time.textContent = new Date(entry.at).toLocaleTimeString();
+        li.append(time, document.createTextNode(entry.message));
+        return li;
+      }),
+    );
+  }
 }
+let lastActivity = "";
 async function refreshState() {
   try {
     renderState(await api("/api/state"));
@@ -217,9 +246,10 @@ async function refreshFrame() {
         /rate limited|changed|already in progress|timed out/.test(
           result.message,
         );
-      $("frame-state").textContent = transient
-        ? "Screen · refreshing"
-        : "Screen · unavailable";
+      text(
+        $("frame-state"),
+        transient ? "Screen · refreshing" : "Screen · unavailable",
+      );
       if (!transient || !screen.naturalWidth)
         cover(
           result.message.includes("protected")
@@ -238,10 +268,8 @@ async function refreshFrame() {
       screen.src = `data:image/jpeg;base64,${frame.image}`;
       $("phone").classList.toggle("landscape", frame.width > frame.height);
       $("screen-cover").hidden = true;
-      $("frame-state").textContent = "Screen · available";
-      $("frame-time").textContent = new Date(
-        result.capturedAt,
-      ).toLocaleTimeString();
+      text($("frame-state"), "Screen · available");
+      text($("frame-time"), new Date(result.capturedAt).toLocaleTimeString());
     }
   } catch (e) {
     frame = null;
@@ -263,19 +291,19 @@ live = new LiveSession({
     (!state.captureError || state.captureErrorTransient),
   note: notify,
   changed: (count, message) => {
-    $("view-mode").textContent = paused
-      ? "PAUSED"
-      : live?.videoActive
-        ? "SMOOTH VIEW"
-        : "LIVE STILLS";
+    text(
+      $("view-mode"),
+      paused ? "PAUSED" : live?.videoActive ? "SMOOTH VIEW" : "LIVE STILLS",
+    );
     if (count !== null)
-      $("touch-status").textContent = count
-        ? `${count} finger${count === 1 ? "" : "s"} down · sending movement`
-        : "Touch ready · accessibility continuation";
-    if (message) $("smooth-status").textContent = message;
-    else if (live?.videoActive)
-      $("smooth-status").textContent =
-        "Smooth view is on · consented screen sharing";
+      text(
+        $("touch-status"),
+        count
+          ? `${count} finger${count === 1 ? "" : "s"} down · sending movement`
+          : "Touch ready · accessibility continuation",
+      );
+    // While video plays, renderState owns this line (fps and Auto choice).
+    if (message) text($("smooth-status"), message);
   },
   afterTouch: () => {
     setTimeout(() => readField(false), 250);
@@ -309,9 +337,8 @@ async function readField(explicit = true) {
       );
       revision = delivered = 0;
     }
-    $("typing-help").textContent =
-      "Editing the focused field.";
-    $("typing-status").textContent = "Field ready";
+    text($("typing-help"), "Editing the focused field.");
+    text($("typing-status"), "Field ready");
     if (explicit) $("typing").focus();
   } else if (explicit) {
     notify("Tap an editable, non-password field on the phone first.", true);
@@ -325,7 +352,7 @@ async function sendEdit() {
     end = $("typing").selectionEnd,
     target = field;
   sending = true;
-  $("typing-status").textContent = "Sending…";
+  text($("typing-status"), "Sending…");
   const result = await action("text", { field: target, text, start, end });
   sending = false;
   if (!result.ok) {
@@ -333,19 +360,19 @@ async function sendEdit() {
     fieldReadSequence++;
     field = null;
     $("send-text").disabled = true;
-    $("typing-status").textContent = "Delivery unconfirmed · no replay";
+    text($("typing-status"), "Delivery unconfirmed · no replay");
     // Keep the draft locally until the user explicitly chooses a field again.
     delivered = revision;
     return;
   }
   delivered = n;
-  $("typing-status").textContent = "Edit delivered · check phone";
+  text($("typing-status"), "Edit delivered · check phone");
   if (revision !== delivered && $("live-typing").checked)
     queueMicrotask(sendEdit);
 }
 $("typing").addEventListener("input", () => {
   revision++;
-  $("typing-status").textContent = "Draft changed";
+  text($("typing-status"), "Draft changed");
   clearTimeout(textTimer);
   if ($("live-typing").checked && !$("typing").dataset.composing)
     textTimer = setTimeout(sendEdit, 45);
@@ -374,22 +401,19 @@ for (const button of document.querySelectorAll("[data-nav]"))
 $("disconnect").onclick = () => {
   paused = !paused;
   document.body.classList.toggle("paused", paused);
-  $("disconnect").textContent = paused ? "Resume viewer" : "Pause viewer";
-  $("view-mode").textContent = paused ? "PAUSED" : "LIVE STILLS";
+  text($("disconnect"), paused ? "Resume viewer" : "Pause viewer");
+  text($("view-mode"), paused ? "PAUSED" : "LIVE STILLS");
   if (paused) {
     live.cancel("Viewer paused");
     live.pauseVideo("Viewer paused");
     frame = null;
-    cover(
-      "Viewer paused",
-      "Screen refresh paused.",
-    );
+    cover("Viewer paused", "Screen refresh paused.");
   } else refreshFrame();
 };
 $("inspect").onclick = async () => {
   const result = await action("inspect");
   $("nodes").hidden = false;
-  $("nodes").textContent = JSON.stringify(result.data, null, 2);
+  text($("nodes"), JSON.stringify(result.data, null, 2));
 };
 for (const button of document.querySelectorAll("[data-lab],[data-rotation]"))
   button.onclick = async () => {
@@ -416,8 +440,10 @@ async function unlock(useTestPin = false) {
   const secret = useTestPin ? { useTestPin: true } : { pin };
   const route = $("unlock-route").value;
   $("unlock-form").querySelector("button").disabled = true;
-  $("unlock-status").textContent =
-    "Submitting once. Waiting for the phone’s observed lock state…";
+  text(
+    $("unlock-status"),
+    "Submitting once. Waiting for the phone’s observed lock state…",
+  );
   try {
     // Wake and show the unlock screen first; the phone then taps past
     // the fingerprint screen and enters the PIN once.
@@ -432,14 +458,19 @@ async function unlock(useTestPin = false) {
         : await api("/api/action", { op: "unlock", ...secret });
     pin = "";
     notify(result.message, !result.ok);
-    $("unlock-status").textContent = result.message;
+    text($("unlock-status"), result.message);
     // Locking ended screen sharing; bring smooth view back after a remote unlock.
-    if (result.ok && result.data?.locked === false && route !== "shell" && !preferStills)
+    if (
+      result.ok &&
+      result.data?.locked === false &&
+      route !== "shell" &&
+      !preferStills
+    )
       action("smooth");
   } catch (e) {
     pin = "";
     notify(e.message, true);
-    $("unlock-status").textContent = e.message;
+    text($("unlock-status"), e.message);
   } finally {
     delete secret.pin;
     unlockSending = false;
