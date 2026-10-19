@@ -31,6 +31,7 @@ const safeOps = new Set([
   "openFixture",
   "openTouchLab",
   "videoKeyframe",
+  "videoMode",
   "unlock",
   "stop",
 ]);

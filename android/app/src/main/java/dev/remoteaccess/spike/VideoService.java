@@ -32,9 +32,34 @@ public final class VideoService extends Service {
     private String linkedGeneration="";
     private byte[] configuration=new byte[0];
     private String codec="avc1.42c028";
+    // Viewer-chosen quality, remembered on the phone. Auto follows whether
+    // Android reports the phone's active network as unmetered.
+    static final java.util.List<String> MODES=java.util.Arrays.asList("auto","smooth","standard","saver");
+    private volatile boolean reconfigure;
+    private String profile="standard";
+    private int fps=30;
+    private long networkCheckedAt;
     public static JSONObject status() {
         try { VideoService s=current;return new JSONObject().put("active",s!=null&&s.running).put("message",reason)
-            .put("width",s==null?0:s.width).put("height",s==null?0:s.height); } catch(Exception e) {return new JSONObject();}
+            .put("width",s==null?0:s.width).put("height",s==null?0:s.height)
+            .put("mode",mode(AccessService.current)).put("profile",s==null?"":s.profile).put("fps",s==null?0:s.fps); } catch(Exception e) {return new JSONObject();}
+    }
+    static String mode(Context context) {
+        return context==null ? "auto" : context.getSharedPreferences("video",MODE_PRIVATE).getString("mode","auto");
+    }
+    static void setMode(Context context,String mode) {
+        if(!MODES.contains(mode))throw new IllegalArgumentException("Unknown video quality");
+        context.getSharedPreferences("video",MODE_PRIVATE).edit().putString("mode",mode).apply();
+        if(current!=null)current.reconfigure=true;
+    }
+    private String chooseProfile() {
+        String m=mode(this);
+        if(!m.equals("auto"))return m;
+        android.net.ConnectivityManager cm=getSystemService(android.net.ConnectivityManager.class);
+        android.net.NetworkCapabilities caps=cm.getNetworkCapabilities(cm.getActiveNetwork());
+        boolean unmetered=caps!=null&&(caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
+            ||caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_TEMPORARILY_NOT_METERED));
+        return unmetered?"standard":"saver";
     }
     public static void keyframe() { if(current!=null)current.requestKeyframe=true; }
     public static void end(Context context) { if(current!=null)context.stopService(new Intent(context,VideoService.class)); }
@@ -69,9 +94,14 @@ public final class VideoService extends Service {
         sourceWidth=w;sourceHeight=h;
         float scale=Math.min(1,720f/Math.min(w,h));
         width=Math.round(w*scale/2)*2;height=Math.round(h*scale/2)*2;
+        profile=chooseProfile();
+        fps=profile.equals("smooth")?60:profile.equals("saver")?10:30;
+        int bitrate=profile.equals("smooth")?4000000:profile.equals("saver")?600000:2000000;
         MediaFormat f=MediaFormat.createVideoFormat("video/avc",width,height);
         f.setInteger(MediaFormat.KEY_COLOR_FORMAT,MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
-        f.setInteger(MediaFormat.KEY_BIT_RATE,2000000);f.setInteger(MediaFormat.KEY_FRAME_RATE,30);
+        f.setInteger(MediaFormat.KEY_BIT_RATE,bitrate);f.setInteger(MediaFormat.KEY_FRAME_RATE,fps);
+        // KEY_FRAME_RATE is only a hint; a 120 Hz display otherwise feeds every composition.
+        f.setFloat(MediaFormat.KEY_MAX_FPS_TO_ENCODER,fps);
         f.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL,1);f.setInteger(MediaFormat.KEY_PROFILE,MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline);
         f.setInteger(MediaFormat.KEY_MAX_B_FRAMES,0);
         encoder=MediaCodec.createEncoderByType("video/avc");encoder.configure(f,null,null,MediaCodec.CONFIGURE_FLAG_ENCODE);
@@ -93,6 +123,9 @@ public final class VideoService extends Service {
                 if(access==null||!access.armed)break;
                 int w=pendingWidth,h=pendingHeight;
                 if(w>0&&h>0&&(w!=sourceWidth||h!=sourceHeight)){configure(w,h);awaitKey=true;}
+                if(SystemClock.elapsedRealtime()-networkCheckedAt>3000){networkCheckedAt=SystemClock.elapsedRealtime();if(!chooseProfile().equals(profile))reconfigure=true;}
+                // Rebuild only the encoder; the projection and its consent continue.
+                if(reconfigure){reconfigure=false;configure(sourceWidth,sourceHeight);awaitKey=true;}
                 if(requestKeyframe){Bundle b=new Bundle();b.putInt(MediaCodec.PARAMETER_KEY_REQUEST_SYNC_FRAME,0);encoder.setParameters(b);requestKeyframe=false;}
                 int index=encoder.dequeueOutputBuffer(info,20000);
                 if(index==MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {

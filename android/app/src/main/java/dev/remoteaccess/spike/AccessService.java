@@ -179,6 +179,7 @@ public final class AccessService extends AccessibilityService {
         if (touch.active() && !java.util.Arrays.asList("state","capture","inspect","stop","ping").contains(op))
             throw new IllegalStateException("Lift your fingers before using another control");
         if (op.equals("videoKeyframe")) { VideoService.keyframe(); reply(c,true,"Fresh video keyframe requested",null); return; }
+        if (op.equals("videoMode")) { VideoService.setMode(this,c.optString("mode")); reply(c,true,"Video quality set",VideoService.status()); return; }
         if (op.equals("openTouchLab")) {
             if (getSystemService(KeyguardManager.class).isKeyguardLocked()) throw new IllegalStateException("Unlock the phone first");
             scene++; frames.clear(); startActivity(new Intent(this,TouchLabActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP));

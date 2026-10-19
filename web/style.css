@@ -848,3 +848,20 @@ body.paused .live-dot {
     top: 20px;
   }
 }
+
+.video-mode {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #526b47;
+  margin: 6px 0 10px;
+}
+.video-mode select {
+  font-size: 11px;
+  color: #526b47;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: white;
+}

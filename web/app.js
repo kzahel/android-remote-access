@@ -134,6 +134,16 @@ function renderState(next) {
     );
   if (s)
     if (!s.video?.active && !live?.videoActive) $("smooth-status").textContent = s.video?.message || "Allow smooth screen sharing on the phone";
+  if (s?.video?.mode && document.activeElement !== $("video-mode"))
+    $("video-mode").value = s.video.mode;
+  if (s?.video?.active && s.video.fps)
+    $("smooth-status").textContent =
+      `Smooth view · up to ${s.video.fps} fps` +
+      (s.video.mode === "auto"
+        ? s.video.profile === "saver"
+          ? " · Auto chose data saver (metered network)"
+          : " · Auto chose standard (unmetered network)"
+        : "");
   if (s)
     $("diagnostics").textContent = [
       `Process reachable: ${connected ? "yes" : "no"}`,
@@ -411,6 +421,7 @@ $("unlock-form").onsubmit = (e) => {
   unlock();
 };
 $("test-pin").onclick = () => unlock(true);
+$("video-mode").onchange = (e) => action("videoMode", { mode: e.target.value });
 $("stop-access").onclick = () => action("stop");
 $("device-card").onclick = () => {
   window.scrollTo({ top: 0, behavior: "smooth" });

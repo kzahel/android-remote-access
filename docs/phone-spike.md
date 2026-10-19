@@ -87,6 +87,24 @@ recovered the original incident by hand.
 Internet access, pairing/encryption for deployment, Doze, overnight survival and
 reboot recovery remain unqualified. Lock/debugging settings are preserved.
 
+## Video quality
+
+The viewer's **Video quality** selector sets a mode remembered on the phone:
+Smooth (60 fps, 4 Mbps), Standard (30 fps, 2 Mbps), Data saver (10 fps,
+0.6 Mbps) or Auto. Auto uses Standard when Android reports the phone's active
+network as unmetered and Data saver otherwise, rechecking every three seconds;
+a phone on a hotspot's Wi-Fi is usually reported metered. The cap uses
+`KEY_MAX_FPS_TO_ENCODER`, because `KEY_FRAME_RATE` is only a hint: on the
+Pixel 9's 120 Hz display the uncapped encoder delivered 88.5 frames/s during
+continuous swipes. A change rebuilds only the encoder; the projection and its
+consent continue. Auto reflects the phone's network, not the ADB route, so it
+may choose Data saver while a USB-connected phone has cellular as its network.
+
+Physically tested 2026-10-19 on the Pixel 9 over unmetered Wi-Fi, frames received
+by the host during the same scripted swipes: Smooth 43.2, Standard 22.4, Data
+saver 8.7 and Auto 21.7–23.7 (chose Standard). Video stayed active through each
+switch. The metered Auto branch was not exercised physically.
+
 ## Owner PIN unlock
 
 Authorized 2026-10-19 by the owner for the Pixel 9 host. The phone server now
