@@ -415,6 +415,13 @@ async function unlock(useTestPin = false) {
   $("unlock-status").textContent =
     "Submitting once. Waiting for the phone’s observed lock state…";
   try {
+    // Wake and show the unlock screen first; the phone then taps past
+    // the fingerprint screen and enters the PIN once.
+    if (route !== "shell") {
+      await api("/api/action", { op: "wake" });
+      await api("/api/action", { op: "dismiss" });
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    }
     const result =
       route === "shell"
         ? await api("/api/lab", { action: "unlock", ...secret })
@@ -443,10 +450,6 @@ $("quick-unlock").onclick = async () => {
     $("pin").focus();
     return;
   }
-  // Wake and show the PIN pad first; the phone enters the saved PIN once.
-  await action("wake");
-  await action("dismiss");
-  await new Promise((resolve) => setTimeout(resolve, 1500));
   unlock(true);
 };
 $("video-mode").onchange = (e) => action("videoMode", { mode: e.target.value });
