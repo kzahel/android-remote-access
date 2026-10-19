@@ -797,6 +797,15 @@ export async function createDemo(options = {}) {
         const owner = touchOwner;
         const { op, request: ignored, ...payload } = data;
         const result = await command("touch", payload, 1600);
+        if (!result.ok)
+          activity(
+            "touch",
+            result.message +
+              (result.data?.sequence !== undefined
+                ? ` (batch ${result.data.sequence}, ${result.data.fingers} finger(s), ${result.data.msSincePreviousBatch} ms after previous, ${result.data.msIntoBatch} ms into batch)`
+                : ""),
+            false,
+          );
         if (touchOwner === owner && (!result.ok || result.data?.held === 0))
           touchOwner = null;
         if (viewer.readyState === WebSocket.OPEN)

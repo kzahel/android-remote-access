@@ -106,6 +106,8 @@ final class TouchRelay {
             owner=gesture; width=w; height=h; rotation=currentRotation; window=currentWindow;
             started=SystemClock.elapsedRealtime(); main.postDelayed(watchdog,100);
         }
+        long sincePrevious=lastPacket==0?-1:SystemClock.elapsedRealtime()-lastPacket, dispatchedAt=SystemClock.elapsedRealtime();
+        int fingerCount=points.length();
         sequence=seq; lastPacket=SystemClock.elapsedRealtime(); busy=true; pending=reply;
         long version=++epoch;
         // Retain the dispatched endpoints so Stop/timeout can release even mid-batch.
@@ -121,7 +123,11 @@ final class TouchRelay {
             @Override public void onCancelled(GestureDescription g) {
                 if (version!=epoch) return;
                 busy=false; pending=null; clear();
-                reply.send(false,"Android cancelled touch; lift your fingers to start again",null);
+                // Diagnostics: where in the gesture Android cancelled it.
+                JSONObject why=new JSONObject();
+                try { why.put("sequence",seq).put("fingers",fingerCount).put("msSincePreviousBatch",sincePrevious)
+                    .put("msIntoBatch",SystemClock.elapsedRealtime()-dispatchedAt); } catch (Exception ignored) { }
+                reply.send(false,"Android cancelled touch; lift your fingers to start again",why);
             }
         },main);
         if (!accepted) { busy=false; pending=null; clear(); reply.send(false,"Android refused touch; no replay",null); }
