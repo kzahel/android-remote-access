@@ -84,8 +84,9 @@ replug (`adb reconnect` of that transport) then restored it over wireless in abo
 seven. Both reconnected without a manual step. The stranded-mapping timeout was
 not reproduced on demand; its fix is the same remove-and-recreate step that
 recovered the original incident by hand.
-Internet access, pairing/encryption for deployment, Doze, overnight survival and
-reboot recovery remain unqualified. Lock/debugging settings are preserved.
+Internet access, pairing/encryption for deployment, Doze and overnight survival
+remain unqualified; reboot recovery after a local first unlock is covered under
+[Start after restart](#start-after-restart). Lock/debugging settings are preserved.
 
 ## Tailscale route
 
@@ -129,6 +130,30 @@ reported `via DERP(fra)` and no direct connection. Over the relay: still frames
 succeeded; Standard video delivered 15.8 frames/s during swipes, versus about 22
 direct. The node was then logged out and stopped; its offline entry remains in
 the tailnet's machine list until removed there.
+
+## Start after restart
+
+An opt-in setup-screen switch, **Start remote access after the phone restarts**,
+arms access when Android binds the accessibility service. Android binds it only
+after the first unlock, so the owner's PIN is still entered on the phone after
+every restart. It fires once per boot (`Settings.Global.BOOT_COUNT`): a Stop,
+force-stop or update later in the same boot stays stopped, and enabling it takes
+effect from the next restart. The app has no boot receiver and starts no
+foreground service at boot. Smooth video still needs fresh screen-sharing
+consent; still frames do not.
+
+A returning phone's authenticated connection replaces any old one the server
+still holds, so a phone that vanished without closing its socket is not refused.
+An idle timeout was rejected because a phone whose CPU sleeps also falls silent.
+
+Physically tested 2026-10-19 on the Pixel 9 with the switch on: the owner
+restarted the phone, unlocked it and started Tailscale by hand; the app was not
+opened. The “Remote access is on” notification appeared by itself and the app
+reconnected over Tailscale (the ADB reverse mapping is lost on reboot) about
+74 s after the old connection closed, including the restart and unlock. An
+accessibility still frame succeeded. The old socket closed cleanly, so the
+replacement path is covered by the transport test, not this run. Whether
+Tailscale reconnects at boot without being started by hand was not tested.
 
 ## Video quality
 
