@@ -25,6 +25,8 @@ STATE.chmod(0o700)
 RECEIPT = STATE / 'device.json'
 # Optional owner-saved PIN: one line of digits, mode 0600. Read by the local server only.
 SAVED_PIN = STATE / 'pin'
+# The owned reverse mapping, which the server restores if an ADB route drops it.
+LINK = STATE / 'link.json'
 
 
 def receipt():
@@ -36,6 +38,12 @@ def adb(*args, **kwargs):
     if serial.startswith('emulator-'):
         raise RuntimeError('Physical phone required; use demo.py for an emulator')
     return run([ADB, '-s', serial, *args], **kwargs)
+
+
+def write_link(data):
+    if not data.get('hardwareSerial'):
+        data['hardwareSerial']=adb('shell','getprop','ro.serialno').strip(); private(RECEIPT,data)
+    private(LINK,{'serial':data['serial'],'hardwareSerial':data['hardwareSerial'],'devicePort':data['reversePort']})
 
 
 def doctor():
@@ -99,7 +107,7 @@ def start(args):
         if 'All broadcast queues are idle' not in barrier: raise RuntimeError('Package broadcasts still pending')
         config={'port':args.port,'phonePort':0,'token':secrets.token_urlsafe(32),
                 'profile':'usb-phone','deviceName':data['model'],'adb':str(ADB),
-                'phoneUnlock':True,'savedPinFile':str(SAVED_PIN)}
+                'phoneUnlock':True,'savedPinFile':str(SAVED_PIN),'linkFile':str(LINK)}
         private(STATE/'server.json',config)
         with (STATE/'server.log').open('w') as log:
             proc=subprocess.Popen(['node',str(ROOT/'server.mjs')],cwd=ROOT,
@@ -112,7 +120,7 @@ def start(args):
         port=adb('reverse','tcp:0','tcp:'+str(running['phonePort'])).strip()
         if not port.isdigit(): raise RuntimeError('ADB did not allocate a fresh reverse port')
         data.update(reversePort=int(port),nativePort=running['phonePort'],url=running['url'])
-        private(RECEIPT,data)
+        private(RECEIPT,data); write_link(data)
         adb('shell','run-as',PACKAGE,'mkdir','-p','files')
         adb('shell',f"run-as {PACKAGE} sh -c 'cat > files/pairing.json'",input=json.dumps({
             'host':'127.0.0.1','port':int(port),'token':config['token']}).encode())
@@ -173,7 +181,8 @@ def rearm(args):
         os.kill(data['serverPid'],signal.SIGTERM)
         wait_for(lambda:not run(['ps','-p',str(data['serverPid']),'-o','command='],check=False).strip(),10,'old server exit')
         config=json.loads((STATE/'server.json').read_text())
-        config.update(phonePort=data['nativePort'],phoneUnlock=True,savedPinFile=str(SAVED_PIN))
+        write_link(data)
+        config.update(phonePort=data['nativePort'],phoneUnlock=True,savedPinFile=str(SAVED_PIN),linkFile=str(LINK))
         private(STATE/'server.json',config)
         with (STATE/'server.log').open('w') as log:
             proc=subprocess.Popen(['node',str(ROOT/'server.mjs')],cwd=ROOT,
@@ -181,6 +190,9 @@ def rearm(args):
                 stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
         data['serverPid']=proc.pid;private(RECEIPT,data)
         wait_for(lambda:json.loads((STATE/'running.json').read_text()).get('pid')==proc.pid,15,'new phone server')
+    # Re-assert the owned mapping: a dropped ADB route may have removed it.
+    data=receipt(); write_link(data)
+    adb('reverse','tcp:'+str(data['reversePort']),'tcp:'+str(data['nativePort']))
     if args.install:
         adb('install','-r',str(ROOT/'android/app/build/outputs/apk/debug/app-debug.apk'),timeout=90)
         barrier=adb('shell','am','wait-for-broadcast-idle',timeout=30)

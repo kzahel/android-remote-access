@@ -58,6 +58,7 @@ export async function createDemo(options = {}) {
   let sequence = 0;
   let unlockBlocked = false;
   let closing = false;
+  let viewerStopped = false;
   let currentFrame = null;
   let capturePromise = null;
   let lastCapture = 0;
@@ -228,6 +229,7 @@ export async function createDemo(options = {}) {
           admitted = true;
           device = socket;
           generation = data.generation;
+          viewerStopped = false;
           update(data.state);
           invalidate();
           activity("connection", "Phone connected");
@@ -590,6 +592,7 @@ export async function createDemo(options = {}) {
           )
             throw new Error("Credential delivery is already in progress");
           if (op === "stop") {
+            viewerStopped = true;
             endTouch("Remote access stopped");
             videoPause("Remote access stopped");
             credentialVersion++;
@@ -801,6 +804,89 @@ export async function createDemo(options = {}) {
     if (device && !closing)
       command("ping", {}, 4000).catch(() => device?.destroy());
   }, 5000);
+  // The phone app dials its own loopback; an owned `adb reverse` carries that
+  // here. A dropped ADB transport removes the mapping, and a timed-out one can
+  // strand it (accepted, never forwarded), while the armed app keeps retrying.
+  // Restore only our port, on any ADB route to the same physical phone.
+  const linkGrace = options.linkGraceMs ?? 6000;
+  let silentSince = Date.now(),
+    lastRepair = 0,
+    repairs = 0,
+    repairing = false,
+    linkMessage = "";
+  const runAdb =
+    options.runAdb ||
+    ((args, timeout = 8000) =>
+      new Promise((resolve, reject) => {
+        const child = spawn(options.adb || "adb", args, {
+          stdio: ["ignore", "pipe", "ignore"],
+        });
+        const output = [];
+        const timer = setTimeout(() => child.kill("SIGKILL"), timeout);
+        child.stdout.on("data", (b) => output.push(b));
+        child.on("error", () => reject(new Error("ADB could not start")));
+        child.on("close", (code) => {
+          clearTimeout(timer);
+          if (code === 0) resolve(Buffer.concat(output).toString());
+          else reject(new Error("ADB command failed"));
+        });
+      }));
+  async function repairLink() {
+    const link = JSON.parse(
+      await readFile(options.linkFile, "utf8").catch(() => {
+        throw new Error("Phone link details are not recorded yet");
+      }),
+    );
+    const port = `tcp:${link.devicePort}`;
+    const routes = [link.serial];
+    const listed = await runAdb(["devices"]).catch(() => "");
+    for (const line of listed.split("\n")) {
+      const [serial, kind] = line.trim().split(/\s+/);
+      if (kind !== "device" || serial === link.serial || /^emulator-/.test(serial))
+        continue;
+      const hardware = await runAdb(["-s", serial, "shell", "getprop", "ro.serialno"], 5000)
+        .then((out) => out.trim())
+        .catch(() => "");
+      if (hardware && hardware === link.hardwareSerial) routes.push(serial);
+    }
+    for (const serial of routes) {
+      try {
+        await runAdb(["-s", serial, "reverse", "--remove", port]).catch(() => {});
+        await runAdb(["-s", serial, "reverse", port, `tcp:${phone.address().port}`]);
+        return serial === link.serial
+          ? "Phone link restored over the selected ADB connection"
+          : "Phone link restored over another ADB connection to this phone";
+      } catch {}
+    }
+    throw new Error("No ADB connection to this phone; waiting");
+  }
+  const linkWatch = setInterval(async () => {
+    if (device || viewerStopped || closing) {
+      silentSince = Date.now();
+      repairs = 0;
+      if (device) linkMessage = "";
+      return;
+    }
+    const now = Date.now();
+    const backoff = repairs < 3 ? 10000 : 60000;
+    // Only after the app has connected once; setup consent can take minutes.
+    if (!options.linkFile || !seen || repairing || now - silentSince < linkGrace || now - lastRepair < backoff)
+      return;
+    repairing = true;
+    lastRepair = now;
+    repairs++;
+    try {
+      const message = await repairLink();
+      if (!closing && linkMessage !== message) activity("connection", message);
+      linkMessage = message;
+    } catch (error) {
+      if (!closing && linkMessage !== error.message)
+        activity("connection", error.message, false);
+      linkMessage = error.message;
+    } finally {
+      repairing = false;
+    }
+  }, options.linkCheckMs ?? 3000);
   return {
     url: `http://127.0.0.1:${server.address().port}`,
     phonePort: phone.address().port,
@@ -814,6 +900,7 @@ export async function createDemo(options = {}) {
       live.close();
       videoDevice?.destroy();
       clearInterval(ping);
+      clearInterval(linkWatch);
       device?.destroy();
       invalidate();
       await Promise.all([

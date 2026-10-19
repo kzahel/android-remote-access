@@ -239,3 +239,90 @@ test("opted-in USB phone delivers an owner-only saved PIN once", async () => {
     await app.close();
   }
 });
+
+async function dropLink(app) {
+  const socket = await device(app, app.token, { locked: false });
+  await new Promise((r) => setTimeout(r, 20));
+  socket.destroy();
+  await new Promise((r) => setTimeout(r, 80));
+}
+
+async function linkDemo(routes, extra = {}) {
+  const directory = await mkdtemp(path.join(tmpdir(), "remote-access-test-"));
+  const linkFile = path.join(directory, "link.json");
+  await writeFile(
+    linkFile,
+    JSON.stringify({ serial: "phone.local:5555", hardwareSerial: "HW1", devicePort: 41000 }),
+  );
+  const calls = [];
+  const runAdb = async (args) => {
+    calls.push(args.join(" "));
+    if (args[0] === "devices")
+      return "List of devices attached\n" + Object.keys(routes).map((s) => `${s}\tdevice`).join("\n");
+    const route = routes[args[1]];
+    if (!route) throw new Error("device not found");
+    if (args.includes("getprop")) return route.hardware + "\n";
+    if (args[2] === "reverse" && args[3] !== "--remove" && !route.reverse) throw new Error("failed");
+    return "";
+  };
+  const app = await createDemo({
+    profile: "usb-phone",
+    linkFile,
+    runAdb,
+    linkGraceMs: 0,
+    linkCheckMs: 10,
+    ...extra,
+  });
+  return { app, calls };
+}
+
+test("USB phone link repair restores only the owned reverse port", async () => {
+  const { app, calls } = await linkDemo({ "phone.local:5555": { hardware: "HW1", reverse: true } });
+  try {
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(calls.length, 0, "no repair before the app has connected");
+    await dropLink(app);
+    assert.ok(calls.includes(`-s phone.local:5555 reverse tcp:41000 tcp:${app.phonePort}`));
+    assert.ok(calls.every((c) => !/reverse --remove-all/.test(c)));
+    assert.match(app.status().log[0].message, /restored over the selected/);
+  } finally {
+    await app.close();
+  }
+});
+
+test("USB phone link repair falls back only to the same physical phone", async () => {
+  const { app, calls } = await linkDemo({
+    OTHERPHONE: { hardware: "HW2", reverse: true },
+    HW1USB: { hardware: "HW1", reverse: true },
+  });
+  try {
+    await dropLink(app);
+    assert.ok(calls.includes(`-s HW1USB reverse tcp:41000 tcp:${app.phonePort}`));
+    assert.ok(!calls.some((c) => c.startsWith("-s OTHERPHONE reverse")));
+    assert.match(app.status().log[0].message, /another ADB connection/);
+  } finally {
+    await app.close();
+  }
+});
+
+test("USB phone link repair pauses after a viewer Stop", async () => {
+  const { app, calls } = await linkDemo(
+    { "phone.local:5555": { hardware: "HW1", reverse: true } },
+    { linkGraceMs: 60 },
+  );
+  try {
+    const socket = await device(app, app.token, { locked: false });
+    await new Promise((r) => setTimeout(r, 20));
+    const call = await viewer(app);
+    const stopped = once(socket, "data");
+    const response = call("/api/action", { op: "stop" });
+    const command = JSON.parse((await stopped)[0].toString().trim());
+    socket.write(JSON.stringify({ type: "result", id: command.id, ok: true, state: {} }) + "\n");
+    assert.equal((await response).status, 200);
+    socket.destroy();
+    await new Promise((r) => setTimeout(r, 150));
+    assert.equal(calls.length, 0);
+  } finally {
+    await app.close();
+  }
+});

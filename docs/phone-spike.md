@@ -65,9 +65,25 @@ independent effect observation; it does not inject ordinary browser gestures.
 
 This is a USB demo. It stops being reachable when its USB transport is removed.
 The same `adb reverse` route also works over an already-paired wireless-debugging
-transport; select it by its `host:port` serial. Attaching USB to the same phone
-once wedged that wireless reverse (connections accepted, bytes not forwarded);
-recreating the owned mapping on the same port recovered it.
+transport; select it by its `host:port` serial.
+
+An ADB route can drop while the armed app keeps retrying. A clean disconnect
+removes the reverse mapping (connections refused); a wireless TLS timeout once
+stranded it (phone loopback accepted connections, adbd forwarded nothing). The
+first incident coincided with attaching USB, but the adb server log places the
+cause at the wireless transport timing out two minutes later; an apparent native
+disarm in the same incident was a truncated notification listing. After the app
+has connected once and then been silent for six seconds, the server re-creates
+only its owned port: first on the selected serial, otherwise on another ADB route
+whose `ro.serialno` matches the same phone. It backs off after three attempts and
+does nothing after a viewer Stop. `rearm` also re-asserts the mapping.
+
+Physically tested 2026-10-19 on the Pixel 9 with USB and wireless both attached:
+dropping wireless restored the link over USB in about six seconds; a simulated USB
+replug (`adb reconnect` of that transport) then restored it over wireless in about
+seven. Both reconnected without a manual step. The stranded-mapping timeout was
+not reproduced on demand; its fix is the same remove-and-recreate step that
+recovered the original incident by hand.
 Internet access, pairing/encryption for deployment, Doze, overnight survival and
 reboot recovery remain unqualified. Lock/debugging settings are preserved.
 
