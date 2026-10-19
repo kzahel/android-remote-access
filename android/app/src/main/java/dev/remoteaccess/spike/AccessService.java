@@ -3,10 +3,13 @@ package dev.remoteaccess.spike;
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.GestureDescription;
 import android.app.*;
+import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.*;
 import android.hardware.HardwareBuffer;
 import android.os.*;
+import android.provider.Settings;
 import android.util.Base64;
 import android.view.Display;
 import android.view.accessibility.*;
@@ -21,6 +24,7 @@ import org.json.*;
 /** Native, human-directed control. ADB is not part of this operation path. */
 public final class AccessService extends AccessibilityService {
     public static volatile AccessService current;
+    private static final String SETTINGS="settings", START_AFTER_RESTART="startAfterRestart", HANDLED_BOOT="startAfterRestartBoot";
     volatile boolean armed;
     private volatile boolean accessBound;
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -58,7 +62,22 @@ public final class AccessService extends AccessibilityService {
         }
     };
 
-    @Override protected void onServiceConnected() { accessBound=true; current=this; }
+    @Override protected void onServiceConnected() { accessBound=true; current=this; main.post(this::startAfterRestart); }
+    /** Android binds this service only after the first unlock, so this cannot run before the owner's PIN. */
+    private void startAfterRestart() {
+        SharedPreferences prefs=getSharedPreferences(SETTINGS,MODE_PRIVATE);
+        int boot=bootCount(this);
+        // Once per boot: a Stop, force-stop or update later in the same boot stays stopped.
+        if (!prefs.getBoolean(START_AFTER_RESTART,false) || boot<0 || prefs.getInt(HANDLED_BOOT,-1)==boot || armed) return;
+        prefs.edit().putInt(HANDLED_BOOT,boot).apply();
+        try { arm(); } catch (Exception ignored) { /* Missing pairing or authority: the setup screen explains it. */ }
+    }
+    static boolean startsAfterRestart(Context context) { return context.getSharedPreferences(SETTINGS,MODE_PRIVATE).getBoolean(START_AFTER_RESTART,false); }
+    /** Takes effect from the next restart, never immediately. */
+    static void setStartAfterRestart(Context context,boolean on) {
+        context.getSharedPreferences(SETTINGS,MODE_PRIVATE).edit().putBoolean(START_AFTER_RESTART,on).putInt(HANDLED_BOOT,bootCount(context)).apply();
+    }
+    private static int bootCount(Context context) { return Settings.Global.getInt(context.getContentResolver(),Settings.Global.BOOT_COUNT,-1); }
     @Override public void onAccessibilityEvent(AccessibilityEvent event) {
         AccessibilityNodeInfo root = getRootInActiveWindow();
         int next = root == null ? -1 : root.getWindowId();
@@ -179,7 +198,7 @@ public final class AccessService extends AccessibilityService {
         android.util.DisplayMetrics dm=getResources().getDisplayMetrics();
         return new JSONObject().put("armed",armed).put("interactive",pm.isInteractive())
             .put("locked",km.isKeyguardLocked()).put("deviceLocked",km.isDeviceLocked()).put("secure",km.isKeyguardSecure())
-            .put("userUnlocked",getSystemService(UserManager.class).isUserUnlocked())
+            .put("userUnlocked",getSystemService(UserManager.class).isUserUnlocked()).put("startAfterRestart",startsAfterRestart(this))
             .put("api",Build.VERSION.SDK_INT).put("release",Build.VERSION.RELEASE).put("targetSdk",getApplicationInfo().targetSdkVersion)
             .put("scene",scene).put("package",activePackage).put("width",dm.widthPixels).put("height",dm.heightPixels)
             .put("rotation",getSystemService(android.hardware.display.DisplayManager.class).getDisplay(0).getRotation())

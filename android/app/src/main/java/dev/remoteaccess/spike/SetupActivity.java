@@ -34,6 +34,12 @@ public final class SetupActivity extends Activity {
         button(page,"Allow smooth screen sharing", v -> smoothView());
         button(page,"Open touch playground", v -> startActivity(new Intent(this,TouchLabActivity.class)));
         button(page,"Stop remote access", v -> { if (AccessService.current != null) AccessService.current.disarm(); refresh(); });
+        Switch restart = new Switch(this);
+        restart.setText("Start remote access after the phone restarts\nUnlock the phone once after a restart; access then starts by itself.");
+        restart.setTextSize(15); restart.setPadding(0,24,0,0);
+        restart.setChecked(AccessService.startsAfterRestart(this));
+        restart.setOnCheckedChangeListener((b,on) -> AccessService.setStartAfterRestart(this,on));
+        page.addView(restart);
         handle(getIntent());
         setContentView(page);
         if (android.os.Build.VERSION.SDK_INT >= 33 && !getSystemService(NotificationManager.class).areNotificationsEnabled())

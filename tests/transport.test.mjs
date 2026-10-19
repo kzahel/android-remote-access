@@ -146,6 +146,32 @@ test("an interrupted action is uncertain and is never replayed on reconnect", as
   }
 });
 
+test("a returning phone replaces its stale connection without replaying actions", async () => {
+  const app = await createDemo();
+  try {
+    // A rebooted phone may never close its old socket.
+    const stale = await device(app);
+    await new Promise((r) => setTimeout(r, 20));
+    const received = once(stale, "data");
+    const action = app.command("tap", { x: 10, y: 20, frame: "old" });
+    await received;
+    const closed = once(stale, "close");
+    const next = await device(app);
+    await assert.rejects(action, /not be replayed/);
+    await closed;
+    let replayed = false;
+    next.on("data", () => {
+      replayed = true;
+    });
+    await new Promise((r) => setTimeout(r, 100));
+    assert.equal(app.status().connected, true);
+    assert.equal(replayed, false);
+    next.destroy();
+  } finally {
+    await app.close();
+  }
+});
+
 test("timed-out commands do not accept late results as another action", async () => {
   const app = await createDemo();
   try {

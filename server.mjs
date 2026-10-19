@@ -232,8 +232,15 @@ export async function createDemo(options = {}) {
             continue;
           }
           if (device) {
-            socket.destroy();
-            return;
+            // A rebooted or re-routed phone may never have closed its old
+            // socket, and a sleeping phone falls silent, so no idle timeout
+            // can tell them apart. The phone's own token wins the slot.
+            credentialVersion++;
+            if (credentialChild) credentialChild.kill("SIGKILL");
+            const stale = device;
+            device = null;
+            stale.destroy();
+            activity("connection", "Phone reconnected; replaced its old connection", false);
           }
           clearTimeout(authTimer);
           admitted = true;
