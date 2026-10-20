@@ -272,6 +272,19 @@ export async function mobileAcceptance(f: Fixture) {
     await command("details", { id: a.id });
     await shot("browser-details");
     await command("automatic", { enabled: true });
+    await command("notification-refresh");
+    await stopNative();
+    // A runtime revocation can kill the process; exercise recovery through startup too.
+    adb("shell", "pm", "revoke", app, "android.permission.POST_NOTIFICATIONS");
+    await startNative();
+    await command("notification-state", { enabled: false });
+    await shot("notifications-off");
+    await stopNative();
+    adb("shell", "pm", "grant", app, "android.permission.POST_NOTIFICATIONS");
+    await startNative();
+    await command("notification-state", { enabled: true });
+    console.log("Notification block/revoke and restoration refresh passed");
+    await command("settings");
     await shot("settings");
     await stopNative();
     adb("shell", "input", "keyevent", "KEYCODE_HOME");
@@ -393,6 +406,8 @@ export async function mobileAcceptance(f: Fixture) {
       databaseTests: 3,
       independentBrowsers: 2,
       renamedThroughUI: true,
+      permissionRefreshOnResume: true,
+      permissionRevocationAndRestoration: true,
       encryptedChecksBothBrowsers: true,
       wakeProof,
       persistedAfterProcessRestart: true,

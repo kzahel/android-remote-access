@@ -15,7 +15,7 @@ android {
         minSdk = 30
         targetSdk = 36
         versionCode = 1
-        versionName = "0.4-browser-management"
+        versionName = "0.4.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     compileOptions {
@@ -31,6 +31,9 @@ android {
 ksp { arg("room.schemaLocation", "$projectDir/schemas") }
 kotlin { compilerOptions { allWarningsAsErrors.set(true) } }
 dependencies {
+    // Unused-app restrictions and their system settings entry point.
+    //noinspection GradleDependency
+    implementation("androidx.core:core:1.16.0")
     // Room 2.7 supports the pinned Kotlin 2.0 toolchain.
     //noinspection GradleDependency
     implementation("androidx.room:room-runtime:2.7.2")

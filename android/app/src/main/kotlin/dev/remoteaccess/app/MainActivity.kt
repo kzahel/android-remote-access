@@ -19,6 +19,10 @@ import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.IntentCompat
+import androidx.core.content.PackageManagerCompat
+import androidx.core.content.UnusedAppRestrictionsConstants
+import androidx.core.net.toUri
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import java.text.DateFormat
 import java.util.Date
@@ -33,13 +37,16 @@ class MainActivity : ComponentActivity() {
     private var busy = false
     private var changing = false
     private var loaded = false
+    private var lastNotificationsAllowed: Boolean? = null
+    private var unusedRestrictions: Int? = null
+    private var readinessRequest = 0
     private val notificationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) {
-            HostRuntime.io.execute {
-                WakeSupport.register(this)
-                WakeSupport.enqueue(this, androidx.work.Data.EMPTY, registration = true)
-            }
-            render()
+            refreshSystemReadiness()
+        }
+    private val unusedAppSettings =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            refreshSystemReadiness()
         }
     private var listening = false
     private var activityLimit = 200
@@ -68,6 +75,7 @@ class MainActivity : ComponentActivity() {
             runOnUiThread {
                 loaded = true
                 intent.dataString?.let { showInvitation(it) } ?: render()
+                refreshSystemReadiness()
             }
         }
         render()
@@ -79,6 +87,54 @@ class MainActivity : ComponentActivity() {
         store.listeners.add(listener)
         if (loaded) render()
     }
+
+    override fun onResume() {
+        super.onResume()
+        if (loaded) refreshSystemReadiness()
+    }
+
+    private fun refreshSystemReadiness() {
+        val allowed = WakeSupport.notificationsAllowed(this)
+        if (lastNotificationsAllowed != allowed) {
+            lastNotificationsAllowed = allowed
+            val app = applicationContext
+            HostRuntime.io.execute {
+                WakeSupport.register(app)
+                WakeSupport.enqueue(app, androidx.work.Data.EMPTY, registration = true)
+            }
+        }
+        render()
+        val request = ++readinessRequest
+        val future = PackageManagerCompat.getUnusedAppRestrictionsStatus(applicationContext)
+        future.addListener({
+            val status =
+                try {
+                    future.get()
+                } catch (_: Exception) {
+                    UnusedAppRestrictionsConstants.ERROR
+                }
+            runOnUiThread {
+                if (isDestroyed || request != readinessRequest) return@runOnUiThread
+                if (unusedRestrictions != status) {
+                    unusedRestrictions = status
+                    if (listening) render()
+                }
+            }
+        }, HostRuntime.io)
+    }
+
+    private fun openNotificationSettings() {
+        startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName))
+    }
+
+    private fun sessionStatus(status: String): String =
+        when (status) {
+            "Connecting", "Browser connected; securing session" -> "Connecting…"
+            "Waiting for your browser" -> "Waiting for browser"
+            "Encrypted session established" -> "Connected securely"
+            "Encrypted connection passed" -> "Connection verified"
+            else -> "Connection ended"
+        }
 
     override fun onStop() {
         listening = false
@@ -171,28 +227,35 @@ class MainActivity : ComponentActivity() {
             when {
                 !state.settings.armed -> "Off · Paired browsers cannot connect"
                 browsers.isEmpty() -> "Pair a browser to get started"
-                live != null -> "${store.browser(live.browserId)?.nickname ?: "Browser"} · ${live.status}"
+                live != null -> "${store.browser(live.browserId)?.nickname ?: "Browser"} · ${sessionStatus(live.status)}"
                 browsers.none { it.enabled } -> "No browsers allowed · Enable one below"
-                !state.settings.automatic -> "On · Automatic requests are off"
-                com.google.firebase.FirebaseApp.getApps(this).isEmpty() -> "Remote wake is not configured in this build"
-                !WakeSupport.notificationsAllowed(this) -> "Notification permission needed · Open Settings"
-                browsers.any { it.enabled && !it.wakeReady } -> "Wake setup incomplete · Open Settings"
+                !state.settings.automatic -> "Connection requests are off"
+                com.google.firebase.FirebaseApp.getApps(this).isEmpty() -> "Connection setup unavailable"
+                !WakeSupport.notificationsAllowed(this) -> "Notifications are off · Enable them to receive requests"
+                browsers.any { it.enabled && (!it.synced || !it.wakeReady) } -> "Connection setup needs attention"
                 else -> "Ready for connection requests"
             }
         text(layout, status, 18f).apply {
             id = R.id.host_status
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         }
-        text(layout, getString(R.string.development_description), 14f)
+        if (state.settings.armed && browsers.any { it.enabled } && live == null &&
+            (
+                !state.settings.automatic || !WakeSupport.notificationsAllowed(this) ||
+                    browsers.any { it.enabled && (!it.synced || !it.wakeReady) }
+            )
+        ) {
+            button(layout, "Review settings", R.id.review_settings) { navigate("settings") }
+        }
         text(layout, "Paired browsers", 20f)
         if (state.browsers.isEmpty()) text(layout, "No paired browsers yet.")
         state.browsers.forEach { browser ->
             val summary =
                 when {
-                    browser.revoked -> "Removed locally · Cleanup pending"
+                    browser.revoked -> "Access removed · Finishing removal"
                     !browser.enabled -> "Disabled"
                     !state.settings.armed -> "Allowed · Remote access is off"
-                    live?.browserId == browser.id -> "Connected or connecting"
+                    live?.browserId == browser.id -> sessionStatus(live.status)
                     else -> "Allowed · ${lastConnected(browser)}"
                 }
             button(layout, "${browser.nickname}\n$summary") { navigate("browser", browser.id) }
@@ -201,7 +264,7 @@ class MainActivity : ComponentActivity() {
             GmsBarcodeScanning.getClient(this).startScan().addOnSuccessListener { code ->
                 showInvitation(code.rawValue ?: "")
             }.addOnFailureListener {
-                notice = "Scanner unavailable. Try again when Play services is ready."
+                notice = "Couldn’t open the scanner. Check that Google Play services is up to date and try again."
                 render()
             }
         }
@@ -233,37 +296,80 @@ class MainActivity : ComponentActivity() {
                     this,
                 )
             ) {
-                "Connection notifications allowed"
+                "Notifications are on"
             } else {
-                "Allow connection notifications to receive requests"
+                "Notifications are off. Turn them on to receive connection requests."
             },
         )
         button(layout, "Notification settings", R.id.notification_settings) {
-            startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName))
+            openNotificationSettings()
         }
+        text(layout, "When this app is unused", 20f)
+        val restrictionsEnabled =
+            unusedRestrictions in
+                setOf(
+                    UnusedAppRestrictionsConstants.API_30_BACKPORT,
+                    UnusedAppRestrictionsConstants.API_30,
+                    UnusedAppRestrictionsConstants.API_31,
+                )
+        text(
+            layout,
+            when (unusedRestrictions) {
+                null -> "Checking Android settings…"
+                UnusedAppRestrictionsConstants.DISABLED -> "Android’s unused-app restrictions are off."
+                UnusedAppRestrictionsConstants.FEATURE_NOT_AVAILABLE -> "Android does not pause unused apps on this phone."
+                UnusedAppRestrictionsConstants.ERROR -> "Couldn’t check whether Android pauses this app. Review its app settings."
+                else ->
+                    "Android may remove permissions or pause this app after a long period of inactivity. " +
+                        "Review this setting for remote access."
+            },
+            14f,
+        ).id = R.id.unused_app_status
+        if (restrictionsEnabled || unusedRestrictions == UnusedAppRestrictionsConstants.ERROR) {
+            button(layout, "Unused app settings", R.id.unused_app_settings) {
+                val intent =
+                    if (restrictionsEnabled) {
+                        IntentCompat.createManageUnusedAppRestrictionsIntent(this, packageName)
+                    } else {
+                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:$packageName".toUri())
+                    }
+                unusedAppSettings.launch(intent)
+            }
+        }
+        text(layout, "Connection setup", 20f)
         button(layout, "Retry setup", R.id.retry_setup) {
             HostRuntime.io.execute {
                 WakeSupport.register(this)
                 WakeSupport.enqueue(this, androidx.work.Data.EMPTY, registration = true)
             }
-            notice = "Retrying browser settings and wake setup…"
+            notice = "Updating connection settings…"
             render()
         }
-        if (com.google.firebase.FirebaseApp.getApps(this).isEmpty()) text(layout, "Remote wake is not configured in this build.", 14f)
+        if (com.google.firebase.FirebaseApp.getApps(this).isEmpty()) {
+            text(layout, "Connection requests are unavailable in this installation. Install an app update to complete setup.", 14f)
+        }
         store.snapshot.browsers.filter { !it.revoked }.forEach {
             text(
                 layout,
                 "${it.nickname}: ${if (!it.synced) {
-                    "Settings not synchronized"
+                    "Settings update pending"
+                } else if (!store.snapshot.settings.armed || !it.enabled) {
+                    "Access is off"
+                } else if (!store.snapshot.settings.automatic) {
+                    "Connection requests are off"
+                } else if (!WakeSupport.notificationsAllowed(this)) {
+                    "Notifications needed"
                 } else if (it.wakeReady) {
-                    "Automatic requests ready"
+                    "Ready for connection requests"
                 } else {
-                    "Automatic requests unavailable or off"
+                    "Setup incomplete"
                 }}",
                 14f,
             )
         }
+        text(layout, "About", 20f)
         text(layout, "Android Remote Access ${BuildConfig.VERSION_NAME}", 14f)
+        text(layout, "This version supports browser pairing and secure connection checks.", 14f)
         text(
             layout,
             "After a restart, unlock the phone locally once. Activity is stored only on this phone for up to 30 days or 10,000 entries.",
@@ -279,9 +385,8 @@ class MainActivity : ComponentActivity() {
             }
         text(layout, browser.nickname, 22f)
         text(layout, "Paired ${time(browser.pairedAt)}\n${lastConnected(browser)}", 14f)
-        text(layout, "Paired through ${browser.authority().getString("origin")}", 14f)
         if (browser.revoked) {
-            text(layout, "Access is blocked on this phone. Relay removal is pending.")
+            text(layout, "This browser can no longer connect. Connect this phone to the internet to finish removing it.")
             button(layout, "Retry removal", R.id.remove_browser) { change { } }
             return
         }
@@ -297,13 +402,9 @@ class MainActivity : ComponentActivity() {
                 .setPositiveButton("Save") { _, _ -> perform { store.rename(browser.id, input.text.toString()) } }.show()
         }
         val live = HostSessions.current.get()
-        text(layout, if (live?.browserId == browser.id) live.status else "No active session")
+        text(layout, if (live?.browserId == browser.id) sessionStatus(live.status) else "Not connected")
         val disconnect = button(layout, "Disconnect", R.id.disconnect_browser) { HostRuntime.disconnect(this, browser.id) }
         disconnect.isEnabled = live?.browserId == browser.id
-        button(layout, getString(R.string.connect_phone), R.id.connect_phone) {
-            HostRuntime.connect(this, browser.id)
-        }.isEnabled = store.allowed(browser.id, browser.generation) && live == null
-        text(layout, "Development fallback: opens a connection for up to one minute so this browser can run a check.", 14f)
         button(layout, getString(R.string.remove_browser), R.id.remove_browser) {
             AlertDialog.Builder(
                 this,
@@ -322,7 +423,16 @@ class MainActivity : ComponentActivity() {
                 if (isDestroyed || page != "activity" || !container.isAttachedToWindow) return@runOnUiThread
                 if (events.isEmpty()) text(container, "No activity yet.")
                 events.forEach { event ->
-                    text(container, event.kind, 16f)
+                    text(
+                        container,
+                        when (event.kind) {
+                            "Wake setup completed" -> "Connection settings updated"
+                            "Wake setup failed" -> "Connection setup needs attention"
+                            "Session blocked: phone busy" -> "Connection declined · Phone busy"
+                            else -> event.kind
+                        },
+                        16f,
+                    )
                     text(container, "${time(event.at)}${event.browserName?.let { " · $it" } ?: ""}", 14f)
                 }
                 if (events.size == activityLimit && activityLimit < 10000) {

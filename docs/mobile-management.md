@@ -11,7 +11,8 @@ pairing/encrypted-check functionality; it does not claim screen control exists.
 - Main screen: global Remote access switch, honest readiness/session status,
   compact paired-browser list, Pair browser, Activity and Settings.
 - Browser details: nickname, pairing/last-connection timestamps, Allowed switch,
-  Disconnect, manual Connect (development fallback), and confirmed removal.
+  Disconnect and confirmed removal. Manual transport admission is a test-fixture
+  helper, not a consumer control.
 - Global Off and per-browser Disabled retain pairings, immediately invalidate
   authority, close affected sessions and cancel pending work. Re-enable locally.
   Disconnect ends only the current connection. Removal permanently revokes trust;
@@ -95,3 +96,45 @@ pass. Three native Room tests and the command-driven native management flow pass
 This is emulator evidence; it does not extend the earlier physical Pixel receipt
 to the new management UI or qualify natural overnight/reboot recovery. Screen
 capture/input and WebRTC remain separate product slices.
+
+## Consumer copy and system readiness
+
+The owner's follow-up removes development banners, future-feature promises,
+manual connection-check controls, raw session diagnostics and the build suffix
+from the mobile UI. Home shows access, connection status and paired browsers;
+an actionable Settings link appears when setup needs attention. Settings holds
+notification repair, unused-app settings, connection setup and About. About
+accurately describes this version's pairing/secure-check scope.
+
+On startup and every Activity resume, query the actual notification permission,
+app-wide notification setting and connection channel. A changed result refreshes
+the UI and resynchronizes push registration, including after permission restoration.
+Saved owner preferences are retained; they are not evidence of OS permission.
+Background push handling and every automatic session still check current permission.
+
+Also query AndroidX's unused-app restrictions API asynchronously on resume. Show
+whether Android's permission removal/hibernation setting is enabled, disabled,
+unavailable or could not be read, with the supported system settings action.
+This reports configuration, not proof that hibernation occurred, nor a promise
+of overnight reachability. The app does not change the setting or request a
+battery exemption automatically.
+
+Official API references, reviewed 2026-10-20:
+
+- [PackageManagerCompat.getUnusedAppRestrictionsStatus](https://developer.android.com/reference/androidx/core/content/PackageManagerCompat#getUnusedAppRestrictionsStatus(android.content.Context))
+- [IntentCompat.createManageUnusedAppRestrictionsIntent](https://developer.android.com/reference/androidx/core/content/IntentCompat#createManageUnusedAppRestrictionsIntent(android.content.Context,java.lang.String))
+- [App hibernation behavior](https://developer.android.com/topic/performance/app-hibernation)
+
+The mobile acceptance now checks an external notification-settings round trip,
+notification blocking/restoration while resuming the existing Settings screen,
+and runtime permission revocation/restoration across process startup. The same
+run then verifies real process-absent FCM delivery to both paired browsers.
+All permission mutations are restricted to the runner's owned emulator.
+
+This follow-up acceptance passed on 2026-10-20, including the unused-app and
+notification system-settings round trips, channel blocking and repair through
+Android Settings, runtime permission revoke/regrant, both real FCM wakes, all
+existing multi-browser policy checks and signed fixture removal. Android builds,
+lint/ktlint, TS checking and Biome passed. Actual native screenshots were inspected;
+private receipts and captures remain in `.local/mobile-proof/`. No physical phone
+or deployed relay change was required.

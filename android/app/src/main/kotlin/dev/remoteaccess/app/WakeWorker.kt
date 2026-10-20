@@ -64,7 +64,7 @@ class WakeWorker(context: Context, parameters: WorkerParameters) : Worker(contex
             while (current() && !done.await(100, TimeUnit.MILLISECONDS)) Unit
             if (passed.get()) {
                 WakeSupport.preferences(applicationContext).save { putLong("lastWakeExchange", System.currentTimeMillis()) }
-                if (automatic) WakeSupport.notify(applicationContext, "Encrypted connection check passed")
+                if (automatic) WakeSupport.notify(applicationContext, "Secure connection verified")
             } else if (current()) {
                 store.record("Connection failed", id)
             }

@@ -86,7 +86,7 @@ class HostedPairingTest {
         assertTrue(before.contentEquals(KeystoreIdentity.loadOrCreate("phone-identity-v1").publicKey))
         browser()
         waitFor { store.snapshot.browsers.first().synced }
-        click("connect_phone")
+        HostRuntime.connect(context, store.snapshot.browsers.first { !it.revoked }.id)
         waitFor { HostSessions.current.get()?.status == "Waiting for your browser" }
         stage.writeText("connected")
         waitFor(120000) { command.exists() }
@@ -111,7 +111,7 @@ class HostedPairingTest {
         command.delete()
     }
 
-    /** Command file is private test coordination; every management mutation uses the real UI. */
+    /** Management mutations use the real UI; manual transport admission is a fixture-only helper. */
     @Test
     fun manageMultipleBrowsers() {
         val stage = File(context.filesDir, "hosted-stage")
@@ -152,6 +152,65 @@ class HostedPairingTest {
                     start()
                     click("open_settings")
                 }
+                "notification-refresh" -> {
+                    start()
+                    click("open_settings")
+                    waitFor {
+                        device.findObject(By.res("${context.packageName}:id/unused_app_status"))?.text?.let {
+                            it != "Checking Android settings…"
+                        } == true
+                    }
+                    click("notification_settings")
+                    assertTrue(device.wait(Until.hasObject(By.pkg("com.android.settings")), 10000))
+                    device.pressBack()
+                    if (device.hasObject(By.res("${context.packageName}:id/unused_app_settings"))) {
+                        click("unused_app_settings")
+                        assertTrue(device.wait(Until.hasObject(By.pkg("com.android.settings")), 10000))
+                        device.pressBack()
+                    }
+                    // Channel blocking changes real notification authority without killing instrumentation.
+                    device.pressHome()
+                    val manager = context.getSystemService(android.app.NotificationManager::class.java)
+                    val channel = requireNotNull(manager.getNotificationChannel(WakeSupport.CHANNEL))
+                    channel.importance = android.app.NotificationManager.IMPORTANCE_NONE
+                    manager.createNotificationChannel(channel)
+                    assertTrue(!WakeSupport.notificationsAllowed(context))
+                    context.startActivity(
+                        Intent(context, MainActivity::class.java)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+                    )
+                    assertTrue(
+                        device.wait(Until.hasObject(By.text("Notifications are off. Turn them on to receive connection requests.")), 15000),
+                    )
+                    waitFor { store.snapshot.browsers.all { !it.wakeReady } }
+                    context.startActivity(
+                        Intent(android.provider.Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                            .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+                            .putExtra(android.provider.Settings.EXTRA_CHANNEL_ID, WakeSupport.CHANNEL)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                    )
+                    val channelToggle =
+                        assertNotNull(device.wait(Until.findObject(By.pkg("com.android.settings").checkable(true).checked(false)), 10000))
+                    channelToggle.click()
+                    waitFor { WakeSupport.notificationsAllowed(context) }
+                    device.pressBack()
+                    assertTrue(device.wait(Until.hasObject(By.text("Notifications are on")), 15000))
+                    waitFor { store.snapshot.browsers.all { it.wakeReady } }
+                }
+                "notification-state" -> {
+                    start()
+                    click("open_settings")
+                    val allowed = task.getBoolean("enabled")
+                    assertTrue(WakeSupport.notificationsAllowed(context) == allowed)
+                    val message =
+                        if (allowed) {
+                            "Notifications are on"
+                        } else {
+                            "Notifications are off. Turn them on to receive connection requests."
+                        }
+                    assertTrue(device.wait(Until.hasObject(By.text(message)), 15000))
+                    waitFor { store.snapshot.browsers.all { it.wakeReady == allowed } }
+                }
                 "global" -> {
                     start()
                     if (store.snapshot.settings.armed != task.getBoolean("enabled")) click("access_toggle")
@@ -187,7 +246,7 @@ class HostedPairingTest {
                             waitFor { store.browser(id)?.enabled == task.getBoolean("enabled") && store.browser(id)?.synced == true }
                         }
                         "connect" -> {
-                            click("connect_phone")
+                            HostRuntime.connect(context, id)
                             waitFor {
                                 HostSessions.current.get()?.let { it.browserId == id && it.status == "Waiting for your browser" } == true
                             }
