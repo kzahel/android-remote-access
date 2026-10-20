@@ -97,6 +97,14 @@ through lock/unlock, messages, permission loss, rotation and dialogs at desktop,
 mobile and landscape sizes. It needs Playwright Chromium, no Android device or
 relay. Private screenshots/results stay in `.local/viewer-layout-proof/`.
 
+The website's home page lists all phones saved in this browser, with local names
+and last successful contact times. **Add phone** preserves existing phones;
+`/phones/<phoneId>` is bookmarkable and separate phones can connect in separate
+tabs. Names/history live in IndexedDB, alongside existing browser pairing storage.
+See [browser phone management](docs/browser-phones.md). Run
+`pnpm test:viewer-phones` for isolated browser migration, multi-phone/tab and
+responsive acceptance; no Android device or relay is selected.
+
 On the phone, **Set up sharing** opens the website link, Copy/Share, an optional
 website QR and **Scan pairing code**. Paired phones keep this under **Add browser**
 and **How to connect**. Approval works before Android permissions; **Enable

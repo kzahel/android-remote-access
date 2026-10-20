@@ -382,3 +382,10 @@ per-browser pause, removal, Settings and bounded local Activity. These screens
 manage pairing, feature permissions, unlock opt-in and encrypted control. The
 subsequent full-control implementation and measured limits are recorded in
 [control acceptance](control-acceptance.md).
+
+## Browser phone library (2026-10-20)
+
+The owner approved and requested implementing local management of multiple
+phones, per-phone URLs and independent tabs. See [saved browser phones](browser-phones.md)
+for identity, IndexedDB migration, contact timestamps, tab coordination and
+acceptance. Android browser management remains separate and authoritative.

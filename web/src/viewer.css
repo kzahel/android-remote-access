@@ -278,3 +278,104 @@ dialog::backdrop {
   color: #345344;
   font-size: 1.5rem;
 }
+
+/* Library links remain ordinary links: bookmarks, new tabs and Back work natively. */
+a {
+  color: #164e43;
+  text-underline-offset: 3px;
+}
+a:focus-visible {
+  outline: 3px solid #7da99a;
+  outline-offset: 3px;
+}
+.button-link {
+  display: inline-block;
+  padding: 9px 14px;
+  border-radius: 8px;
+  color: white;
+  background: #164e43;
+  text-decoration: none;
+}
+.button-link.secondary {
+  color: #16322f;
+  background: #dce8e0;
+}
+.phones-link {
+  display: inline-block;
+  font-size: 0.875rem;
+  text-decoration: none;
+}
+.phone-page-nav {
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.phone-page-nav ~ .remote-viewer .screen-stage {
+  height: clamp(100px, calc(100svh - 279px), 780px);
+}
+.phone-list {
+  list-style: none;
+  padding: 0;
+  margin: 24px 0;
+  display: grid;
+  gap: 12px;
+}
+.phone-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #d7e1d8;
+  border-radius: 12px;
+  background: #fff9;
+}
+.phone-description {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.phone-title {
+  font-size: 1.1rem;
+  font-weight: 650;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.phone-model,
+.phone-description time,
+.phone-description > span,
+.contact-detail {
+  font-size: 0.8125rem;
+  color: #536c60;
+}
+.phone-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.phone-actions .button-link {
+  padding: 8px 12px;
+  font-size: 0.875rem;
+}
+.manage-phone {
+  width: 36px;
+  height: 36px;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  color: #345344;
+  font-size: 1.4rem;
+}
+@media (max-width: 420px) {
+  .phone-list li {
+    align-items: flex-start;
+    padding: 12px;
+    gap: 8px;
+  }
+  .phone-actions {
+    gap: 0;
+  }
+}

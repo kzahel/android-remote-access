@@ -16,11 +16,21 @@ export function RemoteScreen({
   session,
   initial,
   disconnect,
+  name,
+  notice,
+  onContact,
+  onEnded,
 }: {
   session: RemoteSession;
   initial: ControlState;
   disconnect: () => void;
+  name?: string;
+  notice?: string;
+  onContact?: (state: ControlState) => void;
+  onEnded?: () => void;
 }) {
+  const callbacks = useRef({ onContact, onEnded });
+  callbacks.current = { onContact, onEnded };
   const canvas = useRef<HTMLCanvasElement>(null);
   const qualityDialog = useRef<HTMLDialogElement>(null);
   const typingDialog = useRef<HTMLDialogElement>(null);
@@ -68,6 +78,7 @@ export function RemoteScreen({
           if (status.kind === "state") {
             videoActive = status.state.videoActive === true;
             setState(status.state);
+            callbacks.current.onContact?.(status.state);
             setConnectionPath(session.path);
             if (!videoActive && shownVideo) {
               renderer?.close();
@@ -131,6 +142,7 @@ export function RemoteScreen({
             error instanceof Error ? error.message : "Connection ended",
           );
           frame.current = undefined;
+          if (!session.connected) callbacks.current.onEnded?.();
           if (session.connected)
             timer = setTimeout(() => {
               void capture();
@@ -170,8 +182,9 @@ export function RemoteScreen({
       data-transport={connectionPath}
     >
       <ViewerHeading
-        name={state.phoneName || "Your phone"}
+        name={name || state.phoneName || "Your phone"}
         status={
+          notice ||
           actionMessage ||
           message ||
           (state.locked ? "Phone is locked" : "Connected securely")

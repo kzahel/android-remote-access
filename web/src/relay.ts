@@ -158,8 +158,9 @@ export async function encryptedCheck(
   identity: Identity,
   grant: Grant,
   report?: (message: string) => void,
+  signal?: AbortSignal,
 ): Promise<PhoneFeatures | undefined> {
-  const session = await openEncryptedSession(identity, grant, report);
+  const session = await openEncryptedSession(identity, grant, report, signal);
   try {
     const canary = utf8("Encrypted connection check 🌞");
     await session.send(canary);

@@ -126,7 +126,7 @@ export async function mobileAcceptance(f: Fixture) {
     });
     contexts.push(context);
     const page = await context.newPage();
-    await page.goto(f.origin);
+    await page.goto(`${f.origin}/pair`);
     await page.getByRole("button", { name: "Create pairing code" }).click();
     const qr = await page
       .getByRole("img", { name: "Scan to pair this browser" })
@@ -165,25 +165,28 @@ export async function mobileAcceptance(f: Fixture) {
   async function probe(page: Page) {
     return page.evaluate(async () => {
       const db = await new Promise<IDBDatabase>((resolve, reject) => {
-        const r = indexedDB.open("remote-access-v1", 1);
+        const r = indexedDB.open("remote-access-v1");
         r.onsuccess = () => resolve(r.result);
         r.onerror = () => reject(r.error);
       });
-      const stored = await Promise.all(
-        ["identity", "grant"].map(
-          (key) =>
-            new Promise<unknown>((resolve, reject) => {
-              const request = db
-                .transaction("state")
-                .objectStore("state")
-                .get(key);
-              request.onsuccess = () => resolve(request.result);
-              request.onerror = () => reject(request.error);
-            }),
-        ),
-      );
-      const keys = stored[0] as CryptoKeyPair;
-      const grant = stored[1] as { id: string };
+      const keys = await new Promise<CryptoKeyPair>((resolve, reject) => {
+        const request = db
+          .transaction("state")
+          .objectStore("state")
+          .get("identity");
+        request.onsuccess = () => resolve(request.result as CryptoKeyPair);
+        request.onerror = () => reject(request.error);
+      });
+      const grant = await new Promise<{ id: string }>((resolve, reject) => {
+        const request = db
+          .transaction("phones")
+          .objectStore("phones")
+          .get(location.pathname.split("/")[2] ?? "");
+        request.onsuccess = () =>
+          resolve((request.result as { grant: { id: string } }).grant);
+        request.onerror = () => reject(request.error);
+      });
+      db.close();
       const state = { ready: false, closed: false, authenticated: false };
       (window as unknown as { mobileProbe: typeof state }).mobileProbe = state;
       const ws = new WebSocket(

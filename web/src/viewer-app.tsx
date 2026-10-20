@@ -1,0 +1,97 @@
+import { useEffect, useState } from "react";
+import { PairPhone } from "./pair-phone.js";
+import { PhoneList } from "./phone-list.js";
+import {
+  PhonePage,
+  type ViewerServices,
+  viewerServices,
+} from "./phone-page.js";
+import {
+  phoneName,
+  type SavedPhone,
+  savedPhones,
+  watchPhones,
+} from "./store.js";
+import { ViewerHeading } from "./viewer-heading.js";
+
+export function ViewerApp({
+  services = viewerServices,
+}: {
+  services?: ViewerServices;
+}) {
+  const [phones, setPhones] = useState<SavedPhone[]>();
+  const [error, setError] = useState("");
+  const route = location.pathname;
+  const id = /^\/phones\/([a-f0-9]{64})\/?$/.exec(route)?.[1];
+  const phone = phones?.find((entry) => entry.id === id);
+  useEffect(() => {
+    document.title = `${phone ? phoneName(phone) : route === "/pair" ? "Add phone" : "Your phones"} · Remote access`;
+  }, [phone]);
+  useEffect(() => {
+    let stopped = false;
+    let generation = 0;
+    async function refresh() {
+      const current = ++generation;
+      try {
+        const saved = await savedPhones();
+        if (!stopped && current === generation) {
+          setPhones(saved);
+          setError("");
+        }
+      } catch {
+        if (!stopped) {
+          setPhones([]);
+          setError(
+            "Browser storage is unavailable. Close older tabs for this site, allow site storage, then reload.",
+          );
+        }
+      }
+    }
+    const unsubscribe = watchPhones(() => {
+      void refresh();
+    });
+    void refresh();
+    return () => {
+      stopped = true;
+      unsubscribe();
+    };
+  }, []);
+  if (!phones)
+    return (
+      <main>
+        <ViewerHeading name="Your phones" status="Loading saved phones…" />
+      </main>
+    );
+  if (route === "/" || route === "/viewer.html")
+    return <PhoneList phones={phones} error={error} />;
+  if (route === "/pair" && !error) return <PairPhone />;
+  if (phone && !error)
+    return (
+      <PhonePage
+        key={`${phone.id}:${phone.grant.id}`}
+        phone={phone}
+        services={services}
+      />
+    );
+  return (
+    <main>
+      <a className="phones-link" href="/">
+        ← Phones
+      </a>
+      <ViewerHeading
+        name={id ? "Phone not saved" : "Page unavailable"}
+        status={
+          error ||
+          (id
+            ? "This phone isn’t saved in this browser. Pair it to connect."
+            : "Open your phones to continue.")
+        }
+      />
+      {!error && (
+        <a className="button-link" href="/pair">
+          Add phone
+        </a>
+      )}
+    </main>
+  );
+}
