@@ -106,6 +106,8 @@ The website's home page lists all phones saved in this browser, with local names
 and last successful contact times. **Add phone** preserves existing phones;
 `/phones/<phoneId>` is bookmarkable and separate phones can connect in separate
 tabs. Names/history live in IndexedDB, alongside existing browser pairing storage.
+Opening a phone checks its status automatically. Its screen frame and disabled
+control rail are visible immediately, with a **Connect** overlay to start viewing.
 See [browser phone management](docs/browser-phones.md). Run
 `pnpm test:viewer-phones` for isolated browser migration, multi-phone/tab and
 responsive acceptance; no Android device or relay is selected.

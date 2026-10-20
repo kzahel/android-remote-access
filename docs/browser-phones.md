@@ -28,7 +28,7 @@ inventory is introduced.
 ## Contact and tab behavior
 
 Only an authenticated successful check or control state response advances
-`lastContactAt`. Explicit successful Connect/Check operations always update it.
+`lastContactAt`. Successful Connect operations and automatic checks update it.
 The connected viewer throttles background status recording to once every
 15 seconds (or immediately when a new model is learned); it does not timestamp
 page loads, failed connections, raw relay responses or accepted push requests.
@@ -48,7 +48,7 @@ message; different phone IDs have independent locks. The relay and Android still
 apply their authoritative admission/policy checks across other browsers and
 computers. Browsers without Web Locks rely on that existing admission behavior.
 Cancellation, failed connection, session end, navigation and tab closure release
-the local lease. Back/Forward cache restoration presents a disconnected page,
+the local lease. Back/Forward cache restoration performs a fresh check,
 rather than reusing a closed session. The connected layout keeps the fixed status
 area and screen/control stage; names and management dialogs do not expand it.
 
@@ -104,8 +104,8 @@ area. Android navigation, wake/lock, viewing quality, typing/app launch and
 disconnect form a compact vertical rail to the right of the screen. The rail
 scrolls internally in short landscape windows. Status changes, unlocking,
 permission loss, dialogs and phone rotation preserve the screen/rail geometry
-and page scroll. The workspace is centered and sized from the initial phone
-aspect ratio so wide desktop windows keep the rail beside the phone. Short
+and page scroll. The workspace is centered and uses a fixed portrait
+frame so wide desktop windows keep the rail beside the phone. Short
 windows retain enough width for unlock/setup controls. Canvas aspect ratio and input mapping remain intact.
 
 Settings opens over the viewer and preserves the live session. Appearance defaults
@@ -162,3 +162,30 @@ successful direct saved-PIN unlock and checks that both unlock buttons remain
 disabled after the guard blocks another attempt. Hosted control fixtures no
 longer auto-accept the removed confirmation. This is a website change and needs
 no Android reinstall.
+
+### Automatic refresh and screen preview — 2026-10-20
+
+Opening a saved phone page checks its encrypted connection once, without a
+separate Check connection button. A successful check updates contact history and
+shows “Ready to connect” in the existing top-bar status area. The phone library
+still does not wake every saved phone. Metadata updates do not restart checks;
+returning from the Back/Forward cache performs a fresh check.
+
+The screen frame and right-side controls appear before connecting. A compact
+Connect overlay starts viewing/control; unavailable controls remain disabled.
+Feature readiness is available under the optional Phone features disclosure.
+Preview, connecting, live viewing and disconnected states share the same frame,
+so their screen and control geometry stays stable. The canvas retains the actual
+phone aspect ratio and touch mapping inside that frame.
+
+Connect can supersede a pending automatic check, with cancellation and Web Lock
+release completing before the replacement acquires its own lease. Another tab's
+lease is still rejected immediately, before any socket or wake request.
+Disconnect and session loss return to the preview without another automatic
+request; Connect remains available to retry.
+
+The isolated phone acceptance covers automatic checks, successful/failed contact
+history, no recheck on metadata changes or disconnect, pending-check cancellation
+and replacement, the persisted-pageshow lifecycle, session loss/reconnect and
+identical preview/live/disconnected geometry at four viewport sizes. The existing
+five-viewport live-viewer regression and all 92 TypeScript tests also pass.

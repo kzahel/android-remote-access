@@ -33,7 +33,9 @@ const jpeg = new Uint8Array(
   await (await fetch(source.toDataURL("image/jpeg"))).arrayBuffer(),
 );
 let failNext = false;
+const trace: string[] = [];
 window.layoutFixture = {
+  trace,
   patch: (patch) => Object.assign(state, patch),
   failNext: () => {
     failNext = true;
@@ -43,6 +45,8 @@ const session = {
   path: "relay",
   connected: true,
   async command(command: Command): Promise<Reply> {
+    trace.push(`${command.op}: locked=${state.locked}`);
+    if (trace.length > 30) trace.shift();
     if (command.op === "status")
       return { id: 1, kind: "state", state: { ...state } };
     if (failNext && command.op === "navigation") {
@@ -107,6 +111,7 @@ declare global {
     layoutFixture: {
       patch: (patch: Partial<ControlState>) => void;
       failNext: () => void;
+      trace: string[];
     };
   }
 }

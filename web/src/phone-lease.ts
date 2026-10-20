@@ -4,7 +4,7 @@ import { activityChanged } from "./phone-activity.js";
 export async function phoneLease(id: string, signal: AbortSignal) {
   const abort = () => new DOMException("Connection cancelled", "AbortError");
   if (signal.aborted) throw abort();
-  if (!navigator.locks) return () => {};
+  if (!navigator.locks) return async () => {};
   let held: Promise<void> = Promise.resolve();
   const release = await new Promise<() => void>((resolve, reject) => {
     held = navigator.locks
@@ -24,14 +24,16 @@ export async function phoneLease(id: string, signal: AbortSignal) {
   });
   let released = false;
   const close = () => {
-    if (released) return;
-    released = true;
-    signal.removeEventListener("abort", close);
-    release();
-    void held.then(activityChanged);
+    if (!released) {
+      released = true;
+      signal.removeEventListener("abort", close);
+      release();
+      void held.then(activityChanged);
+    }
+    return held;
   };
   if (signal.aborted) {
-    close();
+    await close();
     throw abort();
   }
   signal.addEventListener("abort", close, { once: true });

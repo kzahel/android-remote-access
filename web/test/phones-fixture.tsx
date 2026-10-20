@@ -20,11 +20,20 @@ paint.fillRect(0, 0, 108, 240);
 const jpeg = new Uint8Array(
   await (await fetch(source.toDataURL("image/jpeg"))).arrayBuffer(),
 );
-window.phonesFixture = { fail: false, delay: false, calls: [], closed: 0 };
+window.phonesFixture = {
+  fail: sessionStorage.getItem("fixture-fail") === "true",
+  delay: sessionStorage.getItem("fixture-delay") === "true",
+  calls: [],
+  closed: 0,
+  checks: 0,
+  controls: 0,
+  drop: () => {},
+};
 const services: ViewerServices = {
   async connect(identity, grant, _report, signal) {
     if (b64(identity.publicKey) !== grant.viewer)
       throw Error("Wrong browser identity");
+    window.phonesFixture.controls++;
     window.phonesFixture.calls.push(grant.id);
     if (window.phonesFixture.fail) throw Error("Fixture phone is unavailable");
     const state: ControlState = {
@@ -62,12 +71,14 @@ const services: ViewerServices = {
         return { id: 1, kind: "result", code: 0 };
       },
     } as unknown as RemoteSession;
+    window.phonesFixture.drop = () => session.close();
     signal.addEventListener("abort", () => session.close(), { once: true });
     return { session, state };
   },
   async check(identity, grant, _report, signal) {
     if (b64(identity.publicKey) !== grant.viewer)
       throw Error("Wrong browser identity");
+    window.phonesFixture.checks++;
     window.phonesFixture.calls.push(grant.id);
     if (window.phonesFixture.fail) throw Error("Fixture phone is unavailable");
     if (window.phonesFixture.delay)
@@ -98,6 +109,9 @@ declare global {
       delay: boolean;
       calls: string[];
       closed: number;
+      checks: number;
+      controls: number;
+      drop: () => void;
     };
   }
 }

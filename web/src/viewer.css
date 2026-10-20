@@ -657,3 +657,33 @@ a {
     gap: 0;
   }
 }
+
+.preview-overlay {
+  background: transparent;
+}
+.connect-panel {
+  text-align: center;
+}
+.connect-panel > .control-icon {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 20px;
+  color: var(--muted);
+}
+.connect-panel > button {
+  margin: 4px 0;
+  width: 100%;
+}
+.preview-features {
+  text-align: left;
+  margin-top: 16px;
+  font-size: 0.8125rem;
+}
+.preview-features summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+.control-dock button:disabled:hover {
+  background: transparent;
+  color: var(--muted);
+}

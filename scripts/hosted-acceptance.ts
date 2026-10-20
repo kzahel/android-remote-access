@@ -403,10 +403,10 @@ try {
         throw new Error("Native acceptance failed; see private log");
     }
     async function check() {
-      await page.getByRole("button", { name: "Check connection" }).click();
+      await page.reload();
       await page
         .getByRole("status")
-        .filter({ hasText: "Secure connection verified." })
+        .filter({ hasText: "Ready to connect" })
         .waitFor({ timeout: fcm ? 80000 : 30000 });
     }
     await runNative("pair");
@@ -443,7 +443,6 @@ try {
           ) === "absent"
         );
       }, 20000);
-      await page.reload();
       const before = readCheckpoints();
       const clockStart = Date.now();
       const phoneTime = Number(adb("shell", "date", "+%s%3N"));
@@ -543,7 +542,7 @@ try {
     if (response.status !== 410)
       throw new Error("Revocation not durable at relay");
     revoked = true;
-    await page.getByRole("button", { name: "Check connection" }).click();
+    await page.reload();
     await page
       .getByRole("status")
       .filter({ hasText: /Phone is unavailable|Connection ended/ })
@@ -551,7 +550,7 @@ try {
     const report = {
       renderedQrDecoded: true,
       normalGrantUI: true,
-      encryptedExchanges: doze ? 4 : fcm ? 3 : 2,
+      encryptedExchangesAtLeast: doze ? 4 : fcm ? 3 : 2,
       physicalDevice: Boolean(physical),
       ...wakeEvidence,
       ...dozeEvidence,

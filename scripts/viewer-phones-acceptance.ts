@@ -164,6 +164,9 @@ try {
   console.log("Concurrent v1 migration preserved the pairing and browser key");
   const a = await context.newPage();
   await a.goto(`${origin}/phones/${firstId}`);
+  await expect(a.getByRole("status")).toHaveText("Ready to connect");
+  await expect(a.getByRole("region", { name: "Phone preview" })).toBeVisible();
+  assert.equal(await a.evaluate(() => window.phonesFixture.checks), 1);
   await a
     .getByRole("button", { name: "Connect to phone", exact: true })
     .click();
@@ -173,31 +176,90 @@ try {
   ).toBeVisible();
   await expect(home.locator("time")).toHaveCount(1);
   await a.getByRole("button", { name: "Disconnect", exact: true }).click();
-  // A failed check cannot change the successful-contact timestamp.
+  // Opening a phone checks once, refreshes contact history only on success,
+  // and keeps preview/live/disconnected frame geometry identical.
   const beforeFailure = (await records(a))[0]?.lastContactAt;
-  await a.evaluate(() => {
-    window.phonesFixture.fail = true;
-  });
-  await a
-    .getByRole("button", { name: "Check connection", exact: true })
-    .click();
+  await a.evaluate(() => sessionStorage.setItem("fixture-fail", "true"));
+  await a.reload();
   await expect(a.getByRole("status")).toHaveText(
     "Fixture phone is unavailable",
   );
   assert.equal((await records(a))[0]?.lastContactAt, beforeFailure);
-  await a.evaluate(() => {
-    window.phonesFixture.fail = false;
-  });
-  await a
-    .getByRole("button", { name: "Check connection", exact: true })
-    .click();
-  await expect(a.getByRole("status")).toHaveText("Secure connection verified.");
+  await a.evaluate(() => sessionStorage.removeItem("fixture-fail"));
+  await a.reload();
+  await expect(a.getByRole("status")).toHaveText("Ready to connect");
   await expect
     .poll(async () => (await records(a))[0]?.lastContactAt ?? 0)
     .toBeGreaterThan(beforeFailure ?? 0);
+  assert.equal(
+    await a
+      .getByRole("button", { name: "Check connection", exact: true })
+      .count(),
+    0,
+  );
+  assert.deepEqual(
+    await a.evaluate(() => ({
+      checks: window.phonesFixture.checks,
+      controls: window.phonesFixture.controls,
+    })),
+    { checks: 1, controls: 0 },
+  );
+  async function frame(page: Page) {
+    return page
+      .locator(".screen-stage, .control-dock")
+      .evaluateAll((elements) =>
+        elements.map((element) => {
+          const r = element.getBoundingClientRect();
+          return { x: r.x, y: r.y, width: r.width, height: r.height };
+        }),
+      );
+  }
+  for (const [name, width, height] of [
+    ["desktop", 1280, 1000],
+    ["mobile", 390, 844],
+    ["small-mobile", 320, 680],
+    ["landscape", 844, 390],
+  ] as const) {
+    await a.setViewportSize({ width, height });
+    const previewFrame = await frame(a);
+    await a.getByText("Phone features", { exact: true }).click();
+    assert.deepEqual(await frame(a), previewFrame);
+    await a.getByText("Phone features", { exact: true }).click();
+    await a.screenshot({ path: path.join(artifacts, `${name}-preview.png`) });
+    await a
+      .getByRole("button", { name: "Connect to phone", exact: true })
+      .click();
+    await expect(
+      a.getByRole("region", { name: "Remote screen" }),
+    ).toBeVisible();
+    assert.deepEqual(await frame(a), previewFrame);
+    await a.getByRole("button", { name: "Disconnect", exact: true }).click();
+    await expect(
+      a.getByRole("region", { name: "Phone preview" }),
+    ).toBeVisible();
+    assert.deepEqual(await frame(a), previewFrame);
+  }
+  await a.setViewportSize({ width: 1280, height: 1000 });
+  assert.equal(
+    await a.evaluate(() => window.phonesFixture.checks),
+    1,
+    "Disconnect does not wake/check the phone again",
+  );
   await rename(home, "Pixel 9", "RV phone");
   await expect(a.getByRole("heading", { level: 1 })).toHaveText("RV phone");
   await expect(a).toHaveTitle("RV phone · Remote access");
+  assert.equal(await a.evaluate(() => window.phonesFixture.checks), 1);
+  // Exercise the persisted-pageshow lifecycle without depending on Chromium's
+  // cache admission for a dev server page with open development sockets.
+  await a.evaluate(() =>
+    window.dispatchEvent(
+      new PageTransitionEvent("pageshow", { persisted: true }),
+    ),
+  );
+  await expect
+    .poll(() => a.evaluate(() => window.phonesFixture.checks))
+    .toBe(2);
+  await expect(a.getByRole("status")).toHaveText("Ready to connect");
   // Pair another phone through the real QR/signature/receipt UI.
   const offered = new Map<string, Grant>();
   await context.route("**/api/pair/**", async (route) => {
@@ -270,9 +332,13 @@ try {
     await a.evaluate(() => window.phonesFixture.calls.slice(-1)),
     [legacy.id],
   );
-  assert.deepEqual(await other.evaluate(() => window.phonesFixture.calls), [
-    grant.id,
-  ]);
+  assert.equal(await other.evaluate(() => window.phonesFixture.controls), 1);
+  assert.ok(
+    await other.evaluate(
+      (id) => window.phonesFixture.calls.every((call) => call === id),
+      grant.id,
+    ),
+  );
   // The sidebar observes live leases held in this and other tabs, without
   // inventing a global online status or making a connection request.
   await home.bringToFront();
@@ -334,22 +400,45 @@ try {
   console.log(
     "Two phones connected independently; same-phone contention sent no extra request",
   );
-  // Cancellation must release only its own lease, allowing a fresh connection.
-  await a.evaluate(() => {
-    window.phonesFixture.delay = true;
-  });
-  await a
-    .getByRole("button", { name: "Check connection", exact: true })
-    .click();
+  // A pending automatic check can be cancelled or superseded by Connect.
+  await a.evaluate(() => sessionStorage.setItem("fixture-delay", "true"));
+  await a.reload();
   await expect
-    .poll(() => a.evaluate(() => window.phonesFixture.calls.length))
-    .toBe(5);
+    .poll(() => a.evaluate(() => window.phonesFixture?.checks ?? 0))
+    .toBe(1);
   await a
     .getByRole("button", { name: "Cancel connection", exact: true })
     .click();
+  await expect(a.getByRole("status")).toHaveText("Connection cancelled");
   await a.evaluate(() => {
     window.phonesFixture.delay = false;
   });
+  await a
+    .getByRole("button", { name: "Connect to phone", exact: true })
+    .click();
+  await expect(a.getByRole("region", { name: "Remote screen" })).toBeVisible();
+  await a.getByRole("button", { name: "Disconnect", exact: true }).click();
+  await a.reload();
+  await expect
+    .poll(() => a.evaluate(() => window.phonesFixture?.checks ?? 0))
+    .toBe(1);
+  await a
+    .getByRole("button", { name: "Connect to phone", exact: true })
+    .click();
+  await expect(a.getByRole("region", { name: "Remote screen" })).toBeVisible();
+  await expect(a.getByRole("status")).toHaveText("Connected securely");
+  assert.deepEqual(
+    await a.evaluate(() => ({
+      checks: window.phonesFixture.checks,
+      controls: window.phonesFixture.controls,
+    })),
+    { checks: 1, controls: 1 },
+  );
+  await a.evaluate(() => sessionStorage.removeItem("fixture-delay"));
+  await a.evaluate(() => window.phonesFixture.drop());
+  await expect(a.getByRole("region", { name: "Phone preview" })).toBeVisible();
+  await expect(a.getByRole("status")).toHaveText("Connection ended");
+  assert.equal(await a.evaluate(() => window.phonesFixture.checks), 1);
   await a
     .getByRole("button", { name: "Connect to phone", exact: true })
     .click();
@@ -444,6 +533,7 @@ try {
       fullPage: true,
     });
   }
+  const beforeForget = await a.evaluate(() => window.phonesFixture.closed);
   await manage(home, "Travel phone");
   await home
     .getByRole("button", { name: "Forget this phone", exact: true })
@@ -452,16 +542,14 @@ try {
   await expect(a.getByRole("heading", { level: 1 })).toHaveText(
     "Phone not saved",
   );
-  assert.equal(await a.evaluate(() => window.phonesFixture.closed), 4);
+  await expect
+    .poll(() => a.evaluate(() => window.phonesFixture.closed))
+    .toBe(beforeForget + 1);
   const remaining = await records(home);
   assert.equal(remaining.length, 1);
   assert.equal(remaining[0]?.id, secondId);
-  await other
-    .getByRole("button", { name: "Check connection", exact: true })
-    .click();
-  await expect(other.getByRole("status")).toHaveText(
-    "Secure connection verified.",
-  );
+  await other.reload();
+  await expect(other.getByRole("status")).toHaveText("Ready to connect");
   console.log(
     "Rename/contact updates, refresh, unknown URLs and cross-tab forgetting passed",
   );

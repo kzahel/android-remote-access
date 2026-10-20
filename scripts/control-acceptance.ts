@@ -693,7 +693,7 @@ export async function controlAcceptance(f: Fixture) {
       .getByRole("status")
       .filter({ hasText: /Connection ended/ })
       .waitFor({ timeout: 20000 });
-    await page.getByRole("button", { name: "Disconnect", exact: true }).click();
+    await page.getByRole("region", { name: "Phone preview" }).waitFor();
     await command("enable", { id, enabled: false });
     await command("remove", { id });
     await command("stop");

@@ -66,6 +66,7 @@ async function stable(page: Page, baseline: Geometry) {
   );
 }
 const results: unknown[] = [];
+let activePage: Page | undefined;
 try {
   await server.listen();
   const address = server.httpServer?.address();
@@ -84,6 +85,7 @@ try {
       colorScheme: "light",
     });
     const page = await context.newPage();
+    activePage = page;
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     const dialogs: string[] = [];
@@ -357,6 +359,20 @@ try {
     JSON.stringify(results, null, 2),
     { mode: 0o600 },
   );
+} catch (error) {
+  if (activePage && !activePage.isClosed()) {
+    await activePage
+      .screenshot({ path: path.join(artifacts, "failure.png") })
+      .catch(() => {});
+    const diagnostic = await activePage
+      .evaluate(() => ({
+        status: document.querySelector("[role=status]")?.textContent,
+        trace: window.layoutFixture?.trace,
+      }))
+      .catch(() => undefined);
+    console.error("Layout failure:", JSON.stringify(diagnostic));
+  }
+  throw error;
 } finally {
   await browser?.close();
   await server.close();

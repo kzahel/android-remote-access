@@ -143,16 +143,18 @@ export async function mobileAcceptance(f: Fixture) {
     enrolled = true;
     const state = await command("pair");
     assert.ok(state.browsers.find((b) => b.id === invitation.id));
-    await page.getByRole("button", { name: "Check connection" }).waitFor();
+    await page
+      .getByRole("button", { name: "Connect to phone", exact: true })
+      .waitFor();
     return { page, id: invitation.id };
   }
   async function check(page: Page, success = true) {
-    await page.getByRole("button", { name: "Check connection" }).click();
+    await page.reload();
     await page
       .getByRole("status")
       .filter({
         hasText: success
-          ? "Secure connection verified."
+          ? "Ready to connect"
           : /Phone is unavailable|Connection ended/,
       })
       .waitFor({ timeout: success ? 80000 : 15000 });
@@ -290,21 +292,23 @@ export async function mobileAcceptance(f: Fixture) {
     for (const peer of [a, b]) {
       await command("foreground", { id: peer.id });
       await check(peer.page);
+      await peer.page.getByText("Phone features", { exact: true }).click();
       await peer.page.getByRole("region", { name: "Phone features" }).waitFor();
       assert.match(
         await peer.page
           .getByRole("region", { name: "Phone features" })
           .innerText(),
-        /Off · Enable/,
+        /Off/,
       );
     }
     console.log("Both browsers passed encrypted checks");
     await command("deny-feature-permission");
     await command("foreground", { id: a.id, automatic: true });
     await check(a.page);
+    await a.page.getByText("Phone features", { exact: true }).click();
     assert.match(
       await a.page.getByRole("region", { name: "Phone features" }).innerText(),
-      /Notifications needed/,
+      /Enable notifications/,
     );
     await command("automatic", { enabled: false });
     await command("home");

@@ -1,9 +1,9 @@
 import type { ControlState } from "@remote/protocol/control";
-import type { FeatureState, PhoneFeatures } from "@remote/protocol/features";
+import type { PhoneFeatures } from "@remote/protocol/features";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RemoteSession } from "./control-session.js";
 import { phoneLease } from "./phone-lease.js";
-import { LastContact } from "./phone-list.js";
+import { PhonePreview } from "./phone-preview.js";
 import { encryptedCheck } from "./relay.js";
 import { RemoteScreen } from "./remote-screen.js";
 import {
@@ -13,18 +13,13 @@ import {
   type SavedPhone,
 } from "./store.js";
 import { ViewerHeading } from "./viewer-heading.js";
+import { defaultScreenAspect } from "./viewer-workspace.js";
 export const viewerServices = {
   connect: RemoteSession.connect,
   check: encryptedCheck,
 };
 export type ViewerServices = typeof viewerServices;
-function featureLabel(state: FeatureState): string {
-  return state === "enabled"
-    ? "Enabled on the phone"
-    : state === "permission-needed"
-      ? "Enable this feature in the phone app"
-      : "Not available in this version";
-}
+
 export function PhonePage({
   phone,
   services,
@@ -32,10 +27,14 @@ export function PhonePage({
   phone: SavedPhone;
   services: ViewerServices;
 }) {
-  const [status, setStatus] = useState("Ready to connect");
-  const [busy, setBusy] = useState(false);
+  // ViewerApp remounts this page for a different phone or pairing. Metadata
+  // updates must not restart the automatic check or replace its connection.
+  const [target] = useState(() => ({ id: phone.id, grant: phone.grant }));
+  const metadata = useRef(phone);
+  metadata.current = phone;
+  const [status, setStatus] = useState("Checking connection…");
+  const [pending, setPending] = useState<"check" | "control">();
   const [features, setFeatures] = useState<PhoneFeatures>();
-  const [checked, setChecked] = useState(false);
   const [remote, setRemote] = useState<{
     session: RemoteSession;
     state: ControlState;
@@ -43,21 +42,123 @@ export function PhonePage({
   const [storageWarning, setStorageWarning] = useState("");
   const connection = useRef<AbortController | undefined>(undefined);
   const live = useRef<RemoteSession | undefined>(undefined);
-  const release = useRef<(() => void) | undefined>(undefined);
+  const release = useRef<(() => Promise<void>) | undefined>(undefined);
+  const closing = useRef(Promise.resolve());
   const lastRecorded = useRef(0);
   const close = useCallback(() => {
-    connection.current?.abort();
+    const abort = connection.current;
+    connection.current = undefined;
+    abort?.abort();
     live.current?.close();
-    release.current?.();
+    live.current = undefined;
+    const released = release.current?.();
     release.current = undefined;
+    closing.current = Promise.all([closing.current, released]).then(() => {});
+    return closing.current;
   }, []);
+  const recordContact = useCallback(
+    (state?: ControlState, force = false) => {
+      if (
+        !force &&
+        Date.now() - lastRecorded.current < 15000 &&
+        (!state?.phoneName || state.phoneName === metadata.current.model)
+      )
+        return;
+      lastRecorded.current = Date.now();
+      void contactedPhone(target.id, state?.phoneName).catch(() =>
+        setStorageWarning(
+          "Connected, but contact history couldn’t be saved in this browser.",
+        ),
+      );
+    },
+    [target],
+  );
+  const disconnect = useCallback(() => {
+    close();
+    setRemote(undefined);
+    setPending(undefined);
+    setStatus("Disconnected");
+  }, [close]);
+  const start = useCallback(
+    async (mode: "control" | "check") => {
+      const previous = close();
+      const abort = new AbortController();
+      connection.current = abort;
+      setPending(mode);
+      if (mode === "check") setFeatures(undefined);
+      setStatus(
+        mode === "check" ? "Checking connection…" : "Connecting to your phone…",
+      );
+      let ownedRelease: (() => Promise<void>) | undefined;
+      let connected = false;
+      try {
+        await previous;
+        if (abort.signal.aborted) return;
+        const lease = phoneLease(target.id, abort.signal);
+        // Register cleanup before acquisition settles, so a rapid replacement
+        // also waits for an aborted acquisition to relinquish its Web Lock.
+        ownedRelease = () =>
+          lease.then(
+            (release) => release(),
+            () => {},
+          );
+        release.current = ownedRelease;
+        await lease;
+        if (abort.signal.aborted) return;
+        const identity = await browserIdentity();
+        if (abort.signal.aborted) return;
+        const report = (message: string) => {
+          if (!abort.signal.aborted) setStatus(message);
+        };
+        if (mode === "control") {
+          const result = await services.connect(
+            identity,
+            target.grant,
+            report,
+            abort.signal,
+          );
+          if (abort.signal.aborted) {
+            result.session.close();
+            return;
+          }
+          connected = true;
+          live.current = result.session;
+          setRemote(result);
+          recordContact(result.state, true);
+        } else {
+          const result = await services.check(
+            identity,
+            target.grant,
+            report,
+            abort.signal,
+          );
+          if (abort.signal.aborted) return;
+          setFeatures(result);
+          recordContact(undefined, true);
+          setStatus("Ready to connect");
+        }
+      } catch (error) {
+        if (!abort.signal.aborted)
+          setStatus(
+            error instanceof Error ? error.message : "Connection failed",
+          );
+      } finally {
+        if (!connected) {
+          await ownedRelease?.();
+          if (release.current === ownedRelease) release.current = undefined;
+        }
+        if (connection.current === abort && !abort.signal.aborted)
+          setPending(undefined);
+      }
+    },
+    [close, target, services, recordContact],
+  );
   useEffect(() => {
+    void start("check");
     const restored = (event: PageTransitionEvent) => {
       if (event.persisted) {
-        close();
         setRemote(undefined);
-        setBusy(false);
-        setStatus("Disconnected");
+        void start("check");
       }
     };
     window.addEventListener("pagehide", close);
@@ -67,97 +168,22 @@ export function PhonePage({
       window.removeEventListener("pageshow", restored);
       close();
     };
-  }, [close]);
-  function recordContact(state?: ControlState, force = false) {
-    if (
-      !force &&
-      Date.now() - lastRecorded.current < 15000 &&
-      (!state?.phoneName || state.phoneName === phone.model)
-    )
-      return;
-    lastRecorded.current = Date.now();
-    void contactedPhone(phone.id, state?.phoneName).catch(() =>
-      setStorageWarning(
-        "Connected, but contact history couldn’t be saved in this browser.",
-      ),
-    );
-  }
-  function disconnect() {
-    close();
-    setRemote(undefined);
-    setBusy(false);
-    setStatus("Disconnected");
-  }
-  async function start(mode: "control" | "check") {
-    const abort = new AbortController();
-    connection.current = abort;
-    setBusy(true);
-    setStatus("Connecting to your phone…");
-    if (mode === "check") {
-      setFeatures(undefined);
-      setChecked(false);
-    }
-    let ownedLease: (() => void) | undefined;
-    let connected = false;
-    try {
-      ownedLease = await phoneLease(phone.id, abort.signal);
-      release.current = ownedLease;
-      const identity = await browserIdentity();
-      if (abort.signal.aborted) return;
-      const report = (message: string) => {
-        if (!abort.signal.aborted) setStatus(message);
-      };
-      if (mode === "control") {
-        const result = await services.connect(
-          identity,
-          phone.grant,
-          report,
-          abort.signal,
-        );
-        if (abort.signal.aborted) {
-          result.session.close();
-          return;
-        }
-        connected = true;
-        live.current = result.session;
-        setRemote(result);
-        recordContact(result.state, true);
-      } else {
-        const result = await services.check(
-          identity,
-          phone.grant,
-          report,
-          abort.signal,
-        );
-        if (abort.signal.aborted) return;
-        setFeatures(result);
-        setChecked(true);
-        recordContact(undefined, true);
-        setStatus("Secure connection verified.");
-      }
-    } catch (error) {
-      if (!abort.signal.aborted)
-        setStatus(error instanceof Error ? error.message : "Connection failed");
-    } finally {
-      if (!connected) {
-        ownedLease?.();
-        if (release.current === ownedLease) release.current = undefined;
-      }
-      if (!abort.signal.aborted) setBusy(false);
-    }
-  }
+  }, [start, close]);
   return (
-    <main className={remote ? "connected-viewer" : "phone-page"}>
+    <main className="connected-viewer">
       {remote ? (
         <RemoteScreen
           session={remote.session}
           initial={remote.state}
           name={phoneName(phone)}
           notice={storageWarning}
+          aspect={defaultScreenAspect}
           onContact={recordContact}
           onEnded={() => {
-            release.current?.();
-            release.current = undefined;
+            close();
+            setRemote(undefined);
+            setPending(undefined);
+            setStatus("Connection ended");
           }}
           disconnect={disconnect}
         />
@@ -167,69 +193,17 @@ export function PhonePage({
             name={phoneName(phone)}
             status={storageWarning || status}
           />
-          <p className="contact-detail">
-            <LastContact at={phone.lastContactAt} />
-          </p>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void start("control")}
-          >
-            Connect to phone
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void start("check")}
-          >
-            Check connection
-          </button>
-          {busy && (
-            <button
-              className="secondary"
-              type="button"
-              onClick={() => {
-                close();
-                setBusy(false);
-                setStatus("Connection cancelled");
-              }}
-            >
-              Cancel connection
-            </button>
-          )}
-          {features && (
-            <section aria-label="Phone features">
-              <h2>Phone features</h2>
-              <dl>
-                <dt>Screen viewing</dt>
-                <dd>{featureLabel(features.screenViewing)}</dd>
-                <dt>Touch control</dt>
-                <dd>{featureLabel(features.touchControl)}</dd>
-                <dt>Connection requests while the app is closed</dt>
-                <dd>
-                  {features.connectionRequests === "enabled"
-                    ? "Enabled on the phone"
-                    : features.connectionRequests === "off"
-                      ? "Off · Enable in the phone app’s Feature setup"
-                      : features.connectionRequests === "notifications-needed"
-                        ? "Notifications needed · Enable them on the phone"
-                        : features.connectionRequests === "setup-needed"
-                          ? "Setup incomplete · Review connection settings on the phone"
-                          : "Unavailable in this installation"}
-                </dd>
-              </dl>
-              <p className="hint">
-                Reported by your phone during this connection. Check again after
-                changing its settings.
-              </p>
-            </section>
-          )}
-          {checked && !features && (
-            <p>
-              Feature status is unavailable from this phone. Update its app to
-              see setup guidance.
-            </p>
-          )}
+          <PhonePreview
+            pending={pending}
+            features={features}
+            lastContactAt={phone.lastContactAt}
+            connect={() => void start("control")}
+            cancel={() => {
+              close();
+              setPending(undefined);
+              setStatus("Connection cancelled");
+            }}
+          />
         </>
       )}
     </main>
