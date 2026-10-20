@@ -172,6 +172,28 @@ Owner direction, 2026-10-20:
 Website QR encoding dependency review, 2026-10-20: only Maven component
 `com.google.zxing:core:3.5.3` is used, for generating a public HTTPS navigation QR.
 The pinned upstream [license](https://github.com/zxing/zxing/blob/zxing-3.5.3/LICENSE)
-is Apache-2.0, source-reviewed; a copy ships in APK assets. No competitor APK,
+is Apache-2.0, source-reviewed; copies of the license and pinned upstream NOTICE
+ship in APK assets. No competitor APK,
 native library or Android camera implementation is reused. The existing Google
 Play services scanner continues to handle scanning without an app camera permission.
+
+Sharing acceptance passed on 2026-10-20 with the owned API-35 emulator and two
+isolated Chromium contexts against the public relay. It decoded the displayed
+website QR, checked Copy and the Android share sheet, approved both browser grants
+before permissions, skipped feature setup, and completed real foreground encrypted
+checks with authenticated feature states. An explicit notification Deny retained
+both pairings and foreground access; a later Allow enabled both process-absent FCM
+wakes. Notification-channel repair, runtime revoke/regrant, pause, stale generations,
+disconnect, restart persistence and isolated removal also passed. All owned grants
+and test processes were cleaned up. These checks do not include camera optics,
+physical-phone installation, screen capture/input or natural overnight availability.
+
+The final Android build/lint/ktlint, TS build/type checks/Biome, 71 TS tests,
+14 Kotlin protocol tests and three native Room tests passed. Real captures are in
+the ignored `.local/mobile-proof/` directory, including `home-first-run.png`,
+`sharing-setup.png`, `sharing-website-qr.png` and `feature-setup.png`.
+The existing single-browser hosted/FCM regression also passed after deployment:
+three encrypted checks, process-absent Firebase delivery, restart/reload
+persistence, revocation and subsequent refusal. The production viewer/relay
+release is `29b8295`; later documentation/license-asset changes do not alter its
+wire behavior. Final APK assets include the pinned upstream license and NOTICE.
