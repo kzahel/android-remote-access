@@ -138,3 +138,33 @@ existing multi-browser policy checks and signed fixture removal. Android builds,
 lint/ktlint, TS checking and Biome passed. Actual native screenshots were inspected;
 private receipts and captures remain in `.local/mobile-proof/`. No physical phone
 or deployed relay change was required.
+
+## Sharing setup and independent feature permissions
+
+Owner direction, 2026-10-20:
+
+- Empty Home has one Set up sharing action; paired Home has Add browser and
+  How to connect. Instructions live in a dismissible native setup dialog.
+- The dialog gives the configured website, Copy/Android Share, optional website
+  QR, and Scan pairing code immediately. A website QR is a public navigation
+  link, never a pairing grant. Typing the address on a laptop remains supported.
+- Scanning/deep-link approval and durable browser trust have no accessibility,
+  notification or capture prerequisite. After pairing, show a separate feature
+  setup screen with a Done action. Each available feature explains its purpose
+  before the owner chooses its permission. Permission denial keeps the pairing.
+- Connection requests can be enabled in this host. Screen viewing and touch
+  control are not implemented in the root host: report their unavailability
+  honestly, without unrelated system permission prompts or fake Enable actions.
+- While the phone app is visible, allowed browsers can connect without Android
+  permissions or FCM opt-in. Foreground listeners do not reserve session leases;
+  actual connections still enforce one session, current grant generations and
+  all global/per-browser policies. Leaving the app closes those listeners.
+- Send a small optional E2E-encrypted feature report after the existing canary
+  reply. Preserve the existing handshake/canary contract for older viewers and
+  tolerate absence of a report from older hosts. The viewer explains per-feature
+  availability after connecting; it never infers capabilities from relay data.
+- Extend the owned-emulator/two-browser acceptance: empty-state setup and website
+  QR, pairing and real foreground exchange before permissions, feature setup
+  skipping/denial, authenticated feature reporting, then existing FCM/policy
+  regression and cleanup. Capture actual native screens and deploy the updated
+  viewer through the existing Pi runbook after verification.
