@@ -13,7 +13,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 
 /** One known credential, one observed SystemUI keypad, no guesses and no retries. Main thread only. */
 internal class PinUnlock(private val service: AccessibilityService, private val main: Handler) {
-    private val vault = PinVault(service)
+    private val vault by lazy { PinVault(service) }
     var active = false
         private set
 

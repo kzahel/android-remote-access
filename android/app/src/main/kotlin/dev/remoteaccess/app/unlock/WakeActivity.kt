@@ -12,7 +12,34 @@ class WakeActivity : Activity() {
         super.onCreate(savedInstanceState)
         setTurnScreenOn(true)
         setShowWhenLocked(true)
-        getSystemService(KeyguardManager::class.java).requestDismissKeyguard(this, null)
-        Handler(Looper.getMainLooper()).postDelayed({ finish() }, 3000)
+        setContentView(
+            android.widget.TextView(this).apply {
+                setText(dev.remoteaccess.app.R.string.remote_access_requested)
+                textSize = 22f
+                setPadding(40, 80, 40, 20)
+            },
+        )
+        val main = Handler(Looper.getMainLooper())
+        main.postDelayed({
+            if (!isFinishing) {
+                getSystemService(KeyguardManager::class.java).requestDismissKeyguard(
+                    this,
+                    object : KeyguardManager.KeyguardDismissCallback() {
+                        override fun onDismissSucceeded() {
+                            finish()
+                        }
+
+                        override fun onDismissCancelled() {
+                            finish()
+                        }
+
+                        override fun onDismissError() {
+                            finish()
+                        }
+                    },
+                )
+            }
+        }, 250)
+        main.postDelayed({ finish() }, 12000)
     }
 }

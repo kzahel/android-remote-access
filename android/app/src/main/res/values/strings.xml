@@ -5,4 +5,5 @@
     <string name="screen_access_label">Remote screen access</string>
     <string name="screen_access_description">Let browsers you pair view this phone’s screen and perform actions you request. Screen content and actions are encrypted between the phone and browser. Turn off remote access in the app to stop connections.</string>
     <string name="unlock_pin_explanation">Save this phone’s PIN for remote unlocking. It stays encrypted on this phone and is available while locked after the first local unlock following a restart. Allow unlocking separately for each browser. A failed attempt requires local recovery.</string>
+    <string name="remote_access_requested">Remote access requested</string>
 </resources>
