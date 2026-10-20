@@ -86,7 +86,11 @@ try {
     const page = await context.newPage();
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
-    page.on("dialog", (dialog) => void dialog.accept()); // Synthetic fixture only.
+    const dialogs: string[] = [];
+    page.on("dialog", (dialog) => {
+      dialogs.push(dialog.type());
+      void dialog.dismiss();
+    });
     await page.goto(`http://127.0.0.1:${address.port}/layout-proof`);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(
       "Test phone",
@@ -128,6 +132,11 @@ try {
     await page
       .getByRole("button", { name: "Use saved PIN", exact: true })
       .click();
+    assert.deepEqual(
+      dialogs,
+      [],
+      "Saved PIN unlock acts without a confirmation dialog",
+    );
     await expect(page.getByLabel("Phone PIN", { exact: true })).toBeHidden();
     await stable(page, baseline);
     await expect
@@ -178,6 +187,12 @@ try {
     await expect(
       page.getByText("Unlock was already attempted.", { exact: false }),
     ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Use saved PIN", exact: true }),
+    ).toBeDisabled();
+    await expect(
+      page.getByRole("button", { name: "Unlock phone", exact: true }),
+    ).toBeDisabled();
     await stable(page, baseline);
     await page.evaluate(() =>
       window.layoutFixture.patch({ accessibility: false }),

@@ -242,14 +242,7 @@ export function RemoteScreen({
                       className="saved-pin-button"
                       type="button"
                       disabled={!state.unlockAllowed || state.unlockBlocked}
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            "Unlock this phone using its saved PIN? One attempt will be made.",
-                          )
-                        )
-                          void act({ op: "unlockSaved" });
-                      }}
+                      onClick={() => void act({ op: "unlockSaved" })}
                     >
                       Use saved PIN
                     </button>

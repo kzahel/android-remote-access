@@ -151,3 +151,14 @@ cleanup. No browser errors. The Save data sample decoded 50 frames over 5.001
 seconds, receiving 254,876 encrypted relay bytes. This is a fixture measurement,
 not a capacity guarantee. The successful rerun does not close the intermittent
 unlock follow-up above. The runner reaped its emulator and isolated Chromium.
+
+### Saved-PIN interaction — 2026-10-20
+
+**Use saved PIN** now acts immediately, without a browser confirmation or routine
+“One attempt” warning. The native one-attempt/failure guard is unchanged; recovery
+instructions appear only when an unlock fails or is blocked. The existing
+five-viewport browser regression now rejects confirmation dialogs, verifies
+successful direct saved-PIN unlock and checks that both unlock buttons remain
+disabled after the guard blocks another attempt. Hosted control fixtures no
+longer auto-accept the removed confirmation. This is a website change and needs
+no Android reinstall.

@@ -246,7 +246,6 @@ export async function controlAcceptance(f: Fixture) {
       .waitFor({ timeout: 80000 });
     if (idleWake) {
       await idleWake.verifyReceipt();
-      page.once("dialog", (dialog) => void dialog.accept());
       await page
         .getByRole("button", { name: "Use saved PIN", exact: true })
         .click();
@@ -285,7 +284,6 @@ export async function controlAcceptance(f: Fixture) {
       await page
         .getByLabel("Phone PIN", { exact: true })
         .waitFor({ timeout: 15000 });
-      page.once("dialog", (dialog) => void dialog.accept());
       await page
         .getByRole("button", { name: "Use saved PIN", exact: true })
         .click();
