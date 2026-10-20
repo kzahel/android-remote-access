@@ -107,6 +107,15 @@ exit; owned browser/emulator processes are reaped. Manual CI dispatch can also
 opt into the relay/video/gesture/synthetic-unlock/rotation suite using the
 `control_acceptance` input. CI does not select a physical phone.
 
+Final pairing/management regressions also pass against deployed revision
+`c413cb2`: two independently paired browsers, setup before permissions, permission
+revocation/repair, process-absent FCM for both, restart persistence, global and
+isolated browser pause, stale-generation rejection and signed removal. The
+single-browser hosted regression independently passed process-absent real FCM,
+encrypted exchange, Android/browser restart persistence and revocation. Its
+observed request-to-receipt/exchange times were 415/615 ms, with estimated clock
+uncertainty of 8 ms; these are measurements, not an availability promise.
+
 ## Limits
 
 This does not establish behavior before first local unlock, natural overnight

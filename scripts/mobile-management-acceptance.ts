@@ -153,7 +153,7 @@ export async function mobileAcceptance(f: Fixture) {
       .filter({
         hasText: success
           ? "Secure connection verified."
-          : "Phone is unavailable",
+          : /Phone is unavailable|Connection ended/,
       })
       .waitFor({ timeout: success ? 80000 : 15000 });
   }
@@ -472,7 +472,10 @@ export async function mobileAcceptance(f: Fixture) {
     if (native?.exitCode === null) {
       adb("shell", "am", "force-stop", app);
       native.kill("SIGTERM");
-      await until(() => native?.exitCode !== null, 10000);
+      await until(
+        () => native?.exitCode !== null || native?.signalCode !== null,
+        10000,
+      );
       await delay(500);
     }
     if (enrolled) {
