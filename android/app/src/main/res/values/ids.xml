@@ -25,4 +25,9 @@
     <item name="browser_toggle" type="id" />
     <item name="rename_browser" type="id" />
     <item name="disconnect_browser" type="id" />
+    <item name="allow_unlock" type="id" />
+    <item name="save_pin" type="id" />
+    <item name="forget_pin" type="id" />
+    <item name="save_pin_value" type="id" />
+    <item name="save_pin_confirm" type="id" />
 </resources>

@@ -22,7 +22,8 @@ export type Command =
   | { op: "text"; text: string }
   | { op: "launch"; packageName: string }
   | { op: "touch"; batch: TouchBatch }
-  | { op: "release" };
+  | { op: "release" | "unlockSaved" | "sleep" }
+  | { op: "unlock"; pin: string };
 const operations = [
   "start",
   "status",
@@ -36,6 +37,9 @@ const operations = [
   "apps",
   "touch",
   "release",
+  "unlock",
+  "unlockSaved",
+  "sleep",
 ] as const;
 export const MAX_COMMAND = 4112;
 export function encodeCommand(
@@ -65,6 +69,11 @@ export function encodeCommand(
       tail = new Uint8Array([
         ["back", "home", "recents"].indexOf(command.action) + 1,
       ]);
+      break;
+    case "unlock":
+      if (!/^[0-9]{4,16}$/.test(command.pin))
+        throw new Error("Use a 4–16 digit PIN");
+      tail = new TextEncoder().encode(command.pin);
       break;
     case "text":
       tail = new TextEncoder().encode(command.text);
@@ -106,6 +115,10 @@ export type ControlState = {
   width: number;
   height: number;
   scene: number;
+  unlockSupported?: boolean;
+  unlockAllowed?: boolean;
+  savedPin?: boolean;
+  unlockBlocked?: boolean;
 };
 export type AppEntry = { name: string; packageName: string };
 export type Reply = { id: number } & (
@@ -151,10 +164,19 @@ export function decodeReply(data: Uint8Array<ArrayBuffer>): Reply {
         state.height > 16384
       )
         throw new Error("Invalid state");
+      for (const field of [
+        "unlockSupported",
+        "unlockAllowed",
+        "savedPin",
+        "unlockBlocked",
+      ] as const) {
+        if (state[field] !== undefined && typeof state[field] !== "boolean")
+          throw new Error("Invalid unlock state");
+      }
       return { id, kind: "state", state };
     }
     case 2:
-      if (data.length !== 13 || data[12] === undefined || data[12] > 8)
+      if (data.length !== 13 || data[12] === undefined || data[12] > 9)
         throw new Error("Invalid result");
       return { id, kind: "result", code: data[12] };
     case 3: {
@@ -215,6 +237,7 @@ export function resultMessage(code: number): string {
       "Phone is busy. Try again",
       "Action was interrupted; it was not retried",
       "Session ended",
+      "Unlock needs local recovery. No retry was made. Unlock the phone locally before trying again.",
     ][code] ?? "Action failed"
   );
 }

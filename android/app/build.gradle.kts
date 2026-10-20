@@ -32,6 +32,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     sourceSets["androidTest"].assets.srcDir("../../protocol/vectors")
+    sourceSets["androidTest"].assets.srcDir("$projectDir/schemas")
     lint {
         abortOnError = true
         warningsAsErrors = true
@@ -65,6 +66,9 @@ dependencies {
     //noinspection GradleDependency
     implementation("androidx.work:work-runtime:2.10.1")
     androidTestImplementation(kotlin("test"))
+    // Match the Kotlin 2.0-compatible Room runtime used above.
+    //noinspection GradleDependency
+    androidTestImplementation("androidx.room:room-testing:2.7.2")
     implementation(project(":protocol"))
     // Keep the established 4.x API with the pinned Kotlin 2.0 toolchain.
     //noinspection NewerVersionAvailable

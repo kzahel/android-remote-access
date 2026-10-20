@@ -13,6 +13,8 @@ import android.view.Display
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.core.graphics.scale
+import dev.remoteaccess.app.unlock.PinUnlock
+import dev.remoteaccess.app.unlock.PinVault
 import dev.remoteaccess.protocol.ControlCommand
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
@@ -31,6 +33,7 @@ class ScreenAccessService : AccessibilityService() {
     private var rotation = -1
     private var gesture = false
     private val touch = TouchController(this, main)
+    private val unlock = PinUnlock(this, main)
     private var capturedAt = 0L
 
     @Volatile private var screenWidth = 0
@@ -39,9 +42,11 @@ class ScreenAccessService : AccessibilityService() {
 
     override fun onServiceConnected() {
         current = this
+        dev.remoteaccess.app.HostStore.get(this).listeners.forEach { it() }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
+        unlock.observeUnlocked()
         val next = rootInActiveWindow?.windowId ?: -1
         val display = getSystemService(android.hardware.display.DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY)
         val nextRotation = display?.rotation ?: -1
@@ -64,12 +69,14 @@ class ScreenAccessService : AccessibilityService() {
 
     override fun onUnbind(intent: Intent): Boolean {
         if (current === this) current = null
+        dev.remoteaccess.app.HostStore.get(this).listeners.forEach { it() }
         invalidate()
         return super.onUnbind(intent)
     }
 
     override fun onDestroy() {
         if (current === this) current = null
+        dev.remoteaccess.app.HostStore.get(this).listeners.forEach { it() }
         invalidate()
         compression.shutdownNow()
         super.onDestroy()
@@ -91,6 +98,26 @@ class ScreenAccessService : AccessibilityService() {
             fun result(code: Int) = reply(2, byteArrayOf(code.toByte()))
             if (!allowed() || current !== this) return@post result(8)
             if (command.op == 2) return@post reply(1, state().toString().toByteArray())
+            if (command.op == 9) {
+                unlock.wake()
+                return@post result(0)
+            }
+            if (command.op == 13 || command.op == 14) {
+                invalidate()
+                val pin =
+                    try {
+                        if (command.op == 14) PinVault(this).read() else command.text.toCharArray()
+                    } catch (_: Exception) {
+                        return@post result(4)
+                    }
+                unlock.attempt(pin, allowed, ::result)
+                return@post
+            }
+            if (unlock.active) return@post result(6)
+            if (command.op == 15) {
+                invalidate()
+                return@post result(if (performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)) 0 else 4)
+            }
             if (command.op == 12) {
                 touch.release(owner)
                 return@post result(0)
@@ -160,7 +187,7 @@ class ScreenAccessService : AccessibilityService() {
                 }
                 7 -> {
                     val focus = rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
-                    if (focus == null || !focus.isEditable || focus.isPassword) return@post result(4)
+                    if (focus == null || !focus.isEditable) return@post result(4)
                     invalidate()
                     result(
                         if (focus.performAction(

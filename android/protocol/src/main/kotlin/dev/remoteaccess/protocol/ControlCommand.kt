@@ -24,7 +24,7 @@ data class ControlCommand(
             var text = ""
             var touch: TouchBatch? = null
             when (op) {
-                1, 2, 3, 9, 10, 12 -> require(!input.hasRemaining())
+                1, 2, 3, 9, 10, 12, 14, 15 -> require(!input.hasRemaining())
                 4, 5 -> {
                     val count = if (op == 4) 3 else 6
                     require(input.remaining() == count * 4)
@@ -36,11 +36,19 @@ data class ControlCommand(
                     require(input.remaining() == 1)
                     values.add(input.get().toInt().also { require(it in 1..3) })
                 }
-                7, 8 -> {
-                    require(input.remaining() <= if (op == 7) 4096 else 256)
+                7, 8, 13 -> {
+                    require(
+                        input.remaining() <=
+                            when (op) {
+                                7 -> 4096
+                                13 -> 16
+                                else -> 256
+                            },
+                    )
                     text =
                         Charsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
                             .onUnmappableCharacter(CodingErrorAction.REPORT).decode(input).toString()
+                    if (op == 13) require(text.matches(Regex("[0-9]{4,16}")))
                     if (op == 8) require(text.matches(Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+")))
                 }
                 11 -> touch = TouchBatch.decode(input)

@@ -1,7 +1,10 @@
 package dev.remoteaccess.app
 
+import dev.remoteaccess.app.control.ControlSession
+import dev.remoteaccess.app.control.SessionService
 import dev.remoteaccess.protocol.Authority
 import dev.remoteaccess.protocol.Channel
+import dev.remoteaccess.protocol.ControlCommand
 import dev.remoteaccess.protocol.Identity
 import dev.remoteaccess.protocol.PhoneHandshake
 import okhttp3.Request
@@ -35,7 +38,7 @@ internal class RelayConnection(
     private var channel: Channel? = null
     private var socket: WebSocket? = null
     private var ready = false
-    private var control: dev.remoteaccess.app.control.ControlSession? = null
+    private var control: ControlSession? = null
 
     fun connect() {
         val url = grant.getString("origin").replaceFirst("https:", "wss:") + "/api/socket"
@@ -46,7 +49,7 @@ internal class RelayConnection(
     fun close(graceful: Boolean = false) {
         if (!active.compareAndSet(true, false)) return
         control?.close()
-        if (control != null && context != null) dev.remoteaccess.app.control.SessionService.stop(context)
+        if (control != null && context != null) SessionService.stop(context)
         handshake?.close()
         channel?.close()
         if (graceful) socket?.close(1000, null) else socket?.cancel()
@@ -125,26 +128,30 @@ internal class RelayConnection(
             val current = channel
             if (current != null) {
                 val plaintext = current.open(input)
-                val existing = control
-                if (existing != null) {
-                    existing.receive(plaintext)
-                    return
+                try {
+                    val existing = control
+                    if (existing != null) {
+                        existing.receive(plaintext)
+                        return
+                    }
+                    if (!plaintext.contentEquals("Encrypted connection check 🌞".toByteArray(Charsets.UTF_8))) {
+                        require(context != null && ControlCommand.decode(plaintext).op == 1)
+                        startSession?.invoke() ?: SessionService.start(context)
+                        onControl()
+                        control = ControlSession(context, grant.getString("id"), { active.get() && this.current() }, ::sendControl)
+                        report("Remote control connected")
+                        control!!.receive(plaintext)
+                        return
+                    }
+                    webSocket.send(current.seal(plaintext).toByteString())
+                    features?.let { report ->
+                        check(active.get() && this.current())
+                        webSocket.send(current.seal(report().toString().toByteArray(Charsets.UTF_8)).toByteString())
+                    }
+                    report("Encrypted connection passed")
+                } finally {
+                    plaintext.fill(0)
                 }
-                if (!plaintext.contentEquals("Encrypted connection check 🌞".toByteArray(Charsets.UTF_8))) {
-                    require(context != null && dev.remoteaccess.protocol.ControlCommand.decode(plaintext).op == 1)
-                    startSession?.invoke() ?: dev.remoteaccess.app.control.SessionService.start(context)
-                    onControl()
-                    control = dev.remoteaccess.app.control.ControlSession(context, { active.get() && this.current() }, ::sendControl)
-                    report("Remote control connected")
-                    control!!.receive(plaintext)
-                    return
-                }
-                webSocket.send(current.seal(plaintext).toByteString())
-                features?.let { report ->
-                    check(active.get() && this.current())
-                    webSocket.send(current.seal(report().toString().toByteArray(Charsets.UTF_8)).toByteString())
-                }
-                report("Encrypted connection passed")
             } else {
                 val pending = handshake
                 if (pending == null) {

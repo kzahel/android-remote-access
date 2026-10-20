@@ -1,6 +1,7 @@
 package dev.remoteaccess.app
 
 import android.content.Context
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
@@ -10,6 +11,8 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import org.json.JSONObject
 import java.util.UUID
 import java.util.concurrent.CopyOnWriteArraySet
@@ -26,6 +29,7 @@ internal data class Browser(
     val generation: String = generation(),
     val synced: Boolean = false,
     val wakeReady: Boolean = false,
+    @ColumnInfo(defaultValue = "0") val unlockAllowed: Boolean = false,
 ) {
     fun authority() = JSONObject(grant)
 }
@@ -75,7 +79,7 @@ internal interface HostDao {
     fun deleteBrowser(id: String)
 }
 
-@Database(entities = [Browser::class, HostSettings::class, ActivityEvent::class], version = 1, exportSchema = true)
+@Database(entities = [Browser::class, HostSettings::class, ActivityEvent::class], version = 2, exportSchema = true)
 internal abstract class HostDatabase : RoomDatabase() {
     abstract fun dao(): HostDao
 }
@@ -235,6 +239,21 @@ internal class HostStore private constructor(private val legacy: android.content
     }
 
     @Synchronized
+    fun allowUnlock(
+        id: String,
+        enabled: Boolean,
+    ) {
+        val browser = requireNotNull(browser(id))
+        check(!browser.revoked)
+        if (browser.unlockAllowed == enabled) return
+        database.runInTransaction {
+            dao.put(browser.copy(unlockAllowed = enabled, generation = generation(), synced = false, wakeReady = false))
+            append("Browser unlock access changed", browser)
+        }
+        publish()
+    }
+
+    @Synchronized
     fun connected(id: String) {
         val browser = browser(id) ?: return
         database.runInTransaction {
@@ -274,6 +293,10 @@ internal class HostStore private constructor(private val legacy: android.content
             setOf(
                 "Connection requested",
                 "Remote control started",
+                "Browser unlock access changed",
+                "Unlock requested",
+                "Phone unlocked",
+                "Unlock needs local recovery",
                 "Connection check completed",
                 "Connection failed",
                 "Connection ended",
@@ -284,13 +307,21 @@ internal class HostStore private constructor(private val legacy: android.content
                 "Access stopped on phone",
             )
 
+        val MIGRATION_1_2 =
+            object : Migration(1, 2) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL("ALTER TABLE browsers ADD COLUMN unlockAllowed INTEGER NOT NULL DEFAULT 0")
+                }
+            }
+
         @Volatile private var instance: HostStore? = null
 
         fun get(context: Context): HostStore =
             instance ?: synchronized(this) {
                 instance ?: HostStore(
                     WakeSupport.preferences(context.applicationContext),
-                    Room.databaseBuilder(context.applicationContext, HostDatabase::class.java, "remote-access.db").build(),
+                    Room.databaseBuilder(context.applicationContext, HostDatabase::class.java, "remote-access.db")
+                        .addMigrations(MIGRATION_1_2).build(),
                 ).also {
                     instance = it
                 }

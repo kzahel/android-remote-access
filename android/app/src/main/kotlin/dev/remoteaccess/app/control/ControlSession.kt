@@ -2,12 +2,20 @@ package dev.remoteaccess.app.control
 
 import android.app.KeyguardManager
 import android.content.Context
+import dev.remoteaccess.app.HostRuntime
+import dev.remoteaccess.app.HostStore
+import dev.remoteaccess.app.unlock.PinVault
 import dev.remoteaccess.protocol.ControlCommand
 import org.json.JSONObject
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** One authenticated session owns one ordered command stream. Never retry input. */
-internal class ControlSession(private val context: Context, private val current: () -> Boolean, private val send: (ByteArray) -> Unit) {
+internal class ControlSession(
+    private val context: Context,
+    private val browserId: String,
+    private val current: () -> Boolean,
+    private val send: (ByteArray) -> Unit,
+) {
     private val active = AtomicBoolean(true)
     private val busy = AtomicBoolean(false)
     private var lastId = 0L
@@ -18,11 +26,12 @@ internal class ControlSession(private val context: Context, private val current:
         check(command.id > lastId) // Record replay checks do not replace command ordering.
         lastId = command.id
         check(busy.compareAndSet(false, true))
+        val commandId = command.id
         val replied = AtomicBoolean(false)
         val reply = { kind: Int, payload: ByteArray ->
             if (replied.compareAndSet(false, true)) {
                 busy.set(false)
-                if (active.get() && current()) send(ControlCommand.reply(command.id, kind, payload))
+                if (active.get() && current()) send(ControlCommand.reply(commandId, kind, payload))
             }
         }
         if (command.op == 10) {
@@ -45,10 +54,40 @@ internal class ControlSession(private val context: Context, private val current:
                 ScreenAccessService.current?.state() ?: JSONObject().put("type", "state").put("v", 1)
                     .put("accessibility", false).put("locked", context.getSystemService(KeyguardManager::class.java).isKeyguardLocked)
                     .put("width", 0).put("height", 0).put("scene", 0)
+            val vault = PinVault(context)
+            state.put(
+                "unlockSupported",
+                true,
+            ).put("unlockAllowed", HostStore.get(context).browser(browserId)?.unlockAllowed == true)
+                .put("savedPin", vault.saved()).put("unlockBlocked", vault.guard.blocked())
             reply(1, state.toString().toByteArray())
         } else {
             val service = ScreenAccessService.current
-            if (service == null) reply(2, byteArrayOf(1)) else service.execute(command, this, { active.get() && current() }, reply)
+            if (service == null) {
+                reply(2, byteArrayOf(1))
+            } else {
+                val permitted = {
+                    active.get() && current() && (
+                        command.op !in listOf(13, 14) ||
+                            HostStore.get(context).browser(browserId)?.unlockAllowed == true
+                    )
+                }
+                if (command.op in listOf(13, 14) && permitted()) {
+                    HostRuntime.io.execute { HostStore.get(context).record("Unlock requested", browserId) }
+                }
+                service.execute(command, this, permitted) { kind, payload ->
+                    if (command.op in listOf(13, 14) && kind == 2 && payload.size == 1) {
+                        val event =
+                            when (payload[0].toInt()) {
+                                0 -> "Phone unlocked"
+                                9 -> "Unlock needs local recovery"
+                                else -> null
+                            }
+                        if (event != null) HostRuntime.io.execute { HostStore.get(context).record(event, browserId) }
+                    }
+                    reply(kind, payload)
+                }
+            }
         }
     }
 

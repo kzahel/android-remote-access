@@ -1,7 +1,7 @@
 /** Public-origin acceptance with an owned emulator or explicitly selected physical fixture. */
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, open, readFile, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -202,6 +202,14 @@ try {
   await until(() => adb("shell", "getprop", "sys.boot_completed") === "1");
   if (!physical && adb("shell", "getprop", "ro.kernel.qemu") !== "1")
     throw new Error("Refusing non-emulator");
+  if (control && existsSync(path.join(state, "synthetic-lock"))) {
+    const result = adb("shell", "locksettings", "clear", "--old", "314159");
+    if (!result.includes("Lock credential cleared"))
+      throw new Error("Interrupted synthetic fixture lock recovery failed");
+    await rm(path.join(state, "synthetic-lock"));
+    adb("shell", "input", "keyevent", "KEYCODE_WAKEUP");
+    adb("shell", "wm", "dismiss-keyguard");
+  }
   for (const [pkg, apk] of [
     [appId, "debug/app-debug.apk"],
     [`${appId}.test`, "androidTest/debug/app-debug-androidTest.apk"],
@@ -245,6 +253,21 @@ try {
   adb("shell", "run-as", appId, "mkdir", "-p", "files");
   browser = await chromium.launch({ headless: true });
   if (control) {
+    const storageTests = adb(
+      "shell",
+      "am",
+      "instrument",
+      "-w",
+      "-e",
+      "class",
+      "dev.remoteaccess.app.HostStoreTest,dev.remoteaccess.app.UnlockStorageTest",
+      `${appId}.test/androidx.test.runner.AndroidJUnitRunner`,
+    );
+    await writeFile(path.join(state, "storage-tests.log"), storageTests, {
+      mode: 0o600,
+    });
+    if (!storageTests.includes("OK (5 tests)"))
+      throw new Error("Native storage/migration tests failed; see private log");
     await controlAcceptance({
       browser,
       origin,

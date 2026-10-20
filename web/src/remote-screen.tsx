@@ -26,6 +26,7 @@ export function RemoteScreen({
   const [state, setState] = useState(initial);
   const [message, setMessage] = useState("");
   const [text, setText] = useState("");
+  const [pin, setPin] = useState("");
   const [apps, setApps] = useState<AppEntry[]>([]);
   useEffect(() => {
     let stopped = false;
@@ -92,6 +93,10 @@ export function RemoteScreen({
   async function act(command: Command) {
     try {
       const reply = await session.command(command);
+      if (["unlock", "unlockSaved", "wake", "sleep"].includes(command.op)) {
+        const status = await session.command({ op: "status" });
+        if (status.kind === "state") setState(status.state);
+      }
       if (reply.kind === "result" && reply.code)
         setMessage(resultMessage(reply.code));
     } catch (error) {
@@ -107,7 +112,65 @@ export function RemoteScreen({
           viewing and touch. Pairing stays saved.
         </p>
       )}
-      {state.locked && <p>Phone is locked.</p>}
+      {state.locked && (
+        <div>
+          <p>Phone is locked.</p>
+          {!state.unlockAllowed && (
+            <p>
+              Allow unlocking for this browser in the phone app’s browser
+              settings.
+            </p>
+          )}
+          {state.unlockBlocked && (
+            <p>
+              Unlock was already attempted. Unlock the phone locally before
+              another attempt.
+            </p>
+          )}
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              const value = pin;
+              setPin("");
+              void act({ op: "unlock", pin: value });
+            }}
+          >
+            <label>
+              Phone PIN
+              <input
+                type="password"
+                inputMode="numeric"
+                autoComplete="off"
+                maxLength={16}
+                value={pin}
+                onChange={(e) => setPin(e.target.value)}
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={!state.unlockAllowed || state.unlockBlocked}
+            >
+              Unlock phone
+            </button>
+          </form>
+          {state.savedPin && (
+            <button
+              type="button"
+              disabled={!state.unlockAllowed || state.unlockBlocked}
+              onClick={() => {
+                if (
+                  window.confirm(
+                    "Unlock this phone using its saved PIN? One attempt will be made.",
+                  )
+                )
+                  void act({ op: "unlockSaved" });
+              }}
+            >
+              Use saved PIN
+            </button>
+          )}
+        </div>
+      )}
       <canvas ref={canvas} aria-label="Phone screen" className="phone-screen" />
       <div className="controls">
         {(["back", "home", "recents"] as const).map((action) => (
@@ -120,6 +183,12 @@ export function RemoteScreen({
             {action.slice(1)}
           </button>
         ))}
+        <button type="button" onClick={() => void act({ op: "wake" })}>
+          Wake screen
+        </button>
+        <button type="button" onClick={() => void act({ op: "sleep" })}>
+          Lock phone
+        </button>
         <button type="button" onClick={disconnect}>
           Disconnect
         </button>

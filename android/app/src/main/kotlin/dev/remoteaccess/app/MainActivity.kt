@@ -24,6 +24,9 @@ import androidx.core.content.PackageManagerCompat
 import androidx.core.content.UnusedAppRestrictionsConstants
 import androidx.core.net.toUri
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
+import dev.remoteaccess.app.control.ScreenAccessService
+import dev.remoteaccess.app.unlock.PinVault
+import dev.remoteaccess.app.unlock.UnlockSetup
 import java.text.DateFormat
 import java.util.Date
 
@@ -244,6 +247,7 @@ class MainActivity : ComponentActivity() {
                 browsers.isEmpty() -> "Pair a browser to get started"
                 live != null -> "${store.browser(live.browserId)?.nickname ?: "Browser"} · ${sessionStatus(live.status)}"
                 browsers.none { it.enabled } -> "No browsers allowed · Enable one below"
+                ScreenAccessService.current == null -> "Paired · Enable screen access when ready"
                 !state.settings.automatic ->
                     if (browsers.any { ForegroundAccess.listening(it.id) }) "Available while this app is open" else "Paired · Connecting…"
                 com.google.firebase.FirebaseApp.getApps(this).isEmpty() -> "Connection setup unavailable"
@@ -257,7 +261,7 @@ class MainActivity : ComponentActivity() {
         }
         if (state.settings.armed && browsers.any { it.enabled } && live == null &&
             (
-                !state.settings.automatic || !WakeSupport.notificationsAllowed(this) ||
+                ScreenAccessService.current == null || !state.settings.automatic || !WakeSupport.notificationsAllowed(this) ||
                     browsers.any { it.enabled && (!it.synced || !it.wakeReady) }
             )
         ) {
@@ -318,7 +322,7 @@ class MainActivity : ComponentActivity() {
         )
         text(
             layout,
-            if (dev.remoteaccess.app.control.ScreenAccessService.current != null) "Screen access is enabled" else "Screen access is off",
+            if (ScreenAccessService.current != null) "Screen access is enabled" else "Screen access is off",
         )
         button(layout, "Screen access settings") {
             AlertDialog.Builder(this).setTitle("Allow remote screen access?")
@@ -334,6 +338,13 @@ class MainActivity : ComponentActivity() {
                     "Cancel",
                     null,
                 ).setPositiveButton("Continue") { _, _ -> startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }.show()
+        }
+        text(layout, "Locked phone", 20f)
+        text(layout, "You can enter a PIN from the browser or save it on this phone. Allow unlocking in each browser’s settings.", 14f)
+        button(layout, "Save phone PIN", R.id.save_pin) { UnlockSetup.show(this) { render() } }
+        if (PinVault(this).saved()) {
+            text(layout, "A PIN is saved on this phone")
+            button(layout, "Forget saved PIN", R.id.forget_pin) { UnlockSetup.forget(this) { render() } }
         }
         button(layout, "Done", R.id.skip_features) { navigate("home") }
     }
@@ -460,6 +471,13 @@ class MainActivity : ComponentActivity() {
             return
         }
         toggle(layout, "Allow this browser", browser.enabled, R.id.browser_toggle) { enabled -> change { it.enable(browser.id, enabled) } }
+        toggle(
+            layout,
+            "Allow unlocking",
+            browser.unlockAllowed,
+            R.id.allow_unlock,
+        ) { enabled -> change { it.allowUnlock(browser.id, enabled) } }
+        text(layout, "Lets this browser submit a PIN or request the PIN saved on this phone. Each unlock is an explicit action.", 14f)
         button(layout, "Rename", R.id.rename_browser) {
             val input =
                 EditText(this).apply {

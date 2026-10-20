@@ -1,7 +1,7 @@
 /** Independent browser -> public relay -> native Android effects, on an owned emulator. */
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
-import { open, readFile, writeFile } from "node:fs/promises";
+import { open, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Browser } from "@playwright/test";
 import jsQR from "jsqr";
@@ -31,6 +31,7 @@ export async function controlAcceptance(f: Fixture) {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   let native: ReturnType<typeof spawn> | undefined;
+  let syntheticLock = false;
   async function until<T>(
     work: () => T | Promise<T>,
     timeout = 60000,
@@ -145,6 +146,19 @@ export async function controlAcceptance(f: Fixture) {
       [...others, service].join(":"),
     );
     adb("shell", "settings", "put", "secure", "accessibility_enabled", "1");
+    if (process.env.HOSTED_UNLOCK === "1") {
+      await command("save-fixture-pin");
+      await command("allow-unlock", { id, enabled: true });
+      // This credential belongs only to the runner's disposable emulator.
+      await writeFile(
+        path.join(f.state, "synthetic-lock"),
+        "owned-emulator-fixture\n",
+        { mode: 0o600 },
+      );
+      const result = adb("shell", "locksettings", "set-pin", "314159");
+      assert.match(result, /Pin set/);
+      syntheticLock = true;
+    }
     await command("control-ready", { id });
     await page.getByRole("button", { name: "Connect to phone" }).click();
     await page
@@ -154,6 +168,48 @@ export async function controlAcceptance(f: Fixture) {
     await until(() =>
       canvas.evaluate((c) => c instanceof HTMLCanvasElement && c.width > 500),
     );
+    if (process.env.HOSTED_UNLOCK === "1") {
+      await page
+        .getByRole("button", { name: "Lock phone", exact: true })
+        .click();
+      await page
+        .getByLabel("Phone PIN", { exact: true })
+        .waitFor({ timeout: 15000 });
+      page.once("dialog", (dialog) => void dialog.accept());
+      await page
+        .getByRole("button", { name: "Use saved PIN", exact: true })
+        .click();
+      await until(
+        () =>
+          adb("shell", "dumpsys", "window", "policy").match(
+            /KeyguardServiceDelegate[\s\S]*?\bshowing=false/,
+          ),
+        20000,
+      );
+      await page
+        .getByLabel("Phone PIN", { exact: true })
+        .waitFor({ state: "hidden", timeout: 20000 });
+      await page
+        .getByRole("button", { name: "Lock phone", exact: true })
+        .click();
+      await page.getByLabel("Phone PIN", { exact: true }).fill("314159");
+      await page
+        .getByRole("button", { name: "Unlock phone", exact: true })
+        .click();
+      await until(
+        () =>
+          adb("shell", "dumpsys", "window", "policy").match(
+            /KeyguardServiceDelegate[\s\S]*?\bshowing=false/,
+          ),
+        20000,
+      );
+      await page
+        .getByLabel("Phone PIN", { exact: true })
+        .waitFor({ state: "hidden", timeout: 20000 });
+      console.log(
+        "Saved and manual PIN unlock passed on the synthetic emulator lock",
+      );
+    }
     await command("control-fixture");
     await until(() => witness().taps === 0);
     await delay(1500);
@@ -245,6 +301,26 @@ export async function controlAcceptance(f: Fixture) {
         /topResumedActivity=.*com.android.settings/,
       ),
     );
+    if (process.env.HOSTED_TOUCH === "1") {
+      await command("control-fixture");
+      await delay(1200);
+      const slider = await at(witness().slider);
+      await page.mouse.move(slider.x, slider.y);
+      await page.mouse.down();
+      await until(() => witness().sliderHeld, 3000);
+      const debug = await context.newCDPSession(page);
+      await debug.send("Debugger.enable");
+      await debug.send("Debugger.pause");
+      try {
+        await until(() => !witness().sliderHeld, 3000);
+      } finally {
+        await debug.send("Debugger.resume");
+        await debug.detach();
+      }
+      await page.mouse.up();
+      await delay(1000);
+      console.log("Native lost-packet watchdog released held input");
+    }
     await command("global", { enabled: false });
     await page
       .getByRole("region", { name: "Remote screen" })
@@ -273,6 +349,7 @@ export async function controlAcceptance(f: Fixture) {
           nativeUnicodeText: true,
           nativeSwipe: true,
           heldTouch: process.env.HOSTED_TOUCH === "1",
+          savedAndManualPin: process.env.HOSTED_UNLOCK === "1",
           navigation: true,
           appLaunch: true,
           globalDisarmClosesSession: true,
@@ -310,6 +387,15 @@ export async function controlAcceptance(f: Fixture) {
     if (native?.exitCode === null) {
       adb("shell", "am", "force-stop", app);
       native.kill("SIGTERM");
+    }
+    if (syntheticLock) {
+      assert.match(
+        adb("shell", "locksettings", "clear", "--old", "314159"),
+        /Lock credential cleared/,
+      );
+      adb("shell", "input", "keyevent", "KEYCODE_WAKEUP");
+      adb("shell", "wm", "dismiss-keyguard");
+      await rm(path.join(f.state, "synthetic-lock"), { force: true });
     }
     await log.close();
   }

@@ -156,6 +156,18 @@ class HostedPairingTest {
                     waitFor { dev.remoteaccess.app.control.ScreenAccessService.current != null }
                     waitFor { ForegroundAccess.listening(id) }
                 }
+                "save-fixture-pin" -> {
+                    assertTrue(device.executeShellCommand("getprop ro.kernel.qemu").trim() == "1")
+                    start()
+                    click("open_settings")
+                    click("open_features")
+                    click("save_pin")
+                    // Disposable emulator credential; never used on a physical phone.
+                    device.findObject(By.res("${context.packageName}:id/save_pin_value")).text = "314159"
+                    device.findObject(By.res("${context.packageName}:id/save_pin_confirm")).text = "314159"
+                    assertNotNull(device.findObject(By.res("android:id/button1"))).click()
+                    waitFor { dev.remoteaccess.app.unlock.PinVault(context).saved() }
+                }
                 "control-fixture" -> {
                     context.startActivity(
                         Intent().setClassName("${context.packageName}.test", "dev.remoteaccess.app.ControlFixtureActivity")
@@ -299,6 +311,11 @@ class HostedPairingTest {
                             nameField.text = task.getString("name")
                             assertNotNull(device.findObject(By.res("android:id/button1"))).click()
                             waitFor { store.browser(id)?.nickname == task.getString("name") }
+                        }
+                        "allow-unlock" -> {
+                            if (store.browser(id)?.unlockAllowed != task.getBoolean("enabled")) click("allow_unlock")
+                            waitFor { store.browser(id)?.unlockAllowed == task.getBoolean("enabled") }
+                            waitFor { store.snapshot.browsers.all { it.synced } }
                         }
                         "enable" -> {
                             if (store.browser(id)?.enabled != task.getBoolean("enabled")) click("browser_toggle")

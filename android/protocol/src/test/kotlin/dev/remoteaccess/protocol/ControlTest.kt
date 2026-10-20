@@ -46,6 +46,14 @@ class ControlTest {
         assertFails { ControlCommand.decode(bytes("415243310800000000000001")) }
     }
 
+    @Test fun unlockOnlyAdmitsBoundedAsciiDigits() {
+        val header = "415243310d00000000000008"
+        assertEquals("314159", ControlCommand.decode(bytes(header + "333134313539")).text)
+        for (pin in listOf("", "123", "1".repeat(17), "1234\n", "１２３４", "123a")) {
+            assertFails { ControlCommand.decode(bytes(header) + pin.toByteArray()) }
+        }
+    }
+
     @Test fun touchRejectsMissingContactsInvalidFlagsAndNonfiniteSamples() {
         val good = bytes("415243310b00000000000007000000030000002a0000000000280100000000000101000042f0800043708000")
         assertEquals(1, ControlCommand.decode(good).touch?.contacts?.size)

@@ -63,6 +63,15 @@ describe("control boundary", () => {
       }),
     ).toThrow();
   });
+  it("only admits explicit bounded numeric unlock credentials", () => {
+    for (const pin of ["", "123", "1".repeat(17), "1234\n", "１２３４", "123a"])
+      expect(() => encodeCommand(1, { op: "unlock", pin })).toThrow();
+    expect(
+      Buffer.from(encodeCommand(8, { op: "unlock", pin: "314159" })).toString(
+        "hex",
+      ),
+    ).toBe("415243310d00000000000008333134313539");
+  });
   it("rejects unknown, oversized and malformed responses", () => {
     const good = new Uint8Array(
       Buffer.from("41525031020000000000000100", "hex"),
