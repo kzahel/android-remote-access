@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { RemoteSession } from "./control-session.js";
 import { phoneLease } from "./phone-lease.js";
 import { LastContact } from "./phone-list.js";
-import { PhoneManagement } from "./phone-management.js";
 import { encryptedCheck } from "./relay.js";
 import { RemoteScreen } from "./remote-screen.js";
 import {
@@ -149,12 +148,6 @@ export function PhonePage({
   }
   return (
     <main className={remote ? "connected-viewer" : "phone-page"}>
-      <nav className="phone-page-nav" aria-label="Phone navigation">
-        <a className="phones-link" href="/">
-          ← Phones
-        </a>
-        <PhoneManagement phone={phone} />
-      </nav>
       {remote ? (
         <RemoteScreen
           session={remote.session}

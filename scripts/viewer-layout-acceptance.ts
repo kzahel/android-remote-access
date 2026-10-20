@@ -20,7 +20,7 @@ const server = await createServer({
         vite.middlewares.use("/layout-proof", (_req, res) => {
           res.setHeader("Content-Type", "text/html");
           res.end(
-            `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><div id="root"></div><script type="module" src="/@fs/${path.join(root, "web/test/layout-fixture.tsx")}"></script>`,
+            `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><script src="/appearance.js"></script><div id="root"></div><script type="module" src="/@fs/${path.join(root, "web/test/layout-fixture.tsx")}"></script>`,
           );
         });
       },
@@ -78,7 +78,11 @@ try {
     ["small-mobile", 320, 680],
     ["landscape", 844, 390],
   ] as const) {
-    const page = await browser.newPage({ viewport: { width, height } });
+    const context = await browser.newContext({
+      viewport: { width, height },
+      colorScheme: "light",
+    });
+    const page = await context.newPage();
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     page.on("dialog", (dialog) => void dialog.accept()); // Synthetic fixture only.
@@ -89,6 +93,33 @@ try {
     await expect(page.getByRole("status")).toHaveCount(1);
     const baseline = await geometry(page);
     assert.equal(baseline.scroll.y, 0);
+    const stage = baseline.boxes[2];
+    const rail = baseline.boxes[3];
+    assert.ok(
+      stage && rail && rail.x >= stage.x + stage.width,
+      "Controls sit to the right of the screen",
+    );
+    assert.ok(stage.y + stage.height <= height, "Screen fits the viewport");
+    await page.getByRole("button", { name: "Toggle navigation" }).click();
+    if (width >= 900) {
+      await expect(page.locator(".app-sidebar")).toBeHidden();
+      await page.getByRole("button", { name: "Toggle navigation" }).click();
+      await expect(page.locator(".app-sidebar")).toBeVisible();
+    } else {
+      await expect(
+        page.getByRole("dialog", { name: "Navigation", exact: true }),
+      ).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(
+        page.getByRole("button", { name: "Toggle navigation" }),
+      ).toBeFocused();
+      await page.getByRole("button", { name: "Toggle navigation" }).click();
+      await page.mouse.click(width - 8, height / 2);
+      await expect(
+        page.getByRole("dialog", { name: "Navigation", exact: true }),
+      ).toBeHidden();
+    }
+    await stable(page, baseline);
     await page.screenshot({
       path: path.join(artifacts, `${name}-locked.png`),
       fullPage: true,
@@ -178,7 +209,10 @@ try {
       if (open === "Type or open an app") {
         await page
           .getByLabel("Text for the focused field")
-          .fill("Synthetic fixture text");
+          .pressSequentially("Synthetic fixture text", { delay: 12 });
+        await expect(page.getByLabel("Text for the focused field")).toHaveValue(
+          "Synthetic fixture text",
+        );
         await page
           .getByRole("button", { name: "Send text", exact: true })
           .click();
@@ -191,6 +225,85 @@ try {
         await stable(page, baseline);
       }
       await page.getByRole("button", { name: close, exact: true }).click();
+      await stable(page, baseline);
+    }
+    // Settings overlay preserves the existing canvas and running session.
+    await page
+      .locator("canvas")
+      .evaluate((c) => c.setAttribute("data-original", "yes"));
+    if (width < 900)
+      await page.getByRole("button", { name: "Toggle navigation" }).click();
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    const settings = page.getByRole("dialog", {
+      name: "Settings",
+      exact: true,
+    });
+    await expect(settings).toBeVisible();
+    await stable(page, baseline);
+    await page.getByLabel("Dark", { exact: true }).check();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+    await page.getByLabel("Show control labels").check();
+    await page.getByRole("button", { name: "Close settings" }).click();
+    await expect(page.locator(".viewer-workspace")).toHaveAttribute(
+      "data-labels",
+      "true",
+    );
+    await expect(page.locator("canvas")).toHaveAttribute(
+      "data-original",
+      "yes",
+    );
+    await page.screenshot({
+      path: path.join(artifacts, `${name}-dark-labels.png`),
+      fullPage: true,
+    });
+    if (width < 900)
+      await page.getByRole("button", { name: "Toggle navigation" }).click();
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await page.getByLabel("Show control labels").uncheck();
+    await page.getByLabel("System", { exact: true }).check();
+    await page.getByRole("button", { name: "Close settings" }).click();
+    await stable(page, baseline);
+    await page.emulateMedia({ colorScheme: "dark" });
+    await expect
+      .poll(() =>
+        page
+          .locator("html")
+          .evaluate((html) => getComputedStyle(html).backgroundColor),
+      )
+      .toBe("rgb(20, 26, 24)");
+    await page.emulateMedia({ colorScheme: "light" });
+    await expect
+      .poll(() =>
+        page
+          .locator("html")
+          .evaluate((html) => getComputedStyle(html).backgroundColor),
+      )
+      .toBe("rgb(246, 248, 247)");
+    await stable(page, baseline);
+    if (name === "desktop") {
+      const peer = await page.context().newPage();
+      await peer.goto(page.url());
+      await peer.getByRole("button", { name: "Settings", exact: true }).click();
+      await peer.getByLabel("Dark", { exact: true }).check();
+      await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+      await peer.reload();
+      await expect(peer.locator("html")).toHaveAttribute("data-theme", "dark");
+      await peer.getByRole("button", { name: "Settings", exact: true }).click();
+      await peer.getByLabel("System", { exact: true }).check();
+      await expect(page.locator("html")).not.toHaveAttribute("data-theme");
+      await peer.close();
+      // Crossing the breakpoint closes the drawer and keeps the same canvas.
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.getByRole("button", { name: "Toggle navigation" }).click();
+      await expect(
+        page.getByRole("dialog", { name: "Navigation", exact: true }),
+      ).toBeVisible();
+      await page.setViewportSize({ width, height });
+      await expect(page.locator(".app-sidebar")).toBeVisible();
+      await expect(page.locator("canvas")).toHaveAttribute(
+        "data-original",
+        "yes",
+      );
       await stable(page, baseline);
     }
     await page.screenshot({
@@ -210,7 +323,7 @@ try {
     console.log(
       `${name}: lock/unlock, messages, permission loss, rotation and dialogs keep geometry and scroll stable`,
     );
-    await page.close();
+    await context.close();
   }
   await writeFile(
     path.join(artifacts, "result.json"),

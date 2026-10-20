@@ -85,3 +85,43 @@ and storage: independent pairing/checks, permission revoke/repair, real
 process-absent FCM for both, persistence, global/per-browser pause, stale-generation
 rejection and isolated revocation/cleanup. Fresh receipt-to-exchange intervals
 were 184 and 238 ms; these are measurements, not wake availability guarantees.
+
+## Responsive navigation and client settings — 2026-10-20
+
+The website uses one shared shell. At desktop widths (900px and up), the sidebar
+lists saved phones, All phones, Add phone and Settings. The top-left menu button
+can collapse it. Smaller viewports use a modal navigation drawer, with native
+focus containment, Escape, a close button and outside-tap dismissal. Phone links
+remain real `/phones/<phoneId>` links, including opening another phone in a new
+tab. An information button opens local name/model/contact details without
+leaving the current viewer. “In use” reflects a browser-held phone lease, including
+other tabs; it does not claim that an uncontacted phone is online. Lock queries,
+local notifications and cross-tab broadcasts refresh that indicator without
+contacting the phone or waking it.
+
+The fixed top bar contains the page/phone name and one dedicated live status
+area. Android navigation, wake/lock, viewing quality, typing/app launch and
+disconnect form a compact vertical rail to the right of the screen. The rail
+scrolls internally in short landscape windows. Status changes, unlocking,
+permission loss, dialogs and phone rotation preserve the screen/rail geometry
+and page scroll. Canvas aspect ratio and input mapping remain intact.
+
+Settings opens over the viewer and preserves the live session. Appearance defaults
+to System and follows live OS changes; Light and Dark override it. Optional control
+labels and desktop sidebar visibility are also local preferences. These values
+use `remote-access-preferences-v1` in localStorage, synchronize between tabs and
+survive reloads. Pairings and private browser keys remain in IndexedDB. An
+external same-origin appearance bootstrap applies an override before rendering
+and works with the existing production Content Security Policy. Unavailable or
+malformed preference storage falls back to defaults; failed preference writes
+show an error in Settings.
+
+The four-size isolated layout suite passes drawer dismissal/focus restoration,
+desktop collapsing, breakpoint changes, right-side rail placement, stable
+lock/unlock/error/rotation/dialog geometry, sequential text entry, appearance
+changes, saved overrides and cross-tab settings. The phone-library suite passes
+cross-tab lease indicators, local phone details, sequential rename entry and
+changing appearance without reconnecting or closing the live session, alongside
+its existing migration/pairing/multi-phone coverage. Type checks, production
+build, Biome and all 92 TypeScript tests pass. Hosted native control is verified
+separately after deploying the committed revision.

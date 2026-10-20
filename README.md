@@ -97,6 +97,11 @@ through lock/unlock, messages, permission loss, rotation and dialogs at desktop,
 mobile and landscape sizes. It needs Playwright Chromium, no Android device or
 relay. Private screenshots/results stay in `.local/viewer-layout-proof/`.
 
+The website has a desktop phone sidebar, a mobile navigation drawer and a fixed
+phone/status bar. Remote controls sit to the right of the screen. Client Settings
+provides System/Light/Dark appearance, optional control labels and sidebar
+visibility without leaving the live viewer.
+
 The website's home page lists all phones saved in this browser, with local names
 and last successful contact times. **Add phone** preserves existing phones;
 `/phones/<phoneId>` is bookmarkable and separate phones can connect in separate

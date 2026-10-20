@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
+import { AppShell } from "./app-shell.js";
 import { PairPhone } from "./pair-phone.js";
 import { PhoneList } from "./phone-list.js";
 import {
@@ -56,42 +57,46 @@ export function ViewerApp({
       unsubscribe();
     };
   }, []);
+  let content: ReactNode;
   if (!phones)
-    return (
+    content = (
       <main>
         <ViewerHeading name="Your phones" status="Loading saved phones…" />
       </main>
     );
-  if (route === "/" || route === "/viewer.html")
-    return <PhoneList phones={phones} error={error} />;
-  if (route === "/pair" && !error) return <PairPhone />;
-  if (phone && !error)
-    return (
+  else if (route === "/" || route === "/viewer.html")
+    content = <PhoneList phones={phones} error={error} />;
+  else if (route === "/pair" && !error) content = <PairPhone />;
+  else if (phone && !error)
+    content = (
       <PhonePage
         key={`${phone.id}:${phone.grant.id}`}
         phone={phone}
         services={services}
       />
     );
+  else
+    content = (
+      <main>
+        <ViewerHeading
+          name={id ? "Phone not saved" : "Page unavailable"}
+          status={
+            error ||
+            (id
+              ? "This phone isn’t saved in this browser. Pair it to connect."
+              : "Open your phones to continue.")
+          }
+        />
+        {!error && (
+          <a className="button-link" href="/pair">
+            Add phone
+          </a>
+        )}
+      </main>
+    );
   return (
-    <main>
-      <a className="phones-link" href="/">
-        ← Phones
-      </a>
-      <ViewerHeading
-        name={id ? "Phone not saved" : "Page unavailable"}
-        status={
-          error ||
-          (id
-            ? "This phone isn’t saved in this browser. Pair it to connect."
-            : "Open your phones to continue.")
-        }
-      />
-      {!error && (
-        <a className="button-link" href="/pair">
-          Add phone
-        </a>
-      )}
-    </main>
+    <AppShell phones={phones ?? []} current={phone}>
+      {content}
+    </AppShell>
   );
 }

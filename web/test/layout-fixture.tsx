@@ -1,7 +1,9 @@
 import type { Command, ControlState, Reply } from "@remote/protocol/control";
 import { createRoot } from "react-dom/client";
+import { AppShell } from "../src/app-shell.js";
 import type { RemoteSession } from "../src/control-session.js";
 import { RemoteScreen } from "../src/remote-screen.js";
+import type { SavedPhone } from "../src/store.js";
 import "../src/viewer.css";
 
 const state: ControlState = {
@@ -74,14 +76,30 @@ const session = {
 } as unknown as RemoteSession;
 const root = document.getElementById("root");
 if (!root) throw Error("Missing fixture root");
+const phone: SavedPhone = {
+  id: "a".repeat(64),
+  model: "Test phone",
+  pairedAt: 1,
+  grant: {
+    id: "b".repeat(32),
+    phone: "fixture",
+    viewer: "fixture",
+    expires: 1,
+    mac: "fixture",
+    phoneSignature: "fixture",
+    viewerSignature: "fixture",
+  },
+};
 createRoot(root).render(
-  <main className="connected-viewer">
-    <RemoteScreen
-      session={session}
-      initial={{ ...state }}
-      disconnect={() => {}}
-    />
-  </main>,
+  <AppShell phones={[phone]} current={phone}>
+    <main className="connected-viewer">
+      <RemoteScreen
+        session={session}
+        initial={{ ...state }}
+        disconnect={() => {}}
+      />
+    </main>
+  </AppShell>,
 );
 
 declare global {

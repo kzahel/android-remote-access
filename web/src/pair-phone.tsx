@@ -112,9 +112,6 @@ export function PairPhone() {
     : undefined;
   return (
     <main>
-      <a className="phones-link" href="/">
-        ← Phones
-      </a>
       <ViewerHeading name="Add phone" status={status} />
       <p>Pair each phone once. Your other saved phones will stay available.</p>
       {!invitation && (

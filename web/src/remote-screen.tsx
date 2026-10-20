@@ -5,6 +5,7 @@ import {
   resultMessage,
 } from "@remote/protocol/control";
 import { useEffect, useRef, useState } from "react";
+import { useClientSettings } from "./client-settings.js";
 import { ControlIcon } from "./control-icon.js";
 import type { RemoteSession } from "./control-session.js";
 import { TouchInput } from "./touch-input.js";
@@ -29,6 +30,7 @@ export function RemoteScreen({
   onContact?: (state: ControlState) => void;
   onEnded?: () => void;
 }) {
+  const { controlLabels } = useClientSettings();
   const callbacks = useRef({ onContact, onEnded });
   callbacks.current = { onContact, onEnded };
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -190,150 +192,171 @@ export function RemoteScreen({
           (state.locked ? "Phone is locked" : "Connected securely")
         }
       />
-      <div className="screen-stage">
-        <canvas
-          ref={canvas}
-          width={initial.width || 1080}
-          height={initial.height || 2400}
-          aria-label="Phone screen"
-          className="phone-screen"
-        />
-        {!state.accessibility ? (
-          <div className="screen-overlay">
-            <div className="screen-panel">
-              <h2>Enable screen access</h2>
-              <p>
-                On the phone, open Feature setup → Screen access settings to
-                enable viewing and touch. Pairing stays saved.
-              </p>
-            </div>
-          </div>
-        ) : (
-          state.locked && (
+      <div
+        className="viewer-workspace"
+        data-labels={controlLabels || undefined}
+      >
+        <div className="screen-stage">
+          <canvas
+            ref={canvas}
+            width={initial.width || 1080}
+            height={initial.height || 2400}
+            aria-label="Phone screen"
+            className="phone-screen"
+          />
+          {!state.accessibility ? (
             <div className="screen-overlay">
               <div className="screen-panel">
-                <h2>Unlock phone</h2>
-                {!state.unlockAllowed && (
-                  <p>
-                    Allow unlocking for this browser in the phone app’s browser
-                    settings.
-                  </p>
-                )}
-                {state.unlockBlocked && (
-                  <p>
-                    Unlock was already attempted. Unlock the phone locally
-                    before another attempt.
-                  </p>
-                )}
-                {state.savedPin && (
-                  <button
-                    className="saved-pin-button"
-                    type="button"
-                    disabled={!state.unlockAllowed || state.unlockBlocked}
-                    onClick={() => {
-                      if (
-                        window.confirm(
-                          "Unlock this phone using its saved PIN? One attempt will be made.",
-                        )
-                      )
-                        void act({ op: "unlockSaved" });
-                    }}
-                  >
-                    Use saved PIN
-                  </button>
-                )}
-                <form
-                  className="unlock-form"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    const value = pin;
-                    setPin("");
-                    void act({ op: "unlock", pin: value });
-                  }}
-                >
-                  <label htmlFor="phone-pin">Phone PIN</label>
-                  <div className="inline-field">
-                    <input
-                      id="phone-pin"
-                      type="password"
-                      inputMode="numeric"
-                      autoComplete="off"
-                      maxLength={16}
-                      value={pin}
-                      onChange={(e) => setPin(e.target.value)}
-                    />
-                    <button
-                      type="submit"
-                      disabled={!state.unlockAllowed || state.unlockBlocked}
-                    >
-                      Unlock phone
-                    </button>
-                  </div>
-                </form>
+                <h2>Enable screen access</h2>
+                <p>
+                  On the phone, open Feature setup → Screen access settings to
+                  enable viewing and touch. Pairing stays saved.
+                </p>
               </div>
             </div>
-          )
-        )}
-      </div>
-      <div className="control-dock">
-        <nav className="phone-nav" aria-label="Android navigation">
-          {(["back", "home", "recents"] as const).map((action) => (
-            <button
-              key={action}
-              type="button"
-              aria-label={
-                action === "back"
-                  ? "Back"
-                  : action === "home"
-                    ? "Home"
-                    : "Recents"
-              }
-              title={
-                action === "back"
-                  ? "Back"
-                  : action === "home"
-                    ? "Home"
-                    : "Recent apps"
-              }
-              onClick={() => void act({ op: "navigation", action })}
-            >
-              <ControlIcon name={action} />
-            </button>
-          ))}
-        </nav>
-        <div className="screen-controls">
-          <button
-            type="button"
-            title="Wake screen"
-            onClick={() => void act({ op: "wake" })}
-          >
-            <ControlIcon name="wake" />
-            <span className="sr-only">Wake screen</span>
-          </button>
-          <button
-            type="button"
-            title="Lock phone"
-            onClick={() => void act({ op: "sleep" })}
-          >
-            <ControlIcon name="lock" />
-            <span className="sr-only">Lock phone</span>
-          </button>
-          <button type="button" title="Disconnect" onClick={disconnect}>
-            <ControlIcon name="disconnect" />
-            <span className="sr-only">Disconnect</span>
-          </button>
+          ) : (
+            state.locked && (
+              <div className="screen-overlay">
+                <div className="screen-panel">
+                  <h2>Unlock phone</h2>
+                  {!state.unlockAllowed && (
+                    <p>
+                      Allow unlocking for this browser in the phone app’s
+                      browser settings.
+                    </p>
+                  )}
+                  {state.unlockBlocked && (
+                    <p>
+                      Unlock was already attempted. Unlock the phone locally
+                      before another attempt.
+                    </p>
+                  )}
+                  {state.savedPin && (
+                    <button
+                      className="saved-pin-button"
+                      type="button"
+                      disabled={!state.unlockAllowed || state.unlockBlocked}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            "Unlock this phone using its saved PIN? One attempt will be made.",
+                          )
+                        )
+                          void act({ op: "unlockSaved" });
+                      }}
+                    >
+                      Use saved PIN
+                    </button>
+                  )}
+                  <form
+                    className="unlock-form"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      const value = pin;
+                      setPin("");
+                      void act({ op: "unlock", pin: value });
+                    }}
+                  >
+                    <label htmlFor="phone-pin">Phone PIN</label>
+                    <div className="inline-field">
+                      <input
+                        id="phone-pin"
+                        type="password"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        maxLength={16}
+                        value={pin}
+                        onChange={(e) => setPin(e.target.value)}
+                      />
+                      <button
+                        type="submit"
+                        disabled={!state.unlockAllowed || state.unlockBlocked}
+                      >
+                        Unlock phone
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )
+          )}
         </div>
-      </div>
-      <div className="viewer-options">
-        <button
-          type="button"
-          onClick={() => qualityDialog.current?.showModal()}
-        >
-          Viewing quality
-        </button>
-        <button type="button" onClick={() => typingDialog.current?.showModal()}>
-          Type or open an app
-        </button>
+        <div className="control-dock">
+          <nav className="phone-nav" aria-label="Android navigation">
+            {(["back", "home", "recents"] as const).map((action) => (
+              <button
+                key={action}
+                type="button"
+                aria-label={
+                  action === "back"
+                    ? "Back"
+                    : action === "home"
+                      ? "Home"
+                      : "Recents"
+                }
+                title={
+                  action === "back"
+                    ? "Back"
+                    : action === "home"
+                      ? "Home"
+                      : "Recent apps"
+                }
+                onClick={() => void act({ op: "navigation", action })}
+              >
+                <ControlIcon name={action} />
+                <span className="control-label" aria-hidden="true">
+                  {action === "back"
+                    ? "Back"
+                    : action === "home"
+                      ? "Home"
+                      : "Recents"}
+                </span>
+              </button>
+            ))}
+          </nav>
+          <div className="screen-controls">
+            <button
+              type="button"
+              title="Wake screen"
+              onClick={() => void act({ op: "wake" })}
+            >
+              <ControlIcon name="wake" />
+              <span className="control-label">Wake screen</span>
+            </button>
+            <button
+              type="button"
+              title="Lock phone"
+              onClick={() => void act({ op: "sleep" })}
+            >
+              <ControlIcon name="lock" />
+              <span className="control-label">Lock phone</span>
+            </button>
+          </div>
+          <div className="screen-controls">
+            <button
+              type="button"
+              title="Viewing quality"
+              onClick={() => qualityDialog.current?.showModal()}
+            >
+              <ControlIcon name="quality" />
+              <span className="control-label">Viewing quality</span>
+            </button>
+            <button
+              type="button"
+              title="Type or open an app"
+              onClick={() => typingDialog.current?.showModal()}
+            >
+              <ControlIcon name="keyboard" />
+              <span className="control-label">Type or open an app</span>
+            </button>
+          </div>
+          <div className="screen-controls">
+            <button type="button" title="Disconnect" onClick={disconnect}>
+              <ControlIcon name="disconnect" />
+              <span className="control-label">Disconnect</span>
+            </button>
+          </div>
+        </div>
       </div>
       <dialog ref={qualityDialog} aria-labelledby="quality-title">
         <div className="dialog-heading">

@@ -52,7 +52,7 @@ const server = await createServer({
           ) {
             res.setHeader("Content-Type", "text/html");
             res.end(
-              `<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/@fs/${path.join(root, "web/test/phones-fixture.tsx")}"></script></body></html>`,
+              `<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width,initial-scale=1"><script src="/appearance.js"></script></head><body><div id="root"></div><script type="module" src="/@fs/${path.join(root, "web/test/phones-fixture.tsx")}"></script></body></html>`,
             );
             return;
           }
@@ -85,7 +85,10 @@ async function manage(page: Page, name: string) {
 }
 async function rename(page: Page, name: string, alias: string) {
   await manage(page, name);
-  await page.getByLabel("Phone name", { exact: true }).fill(alias);
+  const input = page.getByLabel("Phone name", { exact: true });
+  await input.fill("");
+  await input.pressSequentially(alias, { delay: 12 });
+  await expect(input).toHaveValue(alias);
   await page.getByRole("button", { name: "Save name", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeHidden();
 }
@@ -270,6 +273,35 @@ try {
   assert.deepEqual(await other.evaluate(() => window.phonesFixture.calls), [
     grant.id,
   ]);
+  // The sidebar observes live leases held in this and other tabs, without
+  // inventing a global online status or making a connection request.
+  await home.bringToFront();
+  for (const name of ["RV phone", "Pixel 7a"]) {
+    await expect(
+      home.getByRole("link", { name: `Switch to ${name}`, exact: true }),
+    ).toContainText("In use");
+  }
+  const liveBefore = await other.evaluate(() => ({
+    calls: [...window.phonesFixture.calls],
+    closed: window.phonesFixture.closed,
+  }));
+  await other.getByRole("button", { name: "Settings", exact: true }).click();
+  await other.getByLabel("Dark", { exact: true }).check();
+  await expect(home.locator("html")).toHaveAttribute("data-theme", "dark");
+  await other.getByRole("button", { name: "Close settings" }).click();
+  assert.deepEqual(
+    await other.evaluate(() => ({
+      calls: [...window.phonesFixture.calls],
+      closed: window.phonesFixture.closed,
+    })),
+    liveBefore,
+    "Opening settings and changing appearance keeps the live session",
+  );
+  await other
+    .getByRole("button", { name: "Details for RV phone", exact: true })
+    .click();
+  await expect(other.getByRole("dialog")).toBeVisible();
+  await other.getByRole("button", { name: "Close phone settings" }).click();
   const competing = await context.newPage();
   await competing.goto(a.url());
   await competing
@@ -283,6 +315,13 @@ try {
     [],
   );
   await a.getByRole("button", { name: "Disconnect", exact: true }).click();
+  await home.bringToFront();
+  await expect(
+    home.getByRole("link", { name: "Switch to RV phone", exact: true }),
+  ).not.toContainText("In use");
+  await expect(
+    home.getByRole("link", { name: "Switch to Pixel 7a", exact: true }),
+  ).toContainText("In use");
   await competing
     .getByRole("button", { name: "Connect to phone", exact: true })
     .click();
