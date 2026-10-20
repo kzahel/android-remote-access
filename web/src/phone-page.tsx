@@ -237,19 +237,6 @@ export function PhonePage({
               see setup guidance.
             </p>
           )}
-          <details>
-            <summary>Connection help</summary>
-            <p>
-              Keep the Android app open to connect without additional
-              permissions. For requests while it is closed, open Feature setup
-              on the phone and enable connection requests.
-            </p>
-            <p>
-              Pairing stays saved if a permission is declined. Screen viewing
-              and touch control each need their own support and setup on the
-              phone.
-            </p>
-          </details>
         </>
       )}
     </main>
