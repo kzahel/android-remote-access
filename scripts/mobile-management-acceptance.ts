@@ -296,6 +296,14 @@ export async function mobileAcceptance(f: Fixture) {
       );
     }
     console.log("Both browsers passed encrypted checks");
+    await command("deny-feature-permission");
+    await command("foreground", { id: a.id, automatic: true });
+    await check(a.page);
+    assert.match(
+      await a.page.getByRole("region", { name: "Phone features" }).innerText(),
+      /Notifications needed/,
+    );
+    await command("automatic", { enabled: false });
     await command("home");
     await shot("home-two-browsers");
     await command("details", { id: a.id });
@@ -437,6 +445,7 @@ export async function mobileAcceptance(f: Fixture) {
       publicWebsiteQrAndShare: true,
       pairingAndForegroundAccessBeforePermissions: true,
       independentSkippableFeatureSetup: true,
+      permissionDenialPreservesPairingAndForegroundAccess: true,
       authenticatedFeatureReports: true,
       renamedThroughUI: true,
       permissionRefreshOnResume: true,

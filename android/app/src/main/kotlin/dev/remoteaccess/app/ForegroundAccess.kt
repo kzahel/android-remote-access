@@ -84,12 +84,15 @@ internal object ForegroundAccess {
         visible && entry.active.get() && store.allowed(entry.browser.id, entry.browser.generation) &&
             (entry.lease?.active?.get() != false) && System.currentTimeMillis() < entry.expires
 
-    @Synchronized
     private fun admit(entry: Entry): Boolean {
         if (!valid(entry)) return false
         val lease = HostSessions.acquire(entry.browser) ?: return false
         entry.lease = lease
         lease.connection = entry.connection
+        if (!valid(entry)) {
+            HostSessions.release(lease)
+            return false
+        }
         entry.expires = System.currentTimeMillis() + 65000
         store.record("Connection requested", entry.browser.id)
         handler.postDelayed({

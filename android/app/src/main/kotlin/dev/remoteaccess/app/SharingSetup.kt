@@ -91,7 +91,8 @@ internal object SharingSetup {
             if (first) {
                 "Create a pairing code on the website. Scan that code with this phone to approve the browser."
             } else {
-                "A paired browser can connect without scanning again. To add another browser, create a pairing code there and scan it below."
+                "A paired browser can connect without scanning again. " +
+                    "To add another browser, create a pairing code there and scan it below."
             },
         )
         val dialog =

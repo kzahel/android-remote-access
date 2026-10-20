@@ -39,7 +39,7 @@ class HostedPairingTest {
         waitFor {
             try {
                 val view = device.findObject(selector)
-                if (view == null) {
+                if (view == null || !view.isEnabled) {
                     false
                 } else {
                     view.click()
@@ -152,7 +152,7 @@ class HostedPairingTest {
                     assertTrue(scan.isEnabled)
                     click("copy_website")
                     val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
-                    assertTrue(clipboard.primaryClip?.getItemAt(0)?.text?.toString() == BuildConfig.SHARING_WEBSITE)
+                    waitFor { clipboard.primaryClip?.getItemAt(0)?.text?.toString() == BuildConfig.SHARING_WEBSITE }
                 }
                 "website-qr" -> click("show_website_qr")
                 "share-link" -> {
@@ -167,10 +167,22 @@ class HostedPairingTest {
                     assertTrue(device.wait(Until.hasObject(By.res("${context.packageName}:id/skip_features")), 10000))
                 }
                 "skip-setup" -> click("skip_features")
+                "deny-feature-permission" -> {
+                    val paired = store.snapshot.browsers.map { it.id }
+                    start()
+                    click("review_settings")
+                    click("enable_wake")
+                    val deny = By.res("com.android.permissioncontroller:id/permission_deny_button")
+                    assertNotNull(device.wait(Until.findObject(deny), 10000)).click()
+                    waitFor { store.snapshot.settings.automatic }
+                    assertTrue(!WakeSupport.notificationsAllowed(context))
+                    click("skip_features")
+                    assertTrue(store.snapshot.browsers.map { it.id } == paired)
+                }
                 "foreground" -> {
                     start()
                     assertTrue(!WakeSupport.notificationsAllowed(context))
-                    assertTrue(!store.snapshot.settings.automatic)
+                    assertTrue(store.snapshot.settings.automatic == task.optBoolean("automatic", false))
                     waitFor { ForegroundAccess.listening(id) }
                 }
                 "activity" -> {
