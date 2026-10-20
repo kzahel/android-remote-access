@@ -5,4 +5,6 @@
     <string name="grant_browser">Grant</string>
     <string name="connect_phone">Connect</string>
     <string name="remove_browser">Remove browser</string>
+    <string name="enable_wake">Enable remote wake</string>
+    <string name="disable_wake">Disable remote wake</string>
 </resources>

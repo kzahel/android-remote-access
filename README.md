@@ -11,8 +11,10 @@ phone without visiting it physically.
 **Stage: hosted development pairing and encrypted sessions.** TypeScript/React
 and Kotlin now enroll real peer identities by QR, reconnect with durable pins,
 exchange encrypted test messages through a hosted relay, and revoke access.
-See [hosted acceptance](docs/hosted-pairing-proof.md) for measured scope. Screen
-viewing/control, FCM wake and WebRTC are later slices. The
+See [hosted acceptance](docs/hosted-pairing-proof.md) for measured scope. An
+[FCM wake slice](docs/fcm-wake-v1.md) is implemented locally; Firebase sender
+provisioning and real delivery acceptance are pending. Screen viewing/control
+and WebRTC are later slices. The
 [manual-access spike](spike/README.md) remains the working remote-control demo.
 This project is independent of Yep Anywhere and needs no AI runtime.
 

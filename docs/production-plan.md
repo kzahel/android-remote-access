@@ -351,7 +351,8 @@ screenshot, supplies it through the normal Android pairing intent, taps Grant,
 checks encrypted exchanges, restarts the native process/reloads the browser,
 and revokes the paired browser. Camera optics are a separate physical check.
 
-FCM follows this hosted slice. Its acceptance has three layers: deterministic
+The [FCM wake slice](fcm-wake-v1.md) is implemented locally; sender provisioning
+and real delivery acceptance remain pending. Its acceptance has three layers: deterministic
 sender/registration/revocation tests; real Firebase delivery with the application
 relay socket closed and native receipt → authenticated exchange evidence; then
 physical forced-Doze and natural overnight runs. Include token replacement,

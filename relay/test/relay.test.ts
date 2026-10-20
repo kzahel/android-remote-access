@@ -26,6 +26,7 @@ import {
 } from "@remote/protocol/enrollment";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { WebSocket } from "ws";
+import type { Options } from "../src/server.js";
 import { createRelay } from "../src/server.js";
 
 const origin = "https://example.test";
@@ -36,8 +37,8 @@ let viewer: Identity;
 let phone: Identity;
 let invitation: Invitation;
 const sockets: WebSocket[] = [];
-async function start() {
-  relay = createRelay({ origin, stateDir: directory });
+async function start(config: Partial<Options> = {}) {
+  relay = createRelay({ origin, stateDir: directory, ...config });
   relay.server.listen(0, "127.0.0.1");
   await once(relay.server, "listening");
   const address = relay.server.address();
@@ -133,10 +134,15 @@ function client(headers: Record<string, string> = {}) {
     socket,
     next,
     json,
-    async login(identity: Identity, role: string) {
+    async login(
+      identity: Identity,
+      role: string,
+      metadata: Record<string, unknown> = {},
+    ) {
       const c = await json();
       socket.send(
         JSON.stringify({
+          ...metadata,
           id: invitation.id,
           role,
           signature: b64(
@@ -361,4 +367,117 @@ it("accepts native JSON media types with UTF-8 charset parameters", async () => 
     { "Content-Type": "application/json; charset=utf-8" },
   );
   expect(response.status).toBe(201);
+});
+
+const fid = `c${"a".repeat(21)}`;
+async function registerPush() {
+  const registration = client();
+  await registration.login(phone, "phone", { mode: "registration" });
+  registration.socket.send(JSON.stringify({ type: "registerPush", fid }));
+  expect((await registration.json()).type).toBe("pushRegistered");
+  const closed = once(registration.socket, "close");
+  registration.socket.close();
+  await closed;
+}
+it("wakes only for an authenticated viewer and hides registration metadata", async () => {
+  let sent: { requestId: string; expires: number } | undefined;
+  await relay.close();
+  await start({
+    sender: async (_fid, request) => {
+      sent = request;
+      return "accepted";
+    },
+  });
+  await enroll();
+  await registerPush();
+  expect(JSON.stringify(await (await api()).json())).not.toContain(fid);
+  const bad = client();
+  await expect(bad.login(phone, "viewer")).rejects.toThrow();
+  expect(sent).toBeUndefined();
+  const v = client();
+  await v.login(viewer, "viewer");
+  expect((await v.json()).type).toBe("contacting");
+  expect(sent).toBeDefined();
+  const p = client();
+  await p.login(phone, "phone", { requestId: sent?.requestId });
+  expect((await p.json()).type).toBe("ready");
+  expect((await v.json()).type).toBe("ready");
+});
+it("registration refresh does not displace a live encrypted route", async () => {
+  await enroll();
+  const v = client();
+  const p = client();
+  await v.login(viewer, "viewer");
+  await p.login(phone, "phone");
+  await v.json();
+  await p.json();
+  await registerPush();
+  expect(v.socket.readyState).toBe(WebSocket.OPEN);
+  expect(p.socket.readyState).toBe(WebSocket.OPEN);
+});
+it("rejects delayed, expired and revoked wake requests", async () => {
+  let sent: { requestId: string; expires: number } | undefined;
+  await relay.close();
+  await start({
+    sender: async (_fid, request) => {
+      sent = request;
+      return "accepted";
+    },
+    wakeLifetimeMs: 1000,
+  });
+  await enroll();
+  await registerPush();
+  const v = client();
+  await v.login(viewer, "viewer");
+  await v.json();
+  const wrong = client();
+  await expect(
+    wrong.login(phone, "phone", { requestId: "00".repeat(16) }),
+  ).rejects.toThrow();
+  await new Promise((resolve) => setTimeout(resolve, 1100));
+  const expired = client();
+  await expect(
+    expired.login(phone, "phone", { requestId: sent?.requestId }),
+  ).rejects.toThrow();
+  await api("/revoke", {
+    signature: b64(await phone.sign(revokeBytes(origin, invitation.id))),
+  });
+  const revoked = client();
+  await expect(
+    revoked.login(phone, "phone", { requestId: sent?.requestId }),
+  ).rejects.toThrow();
+  expect(
+    await readFile(path.join(directory, "push-registrations-v1.json"), "utf8"),
+  ).not.toContain(fid);
+});
+
+it("lets the phone disable delivery but refuses viewer registration", async () => {
+  await enroll();
+  await registerPush();
+  const v = client();
+  await v.login(viewer, "viewer");
+  v.socket.send(JSON.stringify({ type: "registerPush", fid }));
+  await expect(v.next()).rejects.toThrow();
+  const p = client();
+  await p.login(phone, "phone", { mode: "registration" });
+  p.socket.send(JSON.stringify({ type: "unregisterPush" }));
+  expect((await p.json()).type).toBe("pushRemoved");
+  expect(
+    await readFile(path.join(directory, "push-registrations-v1.json"), "utf8"),
+  ).not.toContain(fid);
+});
+it("registration-only connections cannot inject records into a live route", async () => {
+  await enroll();
+  const v = client();
+  const p = client();
+  const management = client();
+  await v.login(viewer, "viewer");
+  await p.login(phone, "phone");
+  await v.json();
+  await p.json();
+  await management.login(phone, "phone", { mode: "registration" });
+  management.socket.send(Buffer.from("invalid management record"));
+  await expect(management.next()).rejects.toThrow();
+  expect(v.socket.readyState).toBe(WebSocket.OPEN);
+  expect(p.socket.readyState).toBe(WebSocket.OPEN);
 });

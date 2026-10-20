@@ -20,6 +20,7 @@ if (
 )
   throw new Error("Set HOSTED_ORIGIN to the HTTPS development relay origin");
 const state = path.join(root, ".local/hosted-proof");
+const fcm = process.env.HOSTED_FCM === "1";
 const sdk = process.env.ANDROID_HOME ?? path.join(os.homedir(), "Android/Sdk");
 const adbPath = path.join(sdk, "platform-tools/adb");
 const port = 5594;
@@ -131,6 +132,8 @@ try {
     adb("install", "-r", path.join(root, "android/app/build/outputs/apk", apk));
   // This AVD is owned by this runner, so clear only our host's old fixture state.
   adb("shell", "pm", "clear", appId);
+  if (fcm)
+    adb("shell", "pm", "grant", appId, "android.permission.POST_NOTIFICATIONS");
   adb("shell", "run-as", appId, "mkdir", "-p", "files");
   browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
@@ -198,7 +201,7 @@ try {
   }
   async function finishNative(label: string, action: string) {
     privateWrite("hosted-command", action);
-    await until(() => instrument?.exitCode !== null, 30000);
+    await until(() => instrument?.exitCode !== null, fcm ? 90000 : 30000);
     const nativeLog = await readFile(path.join(state, `${label}.log`), "utf8");
     if (!nativeLog.includes("OK (1 test)") || nativeLog.includes("FAILURES!!!"))
       throw new Error("Native acceptance failed; see private log");
@@ -210,11 +213,61 @@ try {
     await page
       .getByRole("status")
       .filter({ hasText: "Encrypted connection passed." })
-      .waitFor({ timeout: 30000 });
+      .waitFor({ timeout: fcm ? 80000 : 30000 });
   }
   await runNative("pair");
   await check();
-  await finishNative("pair", "finish");
+  await finishNative("pair", fcm ? "wake" : "finish");
+  let wakeEvidence: Record<string, number | boolean> = {};
+  if (fcm) {
+    if (
+      adb("shell", "run-as", appId, "cat", "files/hosted-stage") !==
+      "wake-ready"
+    )
+      throw new Error("Native FCM opt-in did not complete");
+    // Process reclamation, not force-stop: Firebase must be allowed to restart it.
+    await until(() => {
+      adb("shell", "am", "kill", "--user", "current", appId);
+      try {
+        return !adb("shell", "pidof", appId);
+      } catch {
+        return true;
+      }
+    }, 20000);
+    await page.reload();
+    const requestedAt = Date.now();
+    await check();
+    const checkpoints = await until(() => {
+      const settings = adb(
+        "shell",
+        "run-as",
+        appId,
+        "cat",
+        "shared_prefs/paired-browser-v1.xml",
+      );
+      const timestamp = (key: string) => {
+        const element = settings.match(
+          new RegExp(`<long name="${key}" value="([0-9]+)"`),
+        );
+        return Number(element?.[1] ?? 0);
+      };
+      const receipt = timestamp("lastPushReceipt");
+      const exchange = timestamp("lastWakeExchange");
+      return receipt >= requestedAt && exchange >= receipt
+        ? { receipt, exchange }
+        : undefined;
+    }, 10000);
+    if (!checkpoints) throw new Error("Missing native FCM checkpoints");
+    const { receipt, exchange } = checkpoints;
+    wakeEvidence = {
+      processAbsentBeforeWake: true,
+      noApplicationSocketBeforeWake: true,
+      firebaseReceived: true,
+      nativeEncryptedExchange: true,
+      requestToReceiptMs: receipt - requestedAt,
+      requestToExchangeMs: exchange - requestedAt,
+    };
+  }
   // A fresh Android process and a page reload must retain exact paired identities.
   adb("shell", "am", "force-stop", appId);
   await page.reload();
@@ -235,7 +288,8 @@ try {
   const report = {
     renderedQrDecoded: true,
     normalGrantUI: true,
-    encryptedExchanges: 2,
+    encryptedExchanges: fcm ? 3 : 2,
+    ...wakeEvidence,
     persistedAfterAndroidProcessRestart: true,
     persistedAfterBrowserReload: true,
     revoked: true,

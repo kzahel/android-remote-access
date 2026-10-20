@@ -10,7 +10,7 @@ import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import org.json.JSONObject
 import java.util.concurrent.Executors
 
-/** Foreground development host. Capture/input and background wake are later slices. */
+/** Development host: encrypted connection proof and opt-in remote wake. */
 class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var grantButton: Button
@@ -22,6 +22,10 @@ class MainActivity : Activity() {
     private var pending: Enrollment? = null
     private var connection: RelayConnection? = null
     private var busy = false
+    private val wakeListener =
+        android.content.SharedPreferences.OnSharedPreferenceChangeListener { store, key ->
+            if (key == "wakeState") store.getString(key, null)?.let(::report)
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -79,12 +83,65 @@ class MainActivity : Activity() {
                 setText(R.string.remove_browser)
                 setOnClickListener { revoke() }
             }
+        layout.addView(
+            Button(this).apply {
+                id = R.id.enable_wake
+                setText(R.string.enable_wake)
+                setOnClickListener {
+                    if (saved() == null) {
+                        report("Pair a browser first")
+                    } else {
+                        connection?.close()
+                        connection = null
+                        if (android.os.Build.VERSION.SDK_INT >= 33 &&
+                            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
+                            android.content.pm.PackageManager.PERMISSION_GRANTED
+                        ) {
+                            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 10)
+                        } else {
+                            enableWake()
+                        }
+                    }
+                }
+            },
+        )
+        layout.addView(
+            Button(this).apply {
+                setText(R.string.disable_wake)
+                setOnClickListener {
+                    preferences.save { putBoolean("wakeEnabled", false) }
+                    androidx.work.WorkManager.getInstance(this@MainActivity).cancelUniqueWork("remote-wake")
+                    WakeSupport.enqueue(
+                        this@MainActivity,
+                        androidx.work.Data.Builder().putBoolean("removePush", true).build(),
+                        registration = true,
+                    )
+                    report("Remote wake disabled on this phone")
+                }
+            },
+        )
         layout.addView(grantButton)
         layout.addView(connectButton)
         layout.addView(revokeButton)
         setContentView(layout)
+        preferences.registerOnSharedPreferenceChangeListener(wakeListener)
         report(if (saved() == null) "Pair this phone with your browser" else "Browser paired. Tap Connect.")
         intent.dataString?.let { showInvitation(it) }
+    }
+
+    private fun enableWake() {
+        if (!WakeSupport.notificationsAllowed(this)) return report("Allow remote connection notifications to enable wake")
+        preferences.save { putBoolean("wakeEnabled", true) }
+        report(if (WakeSupport.register(this)) "Setting up remote wake…" else "Firebase is not configured in this build")
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 10) enableWake()
     }
 
     private fun saved(): JSONObject? = preferences.getString("grant", null)?.let { JSONObject(it) }
@@ -112,7 +169,7 @@ class MainActivity : Activity() {
         worker.execute {
             try {
                 val accepted = invitation.grant(identity)
-                check(preferences.edit().putString("grant", accepted.toString()).commit())
+                preferences.save { putString("grant", accepted.toString()) }
                 runOnUiThread {
                     pending = null
                     grantButton.visibility = View.GONE
@@ -144,14 +201,14 @@ class MainActivity : Activity() {
         val grant = saved() ?: return report("No paired browser")
         connection?.close()
         connection = null
-        check(preferences.edit().putBoolean("revoked", true).commit())
+        preferences.save { putBoolean("revoked", true) }
         busy = true
         revokeButton.isEnabled = false
         worker.execute {
             try {
                 val signature = identity.sign(fields("ara/pair/revoke/v1", grant.getString("origin"), grant.getString("id")))
                 request(grant.getString("origin"), grant.getString("id"), "revoke", JSONObject().put("signature", encoded(signature)))
-                check(preferences.edit().remove("grant").remove("revoked").commit())
+                preferences.save { remove("grant").remove("revoked").putBoolean("wakeEnabled", false) }
                 report("Browser removed")
             } catch (
                 _: Exception,
@@ -171,6 +228,7 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        preferences.unregisterOnSharedPreferenceChangeListener(wakeListener)
         connection?.close()
         worker.shutdownNow()
         super.onDestroy()

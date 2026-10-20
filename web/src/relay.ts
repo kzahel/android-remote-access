@@ -16,6 +16,7 @@ import {
 export async function encryptedCheck(
   identity: Identity,
   grant: Grant,
+  report?: (message: string) => void,
 ): Promise<void> {
   let active = true;
   const url = new URL("/api/socket", location.origin);
@@ -44,7 +45,7 @@ export async function encryptedCheck(
     wake?.();
   };
   async function next() {
-    const deadline = Date.now() + 20000;
+    const deadline = Date.now() + 70000;
     while (!queue.length && !ended && Date.now() < deadline)
       await new Promise<void>((resolve) => {
         const timer = setTimeout(resolve, Math.max(1, deadline - Date.now()));
@@ -85,12 +86,13 @@ export async function encryptedCheck(
         ),
       }),
     );
+    report?.("Contacting phone…");
     let ready = false;
     while (!ready) {
       const value = await next();
       if (
         value instanceof Uint8Array ||
-        !["authenticated", "ready"].includes(value.type)
+        !["authenticated", "contacting", "ready"].includes(value.type)
       )
         throw new Error("Invalid relay state");
       ready = value.type === "ready";

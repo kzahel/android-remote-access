@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@remote/protocol": "workspace:*",
+    "firebase-admin": "14.2.0",
     "ws": "8.22.0"
   },
   "devDependencies": {

@@ -17,3 +17,7 @@ __pycache__/
 *.pyc
 .local
 .kotlin/
+
+# Firebase client config is supplied locally; sender keys never belong here.
+google-services.json
+*service-account*.json

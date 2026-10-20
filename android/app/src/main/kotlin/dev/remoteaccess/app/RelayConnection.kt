@@ -17,6 +17,11 @@ internal class RelayConnection(
     private val identity: Identity,
     private val grant: JSONObject,
     private val report: (String) -> Unit,
+    private val fid: String? = null,
+    private val requestId: String? = null,
+    private val registrationOnly: Boolean = false,
+    private val removePush: Boolean = false,
+    private val current: () -> Boolean = { true },
 ) : WebSocketListener() {
     private val active = AtomicBoolean(true)
     private var handshake: PhoneHandshake? = null
@@ -30,11 +35,11 @@ internal class RelayConnection(
     }
 
     @Synchronized
-    fun close() {
+    fun close(graceful: Boolean = false) {
         active.set(false)
         handshake?.close()
         channel?.close()
-        socket?.cancel()
+        if (graceful) socket?.close(1000, null) else socket?.cancel()
     }
 
     @Synchronized
@@ -43,7 +48,7 @@ internal class RelayConnection(
         text: String,
     ) {
         try {
-            check(active.get())
+            check(active.get() && current())
             val message = JSONObject(text)
             when (message.getString("type")) {
                 "challenge" -> {
@@ -54,10 +59,25 @@ internal class RelayConnection(
                         JSONObject().put(
                             "id",
                             grant.getString("id"),
-                        ).put("role", "phone").put("signature", encoded(identity.sign(data))).toString(),
+                        ).put(
+                            "role",
+                            "phone",
+                        ).put("signature", encoded(identity.sign(data))).apply {
+                            requestId?.let { put("requestId", it) }
+                            if (registrationOnly) put("mode", "registration")
+                        }.toString(),
                     )
                 }
-                "authenticated" -> report("Waiting for your browser")
+                "authenticated" -> {
+                    if (removePush) {
+                        webSocket.send(JSONObject().put("type", "unregisterPush").toString())
+                    } else if (fid != null) {
+                        webSocket.send(JSONObject().put("type", "registerPush").put("fid", fid).toString())
+                    }
+                    report("Waiting for your browser")
+                }
+                "pushRegistered" -> report("Remote wake ready")
+                "pushRemoved" -> report("Remote wake disabled")
                 "ready" -> {
                     check(!ready)
                     ready = true
@@ -77,7 +97,7 @@ internal class RelayConnection(
         bytes: ByteString,
     ) {
         try {
-            check(active.get() && ready)
+            check(active.get() && current() && ready)
             val input = bytes.toByteArray()
             val current = channel
             if (current != null) {
@@ -89,7 +109,8 @@ internal class RelayConnection(
             } else {
                 val pending = handshake
                 if (pending == null) {
-                    val auth = Authority(unhex(grant.getString("id"), 16), 1, decoded(grant.getString("viewer"))) { active.get() }
+                    val auth =
+                        Authority(unhex(grant.getString("id"), 16), 1, decoded(grant.getString("viewer"))) { active.get() && current() }
                     handshake = PhoneHandshake.start(identity, auth, input).also { webSocket.send(it.offer.toByteString()) }
                 } else {
                     val result = pending.finish(input)
@@ -108,6 +129,7 @@ internal class RelayConnection(
         t: Throwable,
         response: Response?,
     ) {
+        if (!active.get()) return
         close()
         report("Connection closed. Tap Connect to try again.")
     }
@@ -117,6 +139,7 @@ internal class RelayConnection(
         code: Int,
         reason: String,
     ) {
+        if (!active.get()) return
         webSocket.close(code, null)
         close()
         report("Connection closed. Tap Connect to try again.")

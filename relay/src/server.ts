@@ -23,6 +23,7 @@ import {
   verifySignature,
 } from "@remote/protocol/enrollment";
 import { WebSocket, WebSocketServer } from "ws";
+import { PushRegistry, type Sender, type Wake } from "./push.js";
 
 type Stored = Grant & { viewerSignature: string; revoked: boolean };
 type Pending = { id: string; viewer: string; expires: number; offer?: Grant };
@@ -31,6 +32,8 @@ export interface Options {
   stateDir: string;
   revision?: string;
   trustProxy?: boolean;
+  sender?: Sender;
+  wakeLifetimeMs?: number;
 }
 export function createRelay(options: Options) {
   const origin = originURL(options.origin);
@@ -82,6 +85,8 @@ export function createRelay(options: Options) {
       throw new Error("Persistence unavailable");
     }
   };
+  const push = new PushRegistry(options.stateDir, options.sender);
+  const requests = new Map<string, Wake>();
   const pending = new Map<string, Pending>();
   const buckets = new Map<string, { until: number; count: number }>();
   const routes = new Map<
@@ -91,6 +96,7 @@ export function createRelay(options: Options) {
   const disconnect = (id: string) => {
     const route = routes.get(id);
     routes.delete(id);
+    requests.delete(id);
     for (const ws of Object.values(route ?? {}))
       ws.close(4001, "Reconnect with a fresh session");
   };
@@ -271,6 +277,7 @@ export function createRelay(options: Options) {
         existing.revoked = true;
         durable();
         disconnect(id);
+        push.remove(id);
         reply(200, { state: "revoked" });
       }
     } catch {
@@ -301,6 +308,8 @@ export function createRelay(options: Options) {
     let role: "phone" | "viewer" | undefined;
     let working = false;
     let authenticated = false;
+    let pushUpdated = false;
+    let managementOnly = false;
     let alive = true;
     const timeout = setTimeout(
       () => ws.close(4003, "Authentication expired"),
@@ -343,6 +352,8 @@ export function createRelay(options: Options) {
             id: string;
             role: string;
             signature: string;
+            requestId?: string;
+            mode?: string;
           };
           fromHex(message.id, 16);
           if (message.role !== "phone" && message.role !== "viewer")
@@ -356,7 +367,33 @@ export function createRelay(options: Options) {
           );
           if (pair.revoked || ws.readyState !== WebSocket.OPEN || unhealthy)
             throw new Error("Unavailable");
+          if (message.mode !== undefined) {
+            if (
+              message.role !== "phone" ||
+              message.mode !== "registration" ||
+              message.requestId !== undefined
+            )
+              throw new Error("Invalid mode");
+            id = message.id;
+            role = "phone";
+            managementOnly = true;
+            authenticated = true;
+            clearTimeout(timeout);
+            ws.send(JSON.stringify({ type: "authenticated" }));
+            return;
+          }
           const route = routes.get(message.id) ?? {};
+          if (message.requestId !== undefined) {
+            const pendingRequest = requests.get(message.id);
+            if (
+              message.role !== "phone" ||
+              !route.viewer ||
+              !pendingRequest ||
+              pendingRequest.requestId !== message.requestId ||
+              pendingRequest.expires * 1000 <= Date.now()
+            )
+              throw new Error("No current request");
+          }
           if (route[message.role]) throw new Error("Already connected");
           id = message.id;
           role = message.role;
@@ -365,13 +402,63 @@ export function createRelay(options: Options) {
           authenticated = true;
           clearTimeout(timeout);
           ws.send(JSON.stringify({ type: "authenticated" }));
-          if (route.phone && route.viewer)
+          if (options.sender && role === "viewer" && !route.phone) {
+            const request = {
+              requestId: randomBytes(16).toString("hex"),
+              expires: Math.floor(
+                (Date.now() + (options.wakeLifetimeMs ?? 60000)) / 1000,
+              ),
+            };
+            requests.set(id, request);
+            void push
+              .wake(id, request)
+              .then((delivery) => {
+                if (
+                  ws.readyState === WebSocket.OPEN &&
+                  requests.get(message.id) === request
+                )
+                  ws.send(JSON.stringify({ type: "contacting", delivery }));
+              })
+              .catch(() => ws.close(4003, "Wake unavailable"));
+          }
+          if (route.phone && route.viewer) {
+            requests.delete(id);
             for (const peer of Object.values(route))
               peer.send(JSON.stringify({ type: "ready" }));
+          }
         } else {
+          if (managementOnly && binary) throw new Error("Registration only");
           const pair = id ? pairs[id] : undefined;
           const route = id ? routes.get(id) : undefined;
           const peer = role === "phone" ? route?.viewer : route?.phone;
+          if (
+            !binary &&
+            role === "phone" &&
+            pair &&
+            !pair.revoked &&
+            data.length <= 512
+          ) {
+            const registration = JSON.parse(data.toString()) as {
+              type: string;
+              fid: string;
+            };
+            if (pushUpdated) throw new Error("Metadata already set");
+            if (registration.type === "registerPush")
+              push.register(pair.id, registration.fid);
+            else if (registration.type === "unregisterPush")
+              push.remove(pair.id);
+            else throw new Error("Invalid metadata");
+            pushUpdated = true;
+            ws.send(
+              JSON.stringify({
+                type:
+                  registration.type === "registerPush"
+                    ? "pushRegistered"
+                    : "pushRemoved",
+              }),
+            );
+            return;
+          }
           if (
             !binary ||
             !pair ||
@@ -392,6 +479,8 @@ export function createRelay(options: Options) {
     const now = Date.now();
     for (const [id, p] of pending)
       if (p.expires * 1000 <= now) pending.delete(id);
+    for (const [id, request] of requests)
+      if (request.expires * 1000 <= now) disconnect(id);
     for (const [ip, b] of buckets) if (b.until <= now) buckets.delete(ip);
   }, 10000);
   sweep.unref();

@@ -39,7 +39,12 @@ class HostedPairingTest {
             assertNotNull(grant, "Normal grant screen missing")
             grant.click()
         }
-        assertTrue(device.wait(Until.hasObject(By.text("Browser paired. Tap Connect.")), 90000))
+        if (pairing) {
+            assertTrue(device.wait(Until.hasObject(By.text("Browser paired. Tap Connect.")), 90000))
+        } else {
+            assertTrue(context.getSharedPreferences("paired-browser-v1", 0).contains("grant"))
+            assertTrue(device.wait(Until.hasObject(By.res("${context.packageName}:id/connect_phone")), 15000))
+        }
         val before = KeystoreIdentity.loadOrCreate("phone-identity-v1").publicKey
         assertTrue(before.contentEquals(KeystoreIdentity.loadOrCreate("phone-identity-v1").publicKey))
         device.findObject(By.res("${context.packageName}:id/connect_phone")).click()
@@ -48,6 +53,12 @@ class HostedPairingTest {
         val deadline = System.nanoTime() + 120_000_000_000L
         while (!command.exists() && System.nanoTime() < deadline) Thread.sleep(200)
         assertTrue(command.exists(), "Browser runner did not finish")
+        if (command.readText() == "wake") {
+            device.findObject(By.res("${context.packageName}:id/enable_wake")).click()
+            assertTrue(device.wait(Until.hasObject(By.text("Remote wake ready")), 60000), "Firebase registration did not reach relay")
+            device.pressHome()
+            stage.writeText("wake-ready")
+        }
         if (command.readText() == "revoke") {
             device.findObject(By.res("${context.packageName}:id/remove_browser")).click()
             assertTrue(device.wait(Until.hasObject(By.text("Browser removed")), 20000))

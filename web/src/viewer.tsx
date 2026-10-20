@@ -42,7 +42,7 @@ function App() {
         setGrant(g);
         setStatus(
           g
-            ? "Phone paired. Open the Android app to check the connection."
+            ? "Phone paired. Enable remote wake in the phone app, or tap Connect there."
             : "Pair your phone to this browser.",
         );
       })
@@ -82,7 +82,7 @@ function App() {
           setGrant(paired);
           setInvitation(undefined);
           setStatus(
-            "Phone paired. Open the Android app to check the connection.",
+            "Phone paired. Enable remote wake in the phone app, or tap Connect there.",
           );
         }
       } catch (error) {
@@ -147,7 +147,7 @@ function App() {
               setBusy(true);
               setStatus("Connecting to your phone…");
               try {
-                await encryptedCheck(await browserIdentity(), grant);
+                await encryptedCheck(await browserIdentity(), grant, setStatus);
                 setStatus("Encrypted connection passed.");
               } catch (error) {
                 setStatus(

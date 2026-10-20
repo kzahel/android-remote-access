@@ -2,4 +2,5 @@
     <item name="grant_browser" type="id"/>
     <item name="connect_phone" type="id"/>
     <item name="remove_browser" type="id"/>
+    <item name="enable_wake" type="id" />
 </resources>

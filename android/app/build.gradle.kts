@@ -3,6 +3,8 @@ plugins {
     kotlin("android")
     id("org.jlleitschuh.gradle.ktlint")
 }
+if (file("google-services.json").exists()) apply(plugin = "com.google.gms.google-services")
+
 android {
     namespace = "dev.remoteaccess.app"
     compileSdk = 36
@@ -11,7 +13,7 @@ android {
         minSdk = 30
         targetSdk = 36
         versionCode = 1
-        versionName = "0.2-pairing-relay"
+        versionName = "0.3-fcm-wake"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     compileOptions {
@@ -26,6 +28,13 @@ android {
 }
 kotlin { compilerOptions { allWarningsAsErrors.set(true) } }
 dependencies {
+    // Pinned to the reviewed installation-registration API and Kotlin 2.0 toolchain.
+    //noinspection GradleDependency
+    implementation(platform("com.google.firebase:firebase-bom:34.16.0"))
+    implementation("com.google.firebase:firebase-messaging")
+    // Keep the Kotlin 2.0-compatible worker API.
+    //noinspection GradleDependency
+    implementation("androidx.work:work-runtime:2.10.1")
     androidTestImplementation(kotlin("test"))
     implementation(project(":protocol"))
     // Keep the established 4.x API with the pinned Kotlin 2.0 toolchain.
