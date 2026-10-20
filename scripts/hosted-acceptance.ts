@@ -110,12 +110,14 @@ const emulator = spawn(
 let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
 let instrument: ReturnType<typeof spawn> | undefined;
 const logs: Awaited<ReturnType<typeof open>>[] = [];
-const privateWrite = (file: string, value: string) =>
-  execFileSync(
+const privateWrite = (file: string, value: string) => {
+  if (!/^[a-z-]+$/.test(file)) throw new Error("Invalid fixture filename");
+  return execFileSync(
     adbPath,
-    ["-s", serial, "shell", "run-as", appId, "sh", "-c", `cat > files/${file}`],
+    ["-s", serial, "shell", `run-as ${appId} sh -c 'cat > files/${file}'`],
     { input: value, timeout: 10000, stdio: ["pipe", "pipe", "pipe"] },
   );
+};
 let invitationId: string | undefined;
 let revoked = false;
 try {
@@ -176,11 +178,23 @@ try {
       ],
       { stdio: ["ignore", logFile.fd, logFile.fd] },
     );
-    await until(
-      () =>
-        adb("shell", "run-as", appId, "cat", "files/hosted-stage") ===
-        "connected",
-    );
+    const deadline = Date.now() + 120000;
+    let connected = false;
+    while (Date.now() < deadline) {
+      if (instrument.exitCode !== null)
+        throw new Error(
+          "Native fixture exited before connection; see private log",
+        );
+      try {
+        connected =
+          adb("shell", "run-as", appId, "cat", "files/hosted-stage") ===
+          "connected";
+      } catch {}
+      if (connected) break;
+      await delay(400);
+    }
+    if (!connected)
+      throw new Error("Native fixture did not connect; see private log");
   }
   async function finishNative(label: string, action: string) {
     privateWrite("hosted-command", action);

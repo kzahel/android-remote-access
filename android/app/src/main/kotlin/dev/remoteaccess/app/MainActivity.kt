@@ -62,17 +62,20 @@ class MainActivity : Activity() {
         )
         grantButton =
             Button(this).apply {
+                id = R.id.grant_browser
                 setText(R.string.grant_browser)
                 visibility = View.GONE
                 setOnClickListener { grant() }
             }
         connectButton =
             Button(this).apply {
+                id = R.id.connect_phone
                 setText(R.string.connect_phone)
                 setOnClickListener { connect() }
             }
         revokeButton =
             Button(this).apply {
+                id = R.id.remove_browser
                 setText(R.string.remove_browser)
                 setOnClickListener { revoke() }
             }

@@ -165,7 +165,8 @@ export function createRelay(options: Options) {
       }
       if (
         req.method !== "POST" ||
-        req.headers["content-type"] !== "application/json"
+        req.headers["content-type"]?.split(";")[0]?.trim().toLowerCase() !==
+          "application/json"
       ) {
         reply(415, { error: "JSON required" });
         return;

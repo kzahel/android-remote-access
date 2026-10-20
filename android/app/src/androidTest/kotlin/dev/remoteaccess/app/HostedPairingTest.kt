@@ -35,21 +35,21 @@ class HostedPairingTest {
         }
         context.startActivity(intent)
         if (pairing) {
-            val grant = device.wait(Until.findObject(By.text("Grant")), 15000)
+            val grant = device.wait(Until.findObject(By.res("${context.packageName}:id/grant_browser")), 15000)
             assertNotNull(grant, "Normal grant screen missing")
             grant.click()
         }
         assertTrue(device.wait(Until.hasObject(By.text("Browser paired. Tap Connect.")), 90000))
         val before = KeystoreIdentity.loadOrCreate("phone-identity-v1").publicKey
         assertTrue(before.contentEquals(KeystoreIdentity.loadOrCreate("phone-identity-v1").publicKey))
-        device.findObject(By.text("Connect")).click()
+        device.findObject(By.res("${context.packageName}:id/connect_phone")).click()
         assertTrue(device.wait(Until.hasObject(By.text("Waiting for your browser")), 20000))
         stage.writeText("connected")
         val deadline = System.nanoTime() + 120_000_000_000L
         while (!command.exists() && System.nanoTime() < deadline) Thread.sleep(200)
         assertTrue(command.exists(), "Browser runner did not finish")
         if (command.readText() == "revoke") {
-            device.findObject(By.text("Remove browser")).click()
+            device.findObject(By.res("${context.packageName}:id/remove_browser")).click()
             assertTrue(device.wait(Until.hasObject(By.text("Browser removed")), 20000))
             stage.writeText("revoked")
         }

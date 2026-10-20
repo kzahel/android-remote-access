@@ -349,3 +349,16 @@ it("bounds bodies and rejects plaintext application traffic", async () => {
   a.socket.send("plaintext");
   await expect(a.next()).rejects.toThrow();
 });
+
+it("accepts native JSON media types with UTF-8 charset parameters", async () => {
+  const response = await api(
+    "",
+    {
+      viewer: invitation.viewer,
+      expires: invitation.expires,
+      signature: b64(await viewer.sign(createBytes(origin, invitation))),
+    },
+    { "Content-Type": "application/json; charset=utf-8" },
+  );
+  expect(response.status).toBe(201);
+});
