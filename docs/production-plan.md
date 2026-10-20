@@ -2,7 +2,8 @@
 
 Written 2026-10-19 at the owner's request, updated 2026-10-20 with repository
 and stack decisions. Production implementation is authorized in this repository;
-the remote-control runtime remains the preserved spike. Crypto and hosted
+the root remote-control runtime now passes owned-emulator hosted acceptance.
+The preserved spike remains a reference. Crypto and hosted
 pairing/relay slices are implemented; see [hosted acceptance](hosted-pairing-proof.md).
 No store listing exists. Evidence references distinguish the preserved phone
 spike from current production-slice acceptance; untested behavior is a hypothesis.
@@ -250,7 +251,7 @@ No private credential was moved into Git or active phone demo interrupted.
 
 Port proven pieces deliberately, each with its relevant regression coverage:
 
-- Android: Kotlin and Jetpack Compose. Port the accessibility capture and
+- Android: Kotlin, preserving the current plain native consumer screens. Port the accessibility capture and
   input, touch relay, video encoder, unlock sequence, start-after-restart and
   Keystore pairing. Leave behind the fixtures, ADB provisioning and test-only
   shell paths.
@@ -272,7 +273,7 @@ without further framework decisions:
   not delay typing or touch feedback.
 - Biome for TypeScript/React formatting and lint; separate TypeScript checking.
   Build relay and protocol packages with explicit build/typecheck scripts.
-- Kotlin, Jetpack Compose, coroutines and explicit lifecycle/resource ownership
+- Kotlin, plain native screens and explicit lifecycle/resource ownership
   on Android. Separate transport, pairing/session authority, accessibility
   capture/input, PIN delivery and MediaProjection. Use a committed Gradle
   wrapper, Android lint and ktlint; no shell helpers or test activities in the

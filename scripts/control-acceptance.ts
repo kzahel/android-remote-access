@@ -490,8 +490,17 @@ export async function controlAcceptance(f: Fixture) {
       );
       syntheticLock = false;
       await rm(path.join(f.state, "synthetic-lock"), { force: true });
+      adb("shell", "input", "keyevent", "KEYCODE_SLEEP");
       adb("shell", "input", "keyevent", "KEYCODE_WAKEUP");
+      adb("shell", "input", "keyevent", "KEYCODE_BACK");
       adb("shell", "wm", "dismiss-keyguard");
+      await until(
+        () =>
+          adb("shell", "dumpsys", "window", "policy").match(
+            /KeyguardServiceDelegate[\s\S]*?\bshowing=false/,
+          ),
+        10000,
+      );
     }
     await command("global", { enabled: false });
     await page

@@ -54,6 +54,10 @@ No production test activities or ADB control paths belong in the shipped APK.
   relay: screen images, native tap, Unicode text, real scroll, Home, installed-app
   launch, global disarm and removal. The independent witness is confined to the
   instrumentation APK. The normal production APK contains no test activities.
-- Bounded continuation gestures are ported with shared TS/Kotlin wire vectors;
-  held-touch and loss acceptance are next. Unlock, video, direct connections and
-  combined unattended qualification remain pending.
+- Combined owned-emulator relay acceptance now passes held dragging, long press,
+  two-finger pinch/rotation, lost-packet release, saved/manual PIN unlock, one wrong
+  synthetic PIN with persisted recovery guard and local forgetting, H.264 decoding,
+  quality change and full disarm/removal cleanup. See [control acceptance](control-acceptance.md).
+- Opt-in restart setup restoration is implemented; actual reboot acceptance is
+  pending. Direct WebRTC is being integrated. Combined physical/FCM, rotation and
+  network-loss qualification and natural overnight evidence remain pending.

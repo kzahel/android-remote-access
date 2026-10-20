@@ -8,18 +8,18 @@ and check whether solar is charging the big power station. Other examples are
 using the phone as a camera, recovering an app login, and operating a dedicated
 phone without visiting it physically.
 
-**Stage: hosted development pairing and encrypted sessions.** TypeScript/React
-and Kotlin now enroll real peer identities by QR, reconnect with durable pins,
-exchange encrypted test messages through a hosted relay, and revoke access.
-See [hosted acceptance](docs/hosted-pairing-proof.md) for measured scope. The
-[FCM wake slice](docs/fcm-wake-v1.md) now passes real delivery from the hosted
-relay with the app process/socket absent, on an owned emulator and a physical
-Pixel 7a, including screen-off forced Doze.
-The Android host also manages multiple paired browsers, local nicknames, global
-and per-browser access switches, and local SQLite activity history. See
-[mobile management](docs/mobile-management.md).
-Screen viewing/control and WebRTC are later slices. The
-[manual-access spike](spike/README.md) remains the working remote-control demo.
+**Stage: hosted development remote control.** The Kotlin host and React viewer
+pair by QR, manage multiple browsers, and carry end-to-end encrypted screen
+images, video and input through the hosted relay. The owned-emulator acceptance
+covers tap/swipe/navigation/text/app launch, held dragging, long press, pinch and
+rotation, manual/saved-PIN unlock, failed-attempt recovery, H.264 quality changes,
+lost-packet input release and revocation. See [control acceptance](docs/control-acceptance.md).
+The [FCM wake slice](docs/fcm-wake-v1.md) has separate emulator and physical
+Pixel 7a evidence, including process-absent, screen-off forced Doze. Combined
+physical control/video/wake qualification and direct WebRTC acceptance remain
+in progress; see the [completion plan](docs/control-completion.md).
+Android manages browser nicknames, per-browser/global access and SQLite activity
+history; see [mobile management](docs/mobile-management.md).
 This project is independent of Yep Anywhere and needs no AI runtime.
 
 ## Develop
@@ -93,7 +93,10 @@ and **How to connect**. Approval works before Android permissions; **Enable
 features** is a separate, skippable step. Allowed browsers can check the secure
 connection while the app is visible without notification permission. Optional
 background requests require their own opt-in and notification setup. Screen
-viewing/input remain unavailable in this root host.
+viewing/input use the separately enabled Android screen-access service. Smooth
+video asks for fresh system screen-sharing consent. Manual PIN entry remains
+visible while locked, whether or not a PIN is saved locally; each browser needs
+its own unlock permission.
 
 Android's public website link is compiled from the `sharingWebsite` Gradle
 property (HTTPS origin, no trailing slash); its default is the hosted website.
