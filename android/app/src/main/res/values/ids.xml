@@ -30,4 +30,5 @@
     <item name="forget_pin" type="id" />
     <item name="save_pin_value" type="id" />
     <item name="save_pin_confirm" type="id" />
+    <item name="restore_setup" type="id" />
 </resources>

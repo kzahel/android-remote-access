@@ -384,6 +384,16 @@ class MainActivity : ComponentActivity() {
     private fun settings(layout: LinearLayout) {
         button(layout, "Feature setup", R.id.open_features) { navigate("features") }
         connectionRequests(layout)
+        toggle(layout, "Restore setup after restart", RestartRecovery.enabled(this), R.id.restore_setup) { enabled ->
+            RestartRecovery.setEnabled(this, enabled)
+            render()
+        }
+        text(
+            layout,
+            "Refresh connection setup after restarting or updating. Unlock the phone locally once after a restart. " +
+                "Screen sharing still needs new approval.",
+            14f,
+        )
         text(layout, "When this app is unused", 20f)
         val restrictionsEnabled =
             unusedRestrictions in
