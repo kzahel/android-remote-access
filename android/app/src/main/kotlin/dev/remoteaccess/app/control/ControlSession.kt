@@ -48,11 +48,12 @@ internal class ControlSession(private val context: Context, private val current:
             reply(1, state.toString().toByteArray())
         } else {
             val service = ScreenAccessService.current
-            if (service == null) reply(2, byteArrayOf(1)) else service.execute(command, { active.get() && current() }, reply)
+            if (service == null) reply(2, byteArrayOf(1)) else service.execute(command, this, { active.get() && current() }, reply)
         }
     }
 
     fun close() {
         active.set(false)
+        ScreenAccessService.current?.release(this)
     }
 }

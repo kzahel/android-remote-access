@@ -1,4 +1,11 @@
 /** Commands travel only inside an authenticated application record. Integers are big-endian. */
+export type TouchBatch = {
+  scene: number;
+  gesture: number;
+  sequence: number;
+  duration: number;
+  contacts: { id: number; held: boolean; path: { x: number; y: number }[] }[];
+};
 export type Command =
   | { op: "start" | "status" | "capture" | "wake" | "apps" }
   | { op: "tap"; scene: number; x: number; y: number }
@@ -13,7 +20,9 @@ export type Command =
     }
   | { op: "navigation"; action: "back" | "home" | "recents" }
   | { op: "text"; text: string }
-  | { op: "launch"; packageName: string };
+  | { op: "launch"; packageName: string }
+  | { op: "touch"; batch: TouchBatch }
+  | { op: "release" };
 const operations = [
   "start",
   "status",
@@ -25,6 +34,8 @@ const operations = [
   "launch",
   "wake",
   "apps",
+  "touch",
+  "release",
 ] as const;
 export const MAX_COMMAND = 4112;
 export function encodeCommand(
@@ -35,6 +46,7 @@ export function encodeCommand(
     throw new Error("Invalid command ID");
   let values: number[] = [];
   let tail = new Uint8Array();
+  if (command.op === "touch") tail = encodeTouch(command.batch);
   switch (command.op) {
     case "tap":
       values = [command.scene, command.x, command.y];
@@ -205,4 +217,61 @@ export function resultMessage(code: number): string {
       "Session ended",
     ][code] ?? "Action failed"
   );
+}
+
+function encodeTouch(batch: TouchBatch): Uint8Array<ArrayBuffer> {
+  const int = (n: number, min: number, max: number) =>
+    Number.isInteger(n) && n >= min && n <= max;
+  if (
+    !int(batch.scene, 1, 0x7fffffff) ||
+    !int(batch.gesture, 1, 0x7fffffff) ||
+    !int(batch.sequence, 0, 1000000) ||
+    !int(batch.duration, 16, 100) ||
+    batch.contacts.length < 1 ||
+    batch.contacts.length > 10
+  )
+    throw new Error("Invalid touch batch");
+  const ids = new Set<number>();
+  for (const c of batch.contacts) {
+    if (
+      !int(c.id, 0, 1000000) ||
+      ids.has(c.id) ||
+      typeof c.held !== "boolean" ||
+      c.path.length < 1 ||
+      c.path.length > 24 ||
+      c.path.some(
+        (p) =>
+          !Number.isFinite(p.x) ||
+          !Number.isFinite(p.y) ||
+          p.x < 0 ||
+          p.y < 0 ||
+          p.x >= 16384 ||
+          p.y >= 16384,
+      )
+    )
+      throw new Error("Invalid contact");
+    ids.add(c.id);
+  }
+  const out = new Uint8Array(
+      16 + batch.contacts.reduce((n, c) => n + 8 + c.path.length * 8, 0),
+    ),
+    v = new DataView(out.buffer);
+  v.setUint32(0, batch.scene);
+  v.setUint32(4, batch.gesture);
+  v.setUint32(8, batch.sequence);
+  v.setUint16(12, batch.duration);
+  v.setUint8(14, batch.contacts.length);
+  let offset = 16;
+  for (const c of batch.contacts) {
+    v.setUint32(offset, c.id);
+    v.setUint8(offset + 4, c.held ? 1 : 0);
+    v.setUint8(offset + 5, c.path.length);
+    offset += 8;
+    for (const p of c.path) {
+      v.setFloat32(offset, p.x);
+      v.setFloat32(offset + 4, p.y);
+      offset += 8;
+    }
+  }
+  return out;
 }

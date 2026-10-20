@@ -30,6 +30,7 @@ class ScreenAccessService : AccessibilityService() {
     private var window = -1
     private var rotation = -1
     private var gesture = false
+    private val touch = TouchController(this, main)
     private var capturedAt = 0L
 
     @Volatile private var screenWidth = 0
@@ -52,6 +53,7 @@ class ScreenAccessService : AccessibilityService() {
     }
 
     private fun invalidate() {
+        touch.release()
         scene = if (scene == Int.MAX_VALUE) 1 else scene + 1
         capturedAt = 0
     }
@@ -81,6 +83,7 @@ class ScreenAccessService : AccessibilityService() {
 
     fun execute(
         command: ControlCommand,
+        owner: Any,
         allowed: () -> Boolean,
         reply: (Int, ByteArray) -> Unit,
     ) {
@@ -88,7 +91,19 @@ class ScreenAccessService : AccessibilityService() {
             fun result(code: Int) = reply(2, byteArrayOf(code.toByte()))
             if (!allowed() || current !== this) return@post result(8)
             if (command.op == 2) return@post reply(1, state().toString().toByteArray())
+            if (command.op == 12) {
+                touch.release(owner)
+                return@post result(0)
+            }
             if (locked()) return@post result(3)
+            if (command.op == 11) {
+                val batch = checkNotNull(command.touch)
+                if (!touch.active && (capturedAt == 0L || android.os.SystemClock.elapsedRealtime() - capturedAt > 10000)) {
+                    return@post result(2)
+                }
+                touch.accept(batch, owner, screenWidth, screenHeight, scene, allowed, ::result)
+                return@post
+            }
             if (command.op == 3) return@post capture(allowed, reply)
             if (locked()) return@post result(3)
             when (command.op) {
@@ -99,7 +114,7 @@ class ScreenAccessService : AccessibilityService() {
                     }
                     val points = if (command.op == 4) listOf(v[1] to v[2]) else listOf(v[1] to v[2], v[3] to v[4])
                     if (points.any { it.first !in 0 until screenWidth || it.second !in 0 until screenHeight }) return@post result(2)
-                    if (gesture) return@post result(6)
+                    if (gesture || touch.active) return@post result(6)
                     val path =
                         Path().apply {
                             moveTo(v[1].toFloat(), v[2].toFloat())
@@ -174,6 +189,10 @@ class ScreenAccessService : AccessibilityService() {
                 else -> result(4)
             }
         }
+    }
+
+    fun release(owner: Any) {
+        main.post { touch.release(owner) }
     }
 
     private fun capture(

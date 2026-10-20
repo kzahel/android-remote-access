@@ -23,6 +23,11 @@ class ControlTest {
                 "navigation" -> assertEquals(listOf(2), parsed.values)
                 "text" -> assertEquals(expected.getString("text"), parsed.text)
                 "launch" -> assertEquals(expected.getString("packageName"), parsed.text)
+                "touch" -> {
+                    val batch = requireNotNull(parsed.touch)
+                    assertEquals(42, batch.gesture)
+                    assertEquals(TouchPoint(120.25f, 240.5f), batch.contacts.single().path.single())
+                }
             }
         }
     }
@@ -39,5 +44,16 @@ class ControlTest {
         assertFails { ControlCommand.decode(bytes("415243310700000000000001ff")) }
         assertFails { ControlCommand.decode(bytes("41524331060000000000000100")) }
         assertFails { ControlCommand.decode(bytes("415243310800000000000001")) }
+    }
+
+    @Test fun touchRejectsMissingContactsInvalidFlagsAndNonfiniteSamples() {
+        val good = bytes("415243310b00000000000007000000030000002a0000000000280100000000000101000042f0800043708000")
+        assertEquals(1, ControlCommand.decode(good).touch?.contacts?.size)
+        for (length in 12 until good.size) assertFails { ControlCommand.decode(good.copyOf(length)) }
+        for (index in listOf(24, 26, 27, 32, 33, 34, 36, 40)) {
+            val bad = good.copyOf()
+            bad[index] = 255.toByte()
+            assertFails { ControlCommand.decode(bad) }
+        }
     }
 }

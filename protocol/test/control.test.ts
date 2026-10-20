@@ -36,6 +36,33 @@ describe("control boundary", () => {
       encodeCommand(1, { op: "launch", packageName: "x; command" }),
     ).toThrow();
   });
+  it("rejects invalid and ambiguous multi-contact batches", () => {
+    const batch = {
+      scene: 1,
+      gesture: 1,
+      sequence: 0,
+      duration: 40,
+      contacts: [{ id: 0, held: true, path: [{ x: 1, y: 2 }] }],
+    };
+    expect(() =>
+      encodeCommand(1, {
+        op: "touch",
+        batch: { ...batch, contacts: [...batch.contacts, ...batch.contacts] },
+      }),
+    ).toThrow();
+    expect(() =>
+      encodeCommand(1, { op: "touch", batch: { ...batch, duration: NaN } }),
+    ).toThrow();
+    expect(() =>
+      encodeCommand(1, {
+        op: "touch",
+        batch: {
+          ...batch,
+          contacts: [{ id: 0, held: true, path: [{ x: NaN, y: 1 }] }],
+        },
+      }),
+    ).toThrow();
+  });
   it("rejects unknown, oversized and malformed responses", () => {
     const good = new Uint8Array(
       Buffer.from("41525031020000000000000100", "hex"),

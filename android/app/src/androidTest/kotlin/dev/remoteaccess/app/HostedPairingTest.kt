@@ -1,11 +1,13 @@
 package dev.remoteaccess.app
 
+import android.app.UiAutomation
 import android.content.Intent
 import android.net.Uri
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.BySelector
+import androidx.test.uiautomator.Configurator
 import androidx.test.uiautomator.StaleObjectException
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
@@ -20,7 +22,11 @@ import kotlin.test.assertTrue
 @RunWith(AndroidJUnit4::class)
 class HostedPairingTest {
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
-    private val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+    private val device =
+        run {
+            Configurator.getInstance().uiAutomationFlags = UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES
+            UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+        }
     private val store get() = HostStore.get(context).load()
 
     private fun waitFor(

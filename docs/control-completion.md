@@ -50,4 +50,10 @@ No production test activities or ADB control paths belong in the shipped APK.
 
 ## Progress
 
-- Plan recorded; implementation and acceptance pending.
+- Hosted basic control passes on the owned API-35 emulator through the public
+  relay: screen images, native tap, Unicode text, real scroll, Home, installed-app
+  launch, global disarm and removal. The independent witness is confined to the
+  instrumentation APK. The normal production APK contains no test activities.
+- Bounded continuation gestures are ported with shared TS/Kotlin wire vectors;
+  held-touch and loss acceptance are next. Unlock, video, direct connections and
+  combined unattended qualification remain pending.

@@ -96,6 +96,14 @@ and generic utility copy. See `docs/mobile-management.md`. This extends the
 current pairing/wake product; it does not claim screen control has been ported or
 authorize new physical-phone lock/debugging changes.
 
+The later owner request authorizes driving the complete control implementation
+end to end with incremental verified commits and the existing Pi deployment.
+Saved PIN, continuous touch, smooth video and direct WebRTC/fallback are in scope;
+see `docs/control-completion.md`. Use owned emulators with synthetic credentials
+for unlock/reboot tests. The attached Pixel 7a remains authorized for ordinary
+host/accessibility/capture/FCM tests, not physical PIN entry, reboot or lock/debugging
+changes. Play publication is not authorized.
+
 ## Research discipline
 
 - Prefer official Android/Firebase documentation, official vendor help, and

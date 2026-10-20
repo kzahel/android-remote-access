@@ -273,6 +273,7 @@ internal class HostStore private constructor(private val legacy: android.content
         private val EVENT_KINDS =
             setOf(
                 "Connection requested",
+                "Remote control started",
                 "Connection check completed",
                 "Connection failed",
                 "Connection ended",

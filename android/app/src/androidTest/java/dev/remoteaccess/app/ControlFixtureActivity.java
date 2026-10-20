@@ -1,0 +1,96 @@
+package dev.remoteaccess.app;
+
+import android.app.Activity;
+import android.graphics.Color;
+import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.SeekBar;
+import android.widget.TextView;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.nio.charset.StandardCharsets;
+import org.json.JSONObject;
+
+/** Independent Android effects witness, only in the instrumentation APK.
+ * Java keeps this separately launched APK independent of the target's Kotlin runtime.
+ */
+public final class ControlFixtureActivity extends Activity {
+    private int taps, longPresses, sliderProgress;
+    private String entered = "";
+    private boolean sliderHeld;
+    private Button target;
+    private EditText field;
+    private ScrollView scroll;
+    private SeekBar slider;
+
+    @Override public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(40, 100, 40, 40);
+        content.setBackgroundColor(Color.rgb(225, 242, 255));
+        TextView title = new TextView(this);
+        title.setText("Remote control fixture");
+        title.setTextSize(24);
+        content.addView(title);
+        target = new Button(this);
+        target.setText("Tap witness");
+        target.setAllCaps(false);
+        target.setOnClickListener(v -> { taps++; target.setText("Tapped " + taps); witness(); });
+        target.setOnLongClickListener(v -> { longPresses++; witness(); return true; });
+        field = new EditText(this);
+        field.setHint("Type witness");
+        field.setSingleLine(true);
+        field.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { entered = s.toString(); witness(); }
+            @Override public void afterTextChanged(Editable value) {}
+        });
+        slider = new SeekBar(this);
+        slider.setMax(1000);
+        slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar bar, int progress, boolean user) { if (user) { sliderProgress = progress; witness(); } }
+            @Override public void onStartTrackingTouch(SeekBar bar) { sliderHeld = true; witness(); }
+            @Override public void onStopTrackingTouch(SeekBar bar) { sliderHeld = false; witness(); }
+        });
+        content.addView(target, new LinearLayout.LayoutParams(-1, 160));
+        content.addView(field, new LinearLayout.LayoutParams(-1, 160));
+        content.addView(slider, new LinearLayout.LayoutParams(-1, 160));
+        for (int i = 0; i < 40; i++) {
+            TextView item = new TextView(this);
+            item.setText("Scroll item " + i);
+            item.setTextSize(22);
+            item.setPadding(0, 30, 0, 30);
+            content.addView(item);
+        }
+        scroll = new ScrollView(this);
+        scroll.addView(content);
+        scroll.setOnScrollChangeListener((v, x, y, oldX, oldY) -> witness());
+        setContentView(scroll);
+        scroll.post(this::witness);
+    }
+
+    private JSONObject center(View view) throws Exception {
+        int[] location = new int[2];
+        view.getLocationOnScreen(location);
+        return new JSONObject().put("x", location[0] + view.getWidth() / 2).put("y", location[1] + view.getHeight() / 2);
+    }
+
+    private void witness() {
+        if (scroll == null) return;
+        try {
+            JSONObject value = new JSONObject().put("taps", taps).put("text", entered).put("scroll", scroll.getScrollY())
+                .put("target", center(target)).put("field", center(field)).put("slider", center(slider))
+                .put("sliderProgress", sliderProgress).put("longPresses", longPresses).put("sliderHeld", sliderHeld);
+            File next = new File(getFilesDir(), "control-witness.next");
+            try (FileOutputStream output = new FileOutputStream(next)) { output.write(value.toString().getBytes(StandardCharsets.UTF_8)); }
+            if (!next.renameTo(new File(getFilesDir(), "control-witness.json"))) throw new IllegalStateException("Witness replacement failed");
+        } catch (Exception error) { throw new IllegalStateException("Witness write failed", error); }
+    }
+}

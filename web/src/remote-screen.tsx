@@ -6,6 +6,7 @@ import {
 } from "@remote/protocol/control";
 import { useEffect, useRef, useState } from "react";
 import type { RemoteSession } from "./control-session.js";
+import { TouchInput } from "./touch-input.js";
 
 /** Media and pointer coordinates stay in refs; React owns only status and controls. */
 export function RemoteScreen({
@@ -21,16 +22,7 @@ export function RemoteScreen({
   const frame = useRef<
     { scene: number; width: number; height: number } | undefined
   >(undefined);
-  const contact = useRef<
-    | {
-        x: number;
-        y: number;
-        at: number;
-        scene: number;
-        pointer: number;
-      }
-    | undefined
-  >(undefined);
+  const touch = useRef<TouchInput | undefined>(undefined);
   const [state, setState] = useState(initial);
   const [message, setMessage] = useState("");
   const [text, setText] = useState("");
@@ -38,7 +30,17 @@ export function RemoteScreen({
   useEffect(() => {
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
+    const input = canvas.current
+      ? new TouchInput(canvas.current, session, () => frame.current, setMessage)
+      : undefined;
+    touch.current = input;
     async function capture() {
+      if (input?.active) {
+        timer = setTimeout(() => {
+          void capture();
+        }, 150);
+        return;
+      }
       try {
         const reply = await session.command({ op: "capture" });
         if (stopped) return;
@@ -83,7 +85,8 @@ export function RemoteScreen({
     return () => {
       stopped = true;
       clearTimeout(timer);
-      contact.current = undefined;
+      input?.close();
+      touch.current = undefined;
     };
   }, [session]);
   async function act(command: Command) {
@@ -95,27 +98,6 @@ export function RemoteScreen({
       setMessage(error instanceof Error ? error.message : "Connection ended");
     }
   }
-  function point(event: React.PointerEvent<HTMLCanvasElement>) {
-    const f = frame.current,
-      rect = event.currentTarget.getBoundingClientRect();
-    if (!f) return undefined;
-    return {
-      x: Math.min(
-        f.width - 1,
-        Math.max(
-          0,
-          Math.floor(((event.clientX - rect.left) * f.width) / rect.width),
-        ),
-      ),
-      y: Math.min(
-        f.height - 1,
-        Math.max(
-          0,
-          Math.floor(((event.clientY - rect.top) * f.height) / rect.height),
-        ),
-      ),
-    };
-  }
   return (
     <section aria-label="Remote screen">
       <p role="status">{message || "Connected securely"}</p>
@@ -126,45 +108,7 @@ export function RemoteScreen({
         </p>
       )}
       {state.locked && <p>Phone is locked.</p>}
-      <canvas
-        ref={canvas}
-        aria-label="Phone screen"
-        className="phone-screen"
-        onPointerDown={(event) => {
-          const p = point(event);
-          if (!p || !frame.current) return;
-          contact.current = {
-            ...p,
-            scene: frame.current.scene,
-            at: Date.now(),
-            pointer: event.pointerId,
-          };
-          event.currentTarget.setPointerCapture(event.pointerId);
-        }}
-        onPointerCancel={() => {
-          contact.current = undefined;
-        }}
-        onPointerUp={(event) => {
-          const start = contact.current;
-          contact.current = undefined;
-          const end = point(event);
-          if (!start || !end || start.pointer !== event.pointerId) return;
-          const distance = Math.hypot(end.x - start.x, end.y - start.y);
-          void act(
-            distance < 12
-              ? { op: "tap", scene: start.scene, x: start.x, y: start.y }
-              : {
-                  op: "swipe",
-                  scene: start.scene,
-                  x: start.x,
-                  y: start.y,
-                  endX: end.x,
-                  endY: end.y,
-                  duration: Math.min(2000, Math.max(40, Date.now() - start.at)),
-                },
-          );
-        }}
-      />
+      <canvas ref={canvas} aria-label="Phone screen" className="phone-screen" />
       <div className="controls">
         {(["back", "home", "recents"] as const).map((action) => (
           <button

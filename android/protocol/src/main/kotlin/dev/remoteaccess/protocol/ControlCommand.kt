@@ -4,7 +4,13 @@ import java.nio.ByteBuffer
 import java.nio.charset.CodingErrorAction
 
 /** Strict binary application boundary, independent of Android and transport. */
-data class ControlCommand(val id: Long, val op: Int, val values: List<Int> = emptyList(), val text: String = "") {
+data class ControlCommand(
+    val id: Long,
+    val op: Int,
+    val values: List<Int> = emptyList(),
+    val text: String = "",
+    val touch: TouchBatch? = null,
+) {
     companion object {
         fun decode(bytes: ByteArray): ControlCommand {
             require(bytes.size in 12..4112)
@@ -16,8 +22,9 @@ data class ControlCommand(val id: Long, val op: Int, val values: List<Int> = emp
             require(id > 0)
             val values = mutableListOf<Int>()
             var text = ""
+            var touch: TouchBatch? = null
             when (op) {
-                1, 2, 3, 9, 10 -> require(!input.hasRemaining())
+                1, 2, 3, 9, 10, 12 -> require(!input.hasRemaining())
                 4, 5 -> {
                     val count = if (op == 4) 3 else 6
                     require(input.remaining() == count * 4)
@@ -36,9 +43,10 @@ data class ControlCommand(val id: Long, val op: Int, val values: List<Int> = emp
                             .onUnmappableCharacter(CodingErrorAction.REPORT).decode(input).toString()
                     if (op == 8) require(text.matches(Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+")))
                 }
+                11 -> touch = TouchBatch.decode(input)
                 else -> error("Unknown command")
             }
-            return ControlCommand(id, op, values, text)
+            return ControlCommand(id, op, values, text, touch)
         }
 
         fun reply(
