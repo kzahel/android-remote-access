@@ -8,12 +8,11 @@ and check whether solar is charging the big power station. Other examples are
 using the phone as a camera, recovering an app login, and operating a dedicated
 phone without visiting it physically.
 
-**Stage: production foundation plus preserved phone prototypes.** The first
-production slice implements an experimental paired crypto session in TypeScript
-and Kotlin with shared vectors and a React interoperability harness. It does
-not yet implement production phone control. The next slice adds QR enrollment,
-durable paired identities and a hosted development relay; see
-[pairing/relay v1](docs/pairing-relay-v1.md). The
+**Stage: hosted development pairing and encrypted sessions.** TypeScript/React
+and Kotlin now enroll real peer identities by QR, reconnect with durable pins,
+exchange encrypted test messages through a hosted relay, and revoke access.
+See [hosted acceptance](docs/hosted-pairing-proof.md) for measured scope. Screen
+viewing/control, FCM wake and WebRTC are later slices. The
 [manual-access spike](spike/README.md) remains the working remote-control demo.
 This project is independent of Yep Anywhere and needs no AI runtime.
 
@@ -50,15 +49,27 @@ and process environment capable of running the selected emulator. The local
 acceptance below is macOS ARM64; other runner hosts are not yet qualified.
 The optional CI interoperability job runs on manual workflow dispatch.
 
-`pnpm --filter @remote/web dev` serves `/crypto.html`, a development-only React
-harness with a browser self-check. It is not the consumer viewer. Existing
-phone demos retain temporary root asset symlinks and the root server launcher;
+`pnpm --filter @remote/web dev` serves `/crypto.html` for the isolated browser
+crypto self-check and `/viewer.html` for the new pairing UI. Hosted pairing
+requires HTTPS and the same-origin relay API. To run the public acceptance:
+
+```sh
+HOSTED_ORIGIN=https://YOUR_DEVELOPMENT_ORIGIN pnpm test:hosted
+```
+
+This separate runner decodes the rendered QR screenshot and uses the normal
+Android Grant flow, then tests persisted reconnect and revocation. It owns
+an API-35 emulator on port 5594 and an isolated Chromium; artifacts stay in
+`.local/hosted-proof/`. See the private dotfiles runbook for deployment.
+
+Existing phone demos retain temporary root asset symlinks and the root server launcher;
 new prototype commands run from `spike/`.
 
 ## Evidence and plans
 
-See [crypto session v1](docs/crypto-session-v1.md) for the exact construction,
-[acceptance](docs/crypto-proof.md) for measured scope, and the
+See [pairing/relay v1](docs/pairing-relay-v1.md) for enrollment and routing,
+[crypto session v1](docs/crypto-session-v1.md) for the exact session construction,
+[hosted acceptance](docs/hosted-pairing-proof.md) for measured scope, and the
 [production plan](docs/production-plan.md#repository-and-build-structure) for
 later slices. The crypto composition has not had independent security review.
 

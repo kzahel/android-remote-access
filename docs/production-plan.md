@@ -2,10 +2,10 @@
 
 Written 2026-10-19 at the owner's request, updated 2026-10-20 with repository
 and stack decisions. Production implementation is authorized in this repository;
-the remote-control runtime remains the preserved spike. The first production
-crypto interoperability slice is implemented; see [its acceptance](crypto-proof.md). The next development slice adds a hosted pairing/relay service; no store
-listing exists. Evidence references point to the spike documents; anything not listed
-there as tested is a hypothesis.
+the remote-control runtime remains the preserved spike. Crypto and hosted
+pairing/relay slices are implemented; see [hosted acceptance](hosted-pairing-proof.md).
+No store listing exists. Evidence references distinguish the preserved phone
+spike from current production-slice acceptance; untested behavior is a hypothesis.
 
 ## Goal
 
@@ -139,7 +139,7 @@ Write a short decision record for each before building it.
   compromised hosted viewer can access plaintext at the browser endpoint;
   immutable assets/CSP reduce risk but do not remove that trust. An independently
   distributed viewer would be a separate future delivery decision.
-- **Identity and sessions.** Keep pairing (QR prototype; production enrollment in progress), device identity (Keystore
+- **Identity and sessions.** Keep pairing (QR prototype; hosted enrollment implemented), device identity (Keystore
   key, implemented), session authority (short-lived grants, step-up before unlock) and
   optional account sign-in separate. Sign-in, if added, recovers and syncs
   paired keys; it must not be required for an unattended phone to reconnect.
@@ -227,8 +227,7 @@ session.
 
 Preserve the spike while building the product in the same repository. The
 2026-10-20 owner decision supersedes the earlier new-repository proposal.
-Layout established by the first crypto slice (the `relay/` service is a later
-slice; no empty service scaffold is added):
+Layout established by the crypto and hosted pairing/relay slices:
 
 ```text
 android/       Kotlin Android app
@@ -344,7 +343,8 @@ emulator screenshots.
 ## Hosted pairing/relay slice (2026-10-20)
 
 The owner authorizes the Pi development deployment, DNS/Caddy configuration and
-commits in this repository and dotfiles. See [pairing/relay v1](pairing-relay-v1.md)
+commits in this repository and dotfiles. The service and automated public flow
+are now tested; see [acceptance](hosted-pairing-proof.md). See [pairing/relay v1](pairing-relay-v1.md)
 for enrollment and routing. Root `pnpm test:hosted`, with `HOSTED_ORIGIN` supplied
 by the operator, owns an emulator and real Chromium, decodes the rendered QR
 screenshot, supplies it through the normal Android pairing intent, taps Grant,
