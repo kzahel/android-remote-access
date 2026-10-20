@@ -1,0 +1,22 @@
+{
+  "name": "android-remote-access-spike",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "demo": "python3 scripts/demo.py start --with-test-pin",
+    "stop": "python3 scripts/demo.py stop",
+    "acceptance": "python3 scripts/acceptance.py"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.58.2"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "uqr": "0.1.3",
+    "ws": "8.22.0"
+  }
+}

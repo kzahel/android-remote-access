@@ -17,9 +17,12 @@ import urllib.request
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
-LOCAL = ROOT / '.local'
+LOCAL = ROOT.parent / '.local'
 LOCAL.mkdir(mode=0o700,exist_ok=True)
 LOCAL.chmod(0o700)
+# Keep legacy JS runners and saved relative paths on the same private state.
+if not (ROOT / '.local').exists():
+    (ROOT / '.local').symlink_to(LOCAL, target_is_directory=True)
 PACKAGE = 'dev.remoteaccess.spike'
 SDK = Path(os.environ.get('ANDROID_HOME') or os.environ.get('ANDROID_SDK_ROOT') or next((str(p) for p in [Path.home()/'Android/Sdk',Path.home()/'Library/Android/sdk'] if p.exists()), ''))
 ADB = SDK / 'platform-tools/adb'
@@ -219,7 +222,7 @@ def rearm(args):
         pid=data.get('serverPid')
         if pid:
             command=run(['ps','-p',str(pid),'-o','command='])
-            if str(ROOT/'server.mjs') not in command: raise RuntimeError('Demo server identity changed')
+            if not any(str(p) in command for p in (ROOT/'server.mjs', ROOT.parent/'server.mjs')): raise RuntimeError('Demo server identity changed')
             os.kill(pid,signal.SIGTERM)
             wait_for(lambda: not run(['ps','-p',str(pid),'-o','command='],check=False).strip(),10,'server exit')
         with (LOCAL/'server.log').open('w') as log:
@@ -269,7 +272,7 @@ def stop(args):
     if pid:
         try:
             command=run(['ps','-p',str(pid),'-o','command='])
-            if str(ROOT/'server.mjs') in command: os.kill(pid,signal.SIGTERM)
+            if any(str(p) in command for p in (ROOT/'server.mjs', ROOT.parent/'server.mjs')): os.kill(pid,signal.SIGTERM)
         except (ProcessLookupError,subprocess.CalledProcessError): pass
     path.unlink(missing_ok=True)
     (LOCAL/'running.json').unlink(missing_ok=True)

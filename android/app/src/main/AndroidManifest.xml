@@ -1,40 +1,4 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
-    <queries><intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent></queries>
-    <application android:label="Remote access spike" android:allowBackup="false"
-        android:fullBackupContent="false" android:dataExtractionRules="@xml/backup_rules"
-        android:icon="@android:drawable/ic_menu_view"
-        android:theme="@android:style/Theme.Material.Light.NoActionBar">
-        <activity android:name=".SetupActivity" android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-        <!-- Opens a scanned or tapped pairing link; nothing is sent until the owner taps Grant. -->
-        <activity android:name=".PairActivity" android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="rapair" android:host="pair" />
-            </intent-filter>
-        </activity>
-        <meta-data android:name="com.google.mlkit.vision.DEPENDENCIES" android:value="barcode_ui" />
-        <activity android:name=".StationActivity" android:exported="true" />
-        <activity android:name=".TouchLabActivity" android:exported="true" />
-        <service android:name=".VideoService" android:exported="false" android:foregroundServiceType="mediaProjection" />
-        <activity android:name=".WakeActivity" android:exported="false"
-            android:showWhenLocked="true" android:turnScreenOn="true"
-            android:theme="@android:style/Theme.Material.Light.NoActionBar" />
-        <service android:name=".AccessService" android:exported="true"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
-            <meta-data android:name="android.accessibilityservice" android:resource="@xml/accessibility" />
-        </service>
-    </application>
+    <application android:label="Remote Access Crypto Proof" android:icon="@android:drawable/ic_lock_lock" android:allowBackup="false" android:fullBackupContent="false" android:dataExtractionRules="@xml/backup_rules" android:supportsRtl="true" />
 </manifest>

@@ -171,8 +171,10 @@ test("QR pairing admits only the paired browser and phone keys", async () => {
     // Removing the browser on the phone revokes it at the relay.
     control.send({ type: "viewers", viewers: [] });
     assert.ok(await until(async () => (await call("/api/state")).status === 401));
-    const saved = JSON.parse(await readFile(demo.pairingFile, "utf8"));
-    assert.deepEqual(saved.phones[phone.fpr].viewers, {});
+    assert.ok(await until(async () => {
+      const saved = JSON.parse(await readFile(demo.pairingFile, "utf8"));
+      return Object.keys(saved.phones[phone.fpr].viewers).length === 0;
+    }));
     control.socket.destroy();
   } finally {
     await demo.close();

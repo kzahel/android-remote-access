@@ -7,6 +7,13 @@ A separate, explicitly
 invoked test can use the authorized attached Pixel 7a as the browser client.
 The product identity and eventual architecture remain open.
 
+The executable prototype lives here after the 2026-10-20 production split.
+All commands below run from `spike/`. Its ignored `.local` symlink points to
+root `.local/`, preserving existing demo/AVD/pairing state without copying it.
+The root `server.mjs` launcher and `web/` asset symlinks temporarily preserve
+active demos started before the move. Remove those compatibility paths only
+after those demos have been stopped. The new React harness is `web/crypto.html`.
+
 ## Run
 
 Requirements: Node 22+, Python 3.10+, JDK 17, Gradle 8.13, Android SDK platform
@@ -15,6 +22,7 @@ Set `ANDROID_HOME` and optionally `GRADLE_BIN` when discovery needs help. The
 current runner targets ARM64 hosts; x86 system-image selection is not implemented.
 
 ```sh
+cd spike  # from the repository root
 npm ci
 npm run demo
 # Browser: http://127.0.0.1:4317

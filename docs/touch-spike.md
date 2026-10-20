@@ -1,5 +1,9 @@
 # Continuous touch experiment
 
+After the 2026-10-20 repository split, run the prototype commands in this
+record from `spike/` (`cd spike` from the root). `.local/` resolves to the
+preserved root private state through the ignored compatibility symlink.
+
 Authorized 2026-10-19: extend the emulator demo with finger-following scrolling,
 slider dragging and two-finger zoom/rotation, paired with a smoother screen feed.
 The follow-up also permits automated tests and the attached Pixel 7a. This remains

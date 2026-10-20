@@ -8,18 +8,57 @@ and check whether solar is charging the big power station. Other examples are
 using the phone as a camera, recovering an app login, and operating a dedicated
 phone without visiting it physically.
 
-**Stage: research plus emulator and USB-connected phone prototypes.** The
-[manual-access spike](docs/spike.md) is experimental; its acceptance evidence
-does not establish consumer readiness. This project is
-independent of Yep Anywhere (YA) and must work without AI subscriptions or an
-agent being signed in. Repairing YA Android-host authentication is one useful
-test case, not the product's identity.
+**Stage: production foundation plus preserved phone prototypes.** The first
+production slice implements an experimental paired crypto session in TypeScript
+and Kotlin with shared vectors and a React interoperability harness. It does
+not yet implement production phone control or a hosted relay. The
+[manual-access spike](spike/README.md) remains the working remote-control demo.
+This project is independent of Yep Anywhere and needs no AI runtime.
 
-Production implementation was authorized **2026-10-20** in this same repository:
-React/TypeScript viewer, TypeScript relay/protocol and Kotlin Android app, with
-builds, tests and lint. The current runtime remains experimental; preserving it
-under `spike/` and creating the production layout are next. See the
-[production plan](docs/production-plan.md#repository-and-build-structure).
+## Develop
+
+Requirements: Node 22+, pnpm 10.30.3, JDK 17 and Android SDK platform 36 / build
+tools 35.0.0 or 36.0.0. Set `ANDROID_HOME` to the SDK. Gradle is supplied by the
+committed wrapper with a pinned distribution checksum.
+
+```sh
+pnpm install --frozen-lockfile
+pnpm build
+pnpm typecheck
+pnpm lint
+pnpm format:check
+pnpm test
+pnpm build:android
+```
+
+For real Chromium ↔ Android Keystore verification, install the SDK emulator
+and `system-images;android-35;google_apis;arm64-v8a` on ARM64, or `x86_64` on
+Intel/AMD hosts, then:
+
+```sh
+pnpm exec playwright install chromium
+pnpm test:interop
+```
+
+The runner creates its own headless API 35 AVD in `.local/crypto-proof/`, refuses
+to adopt an existing device, and reaps its browser, emulator and forwarding.
+It installs only the crypto proof app on that emulator. No physical phone or
+lock credential is involved. Linux needs working KVM; Windows needs an SDK
+and process environment capable of running the selected emulator. The local
+acceptance below is macOS ARM64; other runner hosts are not yet qualified.
+The optional CI interoperability job runs on manual workflow dispatch.
+
+`pnpm --filter @remote/web dev` serves `/crypto.html`, a development-only React
+harness with a browser self-check. It is not the consumer viewer. Existing
+phone demos retain temporary root asset symlinks and the root server launcher;
+new prototype commands run from `spike/`.
+
+## Evidence and plans
+
+See [crypto session v1](docs/crypto-session-v1.md) for the exact construction,
+[acceptance](docs/crypto-proof.md) for measured scope, and the
+[production plan](docs/production-plan.md#repository-and-build-structure) for
+later slices. The crypto composition has not had independent security review.
 
 - [Run the emulator demo](spike/README.md)
 - [Control an attached phone](docs/phone-spike.md)

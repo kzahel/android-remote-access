@@ -2,7 +2,8 @@
 
 Written 2026-10-19 at the owner's request, updated 2026-10-20 with repository
 and stack decisions. Production implementation is authorized in this repository;
-the current runtime is still the spike. No production relay or store listing
+the remote-control runtime remains the preserved spike. The first production
+crypto interoperability slice is implemented; see [its acceptance](crypto-proof.md). No production relay or store listing
 exists. Evidence references point to the spike documents; anything not listed
 there as tested is a hypothesis.
 
@@ -121,12 +122,14 @@ Write a short decision record for each before building it.
   delivery registration are not encryption keys.
   Follow the [JSTorrent live-session reference](sibling-repositories.md#babytrack-and-jstorrent-encryption-references)
   rather than Babytrack's group-history model or OPAQUE passphrase login for
-  this QR-first product. Exact protocol/library selection remains open:
-  native WebCrypto/Android cryptography (for example authenticated ephemeral
-  P-256 ECDH, HKDF and AES-GCM records) is an interoperability candidate, not a
-  selected or audited construction. Reusing sibling Rust/native-Wasm crypto is
-  another option with a stack cost. Specify and review the handshake, record
-  limits, nonce/rekey rules and TS/Kotlin vectors before implementation.
+  this QR-first product. The first experimental slice is specified in [crypto session v1](crypto-session-v1.md).
+  Production adoption and independent review remain open:
+  the proof uses native WebCrypto/Android cryptography with authenticated
+  ephemeral P-256 ECDH, HKDF-SHA256 and AES-GCM records. This is implemented
+  experimental interoperability evidence, not an audited production construction. Reusing sibling Rust/native-Wasm crypto is
+  another option with a stack cost. The slice specifies the handshake, record
+  limits, nonce/rekey rules and shared TS/Kotlin vectors; independent review
+  remains a prerequisite for production adoption.
   The same security identity must hold over direct and relayed paths. WebRTC
   DTLS alone is insufficient if signaling can substitute the peer: authenticate
   its negotiated channel/fingerprint through the E2E session, or carry the
@@ -224,7 +227,8 @@ session.
 
 Preserve the spike while building the product in the same repository. The
 2026-10-20 owner decision supersedes the earlier new-repository proposal.
-Planned layout (not yet moved or scaffolded):
+Layout established by the first crypto slice (the `relay/` service is a later
+slice; no empty service scaffold is added):
 
 ```text
 android/       Kotlin Android app
@@ -237,12 +241,13 @@ research/      Research method and source inventory
 references/    Ignored pinned competitor checkouts
 ```
 
-Move the executable prototype as one unit, retaining its own package manifest,
-lockfile and Android build. Update path assumptions and runbooks so it remains
-usable. Preserve private `.local/` state; do not move credentials into tracked
-files or interrupt an active phone demo to perform the migration. Carry the
-known pairing-revocation persistence assertion failure into the migration work
-and diagnose it before declaring the preserved spike checks green.
+The executable prototype was moved as one unit, retaining its own package manifest,
+lockfile and Android build. Runbooks now select `spike/`; its ignored `.local`
+symlink preserves the root private state. Temporary root server/asset
+compatibility paths keep already-running demos serving. Remove those paths
+once the old demos are stopped. The pairing-revocation test now awaits the
+asynchronous atomic persistence it asserts; all 19 preserved spike tests pass.
+No private credential was moved into Git or active phone demo interrupted.
 
 Port proven pieces deliberately, each with its relevant regression coverage:
 

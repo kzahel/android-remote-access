@@ -81,7 +81,7 @@ def write_link(data):
 
 
 def doctor():
-    adapter = ROOT.parent / 'machine-control/platforms/android/bin/android-device'
+    adapter = ROOT.parent.parent / 'machine-control/platforms/android/bin/android-device'
     result = json.loads(subprocess.check_output([str(adapter), 'doctor', '--json'],
             env={**os.environ, 'ANDROID_TESTBED_SERIAL': route()}, timeout=30))
     private(STATE / 'doctor.json', result)
@@ -211,7 +211,7 @@ def rearm(args):
     if args.restart_server:
         data=receipt()
         command=run(['ps','-p',str(data['serverPid']),'-o','command='],check=False)
-        if str(ROOT/'server.mjs') not in command: raise RuntimeError('Phone server identity changed')
+        if not any(str(p) in command for p in (ROOT/'server.mjs', ROOT.parent/'server.mjs')): raise RuntimeError('Phone server identity changed')
         os.kill(data['serverPid'],signal.SIGTERM)
         wait_for(lambda:not run(['ps','-p',str(data['serverPid']),'-o','command='],check=False).strip(),10,'old server exit')
         config=json.loads((STATE/'server.json').read_text())
@@ -287,7 +287,7 @@ def stop(args):
             adb('reverse','--remove',expected[0])
     if data.get('serverPid'):
         command=run(['ps','-p',str(data['serverPid']),'-o','command='],check=False)
-        if str(ROOT/'server.mjs') in command: os.kill(data['serverPid'],signal.SIGTERM)
+        if any(str(p) in command for p in (ROOT/'server.mjs', ROOT.parent/'server.mjs')): os.kill(data['serverPid'],signal.SIGTERM)
     if args.restore:
         if data.get('installedByUs') or data.get('installAttempted'):
             if adb('shell','pm','path',PACKAGE,check=False).strip(): adb('uninstall',PACKAGE)

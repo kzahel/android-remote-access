@@ -1,5 +1,9 @@
 # USB-connected phone host spike
 
+After the 2026-10-20 repository split, run the prototype commands in this
+record from `spike/` (`cd spike` from the root). `.local/` resolves to the
+preserved root private state through the ignored compatibility symlink.
+
 Authorized 2026-10-19 by the explicit request to control the attached Pixel 7a.
 The phone is the controlled Android host. The earlier
 [physical browser-client trial](touch-spike.md#physical-browser-client) controlled

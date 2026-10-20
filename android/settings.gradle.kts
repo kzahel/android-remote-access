@@ -3,5 +3,5 @@ dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories { google(); mavenCentral() }
 }
-rootProject.name = "remote-access-spike"
-include(":app")
+rootProject.name = "remote-access"
+include(":protocol", ":app")

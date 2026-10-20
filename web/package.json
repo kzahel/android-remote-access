@@ -1,0 +1,20 @@
+{
+  "name": "@remote/web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc --noEmit -p ../tsconfig.json",
+    "dev": "vite --host 127.0.0.1"
+  },
+  "dependencies": {
+    "@remote/protocol": "workspace:*",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "vite": "6.4.1"
+  }
+}
