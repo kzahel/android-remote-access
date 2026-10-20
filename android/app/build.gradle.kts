@@ -22,8 +22,8 @@ android {
         applicationId = "dev.remoteaccess.host"
         minSdk = 30
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.5.0"
+        versionCode = 3
+        versionName = "0.6.0"
         buildConfigField("String", "SHARING_WEBSITE", "\"$sharingWebsite\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

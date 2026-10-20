@@ -304,6 +304,8 @@ internal class HostStore private constructor(private val legacy: android.content
                 "Session blocked: phone busy",
                 "Wake setup completed",
                 "Wake setup failed",
+                "Setup restored after restart",
+                "Setup restored after update",
                 "Access stopped on phone",
             )
 

@@ -58,6 +58,11 @@ No production test activities or ADB control paths belong in the shipped APK.
   two-finger pinch/rotation, lost-packet release, saved/manual PIN unlock, one wrong
   synthetic PIN with persisted recovery guard and local forgetting, H.264 decoding,
   quality change and full disarm/removal cleanup. See [control acceptance](control-acceptance.md).
-- Opt-in restart setup restoration is implemented; actual reboot acceptance is
-  pending. Direct WebRTC is being integrated. Combined physical/FCM, rotation and
-  network-loss qualification and natural overnight evidence remain pending.
+- Native WebRTC and fresh encrypted relay recovery pass on the emulator and
+  physical Pixel 7a. The physical ordinary-control/video/gesture suite passes,
+  including mid-drag peer loss, no replay and cleanup. See
+  [direct transport](direct-transport.md) for measurements and dependency notices.
+- Owned-emulator kernel reboot, required local first unlock, actual boot receiver
+  delivery, persisted restart opt-in and encrypted PIN persistence pass. Combined
+  idle/FCM/unlock and display-rotation acceptance are being qualified. Natural
+  overnight evidence remains separate from forced Doze.

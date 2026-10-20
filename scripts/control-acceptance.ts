@@ -6,6 +6,7 @@ import path from "node:path";
 import type { Browser } from "@playwright/test";
 import jsQR from "jsqr";
 import { PNG } from "pngjs";
+import { prepareIdleWake } from "./control-recovery.js";
 
 type Fixture = {
   browser: Browser;
@@ -15,13 +16,26 @@ type Fixture = {
   serial: string;
   adb: (...args: string[]) => string;
   privateWrite: (file: string, value: string) => unknown;
+  physical?: boolean;
 };
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export async function controlAcceptance(f: Fixture) {
   const app = "dev.remoteaccess.host";
   const { adb, privateWrite } = f;
-  if (adb("shell", "getprop", "ro.kernel.qemu") !== "1")
+  if (!f.physical && adb("shell", "getprop", "ro.kernel.qemu") !== "1")
     throw new Error("Control acceptance requires its owned emulator");
+  if (
+    f.physical &&
+    [
+      "HOSTED_UNLOCK",
+      "HOSTED_CONTROL_WAKE",
+      "HOSTED_BOOT",
+      "HOSTED_ROTATION",
+    ].some((key) => process.env[key] === "1")
+  )
+    throw new Error(
+      "Physical control excludes credentials, reboot, idle/unlock and forced orientation",
+    );
   const log = await open(path.join(f.state, "control-native.log"), "w", 0o600);
   const context = await f.browser.newContext({
     viewport: { width: 1280, height: 1000 },
@@ -84,6 +98,7 @@ export async function controlAcceptance(f: Fixture) {
   page.on("pageerror", (e) => errors.push(e.message));
   let native: ReturnType<typeof spawn> | undefined;
   let syntheticLock = false;
+  let idleWake: Awaited<ReturnType<typeof prepareIdleWake>> | undefined;
   async function until<T>(
     work: () => T | Promise<T>,
     timeout = 60000,
@@ -128,6 +143,7 @@ export async function controlAcceptance(f: Fixture) {
     ) as {
       taps: number;
       text: string;
+      keyboardShown: boolean;
       scroll: number;
       target: { x: number; y: number };
       field: { x: number; y: number };
@@ -141,7 +157,7 @@ export async function controlAcceptance(f: Fixture) {
       distanceChange: number;
       angleChange: number;
     };
-  try {
+  async function startNative() {
     native = spawn(
       f.adbPath,
       [
@@ -151,6 +167,9 @@ export async function controlAcceptance(f: Fixture) {
         "am",
         "instrument",
         "-w",
+        "-e",
+        "physicalControl",
+        f.physical ? "yes" : "no",
         "-e",
         "class",
         "dev.remoteaccess.app.HostedPairingTest#manageMultipleBrowsers",
@@ -162,6 +181,18 @@ export async function controlAcceptance(f: Fixture) {
       () =>
         adb("shell", "run-as", app, "cat", "files/hosted-stage") === "ready",
     );
+  }
+  async function stopNative() {
+    const running = native;
+    await command("stop");
+    if (running?.exitCode === null)
+      await new Promise<void>((resolve) =>
+        running.once("exit", () => resolve()),
+      );
+    native = undefined;
+  }
+  try {
+    await startNative();
     await page.goto(f.origin);
     await page.getByRole("button", { name: "Create pairing code" }).click();
     const qr = PNG.sync.read(
@@ -176,33 +207,7 @@ export async function controlAcceptance(f: Fixture) {
     assert.ok(typeof paired !== "boolean");
     const id = paired.browsers[0]?.id;
     assert.ok(id);
-    const service = `${app}/dev.remoteaccess.app.control.ScreenAccessService`;
-    const others = adb(
-      "shell",
-      "settings",
-      "get",
-      "secure",
-      "enabled_accessibility_services",
-    )
-      .split(":")
-      .filter((v) => v !== "null" && v && !v.startsWith(`${app}/`));
-    adb(
-      "shell",
-      "settings",
-      "put",
-      "secure",
-      "enabled_accessibility_services",
-      others.join(":") || "null",
-    );
-    adb(
-      "shell",
-      "settings",
-      "put",
-      "secure",
-      "enabled_accessibility_services",
-      [...others, service].join(":"),
-    );
-    adb("shell", "settings", "put", "secure", "accessibility_enabled", "1");
+    await command("enable-screen-access");
     if (process.env.HOSTED_UNLOCK === "1") {
       await command("save-fixture-pin");
       await command("allow-unlock", { id, enabled: true });
@@ -216,11 +221,34 @@ export async function controlAcceptance(f: Fixture) {
       assert.match(result, /Pin set/);
       syntheticLock = true;
     }
-    await command("control-ready", { id });
+    if (process.env.HOSTED_CONTROL_WAKE === "1") {
+      idleWake = await prepareIdleWake(
+        { adb, command, stopNative, startNative, until, state: f.state },
+        id,
+      );
+    } else await command("control-ready", { id });
     await page.getByRole("button", { name: "Connect to phone" }).click();
     await page
       .getByRole("region", { name: "Remote screen" })
       .waitFor({ timeout: 80000 });
+    if (idleWake) {
+      await idleWake.verifyReceipt();
+      page.once("dialog", (dialog) => void dialog.accept());
+      await page
+        .getByRole("button", { name: "Use saved PIN", exact: true })
+        .click();
+      await until(
+        () =>
+          adb("shell", "dumpsys", "window", "policy").match(
+            /KeyguardServiceDelegate[\s\S]*?\bshowing=false/,
+          ),
+        20000,
+      );
+      await startNative();
+      console.log(
+        "Real FCM woke idle control; the saved PIN unlocked the synthetic keyguard",
+      );
+    }
     const canvas = page.getByLabel("Phone screen");
     await until(() =>
       canvas.evaluate((c) => c instanceof HTMLCanvasElement && c.width > 500),
@@ -298,7 +326,9 @@ export async function controlAcceptance(f: Fixture) {
           ),
         20000,
       );
-      console.log("H264 frames decoded from the encrypted hosted relay");
+      console.log(
+        `H264 frames decoded over encrypted ${process.env.HOSTED_DIRECT === "1" ? "WebRTC" : "relay"}`,
+      );
       await page
         .getByLabel("Viewing quality", { exact: true })
         .selectOption("1");
@@ -362,8 +392,13 @@ export async function controlAcceptance(f: Fixture) {
       .fill("Relay 🌞 verified");
     await page.getByRole("button", { name: "Send text" }).click();
     await until(() => witness().text === "Relay 🌞 verified");
-    await page.getByRole("button", { name: "Back", exact: true }).click(); // dismiss native keyboard
+    if (witness().keyboardShown)
+      await page.getByRole("button", { name: "Back", exact: true }).click();
     await delay(1000);
+    assert.match(
+      adb("shell", "dumpsys", "activity", "activities"),
+      /topResumedActivity=.*ControlFixtureActivity/,
+    );
     if (process.env.HOSTED_TOUCH === "1") {
       const hold = await at(witness().target);
       await page.mouse.move(hold.x, hold.y);
@@ -491,6 +526,46 @@ export async function controlAcceptance(f: Fixture) {
       await delay(1000);
       console.log("Native lost-packet watchdog released held input");
     }
+    if (process.env.HOSTED_ROTATION === "1") {
+      await command("control-fixture");
+      await delay(1500);
+      const middle = await at(witness().slider);
+      await page.mouse.move(middle.x, middle.y);
+      await page.mouse.down();
+      await page.mouse.move(middle.x + 35, middle.y, { steps: 3 });
+      await until(() => witness().sliderHeld, 3000);
+      try {
+        await command("rotate", { landscape: true });
+        await until(() => !witness().sliderHeld, 3000);
+        await page.mouse.up();
+        await until(
+          () =>
+            canvas.evaluate(
+              (c) =>
+                (c as HTMLCanvasElement).width >
+                (c as HTMLCanvasElement).height,
+            ),
+          20000,
+        );
+        const target = await at(witness().target);
+        await page.mouse.click(target.x, target.y);
+        await until(() => witness().taps === 1);
+      } finally {
+        await page.mouse.up();
+        await command("rotate", { landscape: false });
+      }
+      await until(
+        () =>
+          canvas.evaluate(
+            (c) =>
+              (c as HTMLCanvasElement).width < (c as HTMLCanvasElement).height,
+          ),
+        20000,
+      );
+      console.log(
+        "Display rotation released held input, resized viewing and preserved touch coordinates",
+      );
+    }
     if (process.env.HOSTED_DIRECT === "1") {
       await command("control-fixture");
       await delay(1500);
@@ -502,7 +577,9 @@ export async function controlAcceptance(f: Fixture) {
       await page.evaluate(() =>
         (
           window as unknown as { __rtcPeers: RTCPeerConnection[] }
-        ).__rtcPeers.forEach((peer) => peer.close()),
+        ).__rtcPeers.forEach((peer) => {
+          peer.close();
+        }),
       );
       await until(() => !witness().sliderHeld, 3000);
       await page.mouse.up();
@@ -540,7 +617,7 @@ export async function controlAcceptance(f: Fixture) {
           .count(),
         0,
       );
-      await command("assert-unlock-blocked");
+      await command("assert-unlock-blocked", { wake: !!idleWake });
       console.log(
         "Wrong synthetic PIN latched local recovery and forgot the saved PIN",
       );
@@ -585,11 +662,14 @@ export async function controlAcceptance(f: Fixture) {
       path.join(f.state, "result.json"),
       `${JSON.stringify(
         {
-          hostedEncryptedScreen: true,
+          encryptedScreen: true,
+          idleWake: idleWake?.receipt,
+          bootRecovery: process.env.HOSTED_BOOT === "1",
           nativeTap: true,
           nativeUnicodeText: true,
           nativeSwipe: true,
           heldTouch: process.env.HOSTED_TOUCH === "1",
+          displayRotation: process.env.HOSTED_ROTATION === "1",
           videoMeasurement,
           directAndFallback: process.env.HOSTED_DIRECT === "1",
           smoothVideo: process.env.HOSTED_VIDEO === "1",
@@ -646,6 +726,7 @@ export async function controlAcceptance(f: Fixture) {
         ),
       );
     } catch {}
+    await idleWake?.cleanup();
     await traffic.detach().catch(() => {});
     await context.close();
     if (native?.exitCode === null) {

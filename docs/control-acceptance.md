@@ -1,4 +1,4 @@
-# Hosted control acceptance
+# Remote control acceptance
 
 Measured 2026-10-20 with the public HTTPS/WSS development service, isolated
 Playwright Chromium, and an owned API-35 Google APIs emulator. The default host
@@ -50,11 +50,41 @@ Mutable credential buffers are cleared where practical; JS/JVM immutable strings
 and OS input internals cannot promise immediate memory erasure. Audit records
 contain action categories, never PINs, typed text or screen contents.
 
-Limits: this does not establish physical Pixel control/video acceptance, behavior
-before first local unlock, natural overnight availability, current-API/OEM-wide
-unlock support, or Play approval. Projection consent is not saved/reused, and no
+## Physical control and direct transport
+
+The attached Pixel 7a, Android 17/API 37, passed ordinary control on 2026-10-20
+against viewer revision `68c6e3a`: rendered QR/normal pairing approval, visible
+Android accessibility consent, screenshots, native tap, Unicode text, scroll,
+navigation/app launch, held slider, long press, two-pointer pinch/rotation and
+watchdog release. Normal system projection consent led to H.264 decoding and live
+quality changes. Native WebRTC passed; Save data mode decoded 50 frames in
+5.001 seconds with zero received WebSocket media bytes. Actual peer-connection
+loss during a held drag released input and recovered through encrypted relay
+fallback without replay. Global disarm, browser disable/removal and signed cleanup
+passed with no browser errors. Both newly installed packages were removed and
+the prior task requested again. Other apps/services were preserved.
+
+No physical PIN was entered or saved, and no lock/debugging/reboot changes were
+made. Credentials/reboot remain disposable-emulator tests. The keyboard witness
+queries actual IME insets so the harness only sends Back to dismiss a keyboard
+when it is present. Input effects and screen geometry come from an independent
+native activity confined to the test APK.
+
+For an explicitly authorized physical fixture, supply `HOSTED_DEVICE` privately
+and `HOSTED_DEVICE_MODEL` with its exact model, plus `HOSTED_TOUCH=1 HOSTED_VIDEO=1
+HOSTED_DIRECT=1`, to the same `--control` command. The runner checks identity,
+awake/unlocked state, user 0 and absent host/test packages before installation.
+It refuses synthetic-unlock/reboot/orientation fixtures on physical targets. It
+preserves existing applications and uses visible consent, not secure-setting
+mutations. Success removes only its owned packages; failure preserves their keys
+for authenticated cleanup. Receipts are in ignored `.local/physical-control-proof/`.
+
+## Limits
+
+This does not establish behavior before first local unlock, natural overnight
+availability, current-API/OEM-wide unlock support, or Play approval.
+Projection consent is not saved/reused, and no
 production accessibility code auto-approves it. Android can stop projection on
 lock and secure content can be blank or refused. Actual reboot recovery,
-rotation/socket-loss qualification and direct-transport acceptance are tracked
-separately in the completion plan. Existing FCM physical evidence is a separate
-wake test, not proof of this combined control path.
+rotation/socket-loss qualification are tracked in the completion plan. Separate
+physical FCM evidence is a wake test, not proof of physical remote unlock.

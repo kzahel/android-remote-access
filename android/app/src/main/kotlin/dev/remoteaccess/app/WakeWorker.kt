@@ -71,12 +71,12 @@ class WakeWorker(context: Context, parameters: WorkerParameters) : Worker(contex
                     val info =
                         if (android.os.Build.VERSION.SDK_INT >= 34) {
                             androidx.work.ForegroundInfo(
-                                102,
+                                WakeSupport.WORKER_NOTIFICATION,
                                 notification,
                                 android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
                             )
                         } else {
-                            androidx.work.ForegroundInfo(102, notification)
+                            androidx.work.ForegroundInfo(WakeSupport.WORKER_NOTIFICATION, notification)
                         }
                     setForegroundAsync(info).get(5, TimeUnit.SECONDS)
                 },

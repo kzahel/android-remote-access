@@ -1,6 +1,7 @@
 package dev.remoteaccess.app;
 
 import android.app.Activity;
+import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.Canvas;
 import android.graphics.Paint;
@@ -9,6 +10,7 @@ import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.View;
+import android.view.WindowInsets;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -34,6 +36,11 @@ public final class ControlFixtureActivity extends Activity {
     private View multi;
     private int maxPointers, multiMoves;
     private double firstDistance, lastDistance, firstAngle, lastAngle;
+
+    @Override public void onConfigurationChanged(Configuration configuration) {
+        super.onConfigurationChanged(configuration);
+        scroll.post(this::witness);
+    }
 
     @Override public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -101,6 +108,7 @@ public final class ControlFixtureActivity extends Activity {
         scroll = new ScrollView(this);
         scroll.addView(content);
         scroll.setOnScrollChangeListener((v, x, y, oldX, oldY) -> witness());
+        scroll.getViewTreeObserver().addOnGlobalLayoutListener(this::witness);
         setContentView(scroll);
         scroll.post(this::witness);
     }
@@ -115,6 +123,7 @@ public final class ControlFixtureActivity extends Activity {
         if (scroll == null) return;
         try {
             JSONObject value = new JSONObject().put("taps", taps).put("text", entered).put("scroll", scroll.getScrollY())
+                .put("keyboardShown", scroll.getRootWindowInsets() != null && scroll.getRootWindowInsets().isVisible(WindowInsets.Type.ime()))
                 .put("target", center(target)).put("field", center(field)).put("slider", center(slider))
                 .put("sliderProgress", sliderProgress).put("longPresses", longPresses).put("sliderHeld", sliderHeld)
                 .put("multi", center(multi)).put("maxPointers", maxPointers).put("multiMoves", multiMoves)

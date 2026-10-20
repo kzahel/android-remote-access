@@ -16,8 +16,10 @@ rotation, manual/saved-PIN unlock, failed-attempt recovery, H.264 quality change
 lost-packet input release and revocation. See [control acceptance](docs/control-acceptance.md).
 The [FCM wake slice](docs/fcm-wake-v1.md) has separate emulator and physical
 Pixel 7a evidence, including process-absent, screen-off forced Doze. Combined
-physical control/video/wake qualification and direct WebRTC acceptance remain
-in progress; see the [completion plan](docs/control-completion.md).
+Pixel 7a control/video and native direct WebRTC acceptance also pass, including
+mid-drag direct loss and encrypted relay recovery without input replay. Restart
+recovery and combined idle/wake qualification are tracked in the
+[completion plan](docs/control-completion.md).
 Android manages browser nicknames, per-browser/global access and SQLite activity
 history; see [mobile management](docs/mobile-management.md).
 This project is independent of Yep Anywhere and needs no AI runtime.

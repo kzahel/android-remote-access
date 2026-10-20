@@ -2,7 +2,9 @@
 
 Written 2026-10-19 at the owner's request, updated 2026-10-20 with repository
 and stack decisions. Production implementation is authorized in this repository;
-the root remote-control runtime now passes owned-emulator hosted acceptance.
+the root remote-control runtime now passes emulator and Pixel 7a control/video
+acceptance, including native WebRTC and encrypted relay recovery. See
+[current acceptance](control-acceptance.md) and [remaining qualification](control-completion.md).
 The preserved spike remains a reference. Crypto and hosted
 pairing/relay slices are implemented; see [hosted acceptance](hosted-pairing-proof.md).
 No store listing exists. Evidence references distinguish the preserved phone
@@ -33,11 +35,11 @@ and open questions are identified separately below.
    the phone, confirmed with **Grant**. Sign-in may be added later as an option.
 4. The pairing flow was prototyped in this repository before any production
    code ([QR pairing](phone-spike.md#qr-pairing-without-an-account)).
-5. Aim for best-effort direct WebRTC, with PeerJS as a candidate for simplifying
-   setup, and a low-tech hosted fallback when direct setup fails. The fallback
-   must support manual control and still images over HTTPS/WebSocket; smooth
-   relayed video is now in scope (owner follow-up; see [completion](control-completion.md)). No TURN service is planned. Library choice,
-   Android interoperability and transport details still need validation.
+5. Use best-effort direct WebRTC and a hosted fallback, including encrypted
+   stills, input and H.264. Native Android data channels and browser WebRTC now
+   pass interoperability acceptance. Signaling uses the existing encrypted relay
+   session; this avoids a separate PeerJS server. No TURN service is operated.
+   See [transport decision and license review](direct-transport.md).
 6. Include FCM for waking the app to establish a session on demand. An always-open
    application connection to our relay is not a product requirement. Validate
    idle disconnection and push-triggered connection before relying on them.
@@ -75,10 +77,10 @@ implementation. Record results in this repository.
    and draft the in-app prominent disclosure and Play Console declaration for
    human-directed remote control. Do not set `isAccessibilityTool`. Submit an
    early closed-testing build to get a real review verdict.
-2. **Saved-PIN unlock.** Decide whether version 1 ships it. It is the feature a
-   reviewer is most likely to read as weakening the lock screen. Options: omit
-   it, ship it behind explicit opt-in with clear disclosure, or keep it for a
-   later release once the base app is approved.
+2. **Saved-PIN unlock.** The owner selected inclusion with explicit local opt-in
+   and per-browser permission. Native encrypted storage, backup exclusion,
+   one-attempt delivery, persistent recovery guard and local forgetting are
+   implemented. Review security and Play-policy fit before broad distribution.
 3. **Developer account.** Choose personal or organization. Recheck the current
    new-account testing requirement (reported as a closed test with about 12
    testers for 14 days for new personal accounts) and organization verification.
@@ -86,8 +88,8 @@ implementation. Record results in this repository.
    idle for several hours, then remote wake and control. Repeat once a relay
    exists, including with no application relay socket open: request access from
    the viewer, deliver FCM, authenticate the phone and establish a session.
-   The forced-Doze run went through Tailscale's own process and does not test
-   this on-demand path.
+   Current forced-Doze FCM tests use the real hosted service; they remain distinct
+   from natural unplugged overnight qualification.
 5. **Camera scan.** Pair by actually scanning the code; check the Play services
    scanner's availability and first-use module download.
 6. **Licenses.** Review Google's code-scanner terms, `uqr` (MIT) and any code
@@ -97,17 +99,17 @@ implementation. Record results in this repository.
 
 Write a short decision record for each before building it.
 
-- **Relay and transport.** Try direct WebRTC within a bounded setup window, then
+- **Relay and transport.** Implemented; see [direct transport](direct-transport.md).
+  Try direct WebRTC within a bounded setup window, then
   fall back automatically to manual control and refreshed still images through
-  our HTTPS/WebSocket relay. PeerJS is a candidate, not a selected dependency:
-  review its signaling model, self-hosting, Android WebRTC interoperability and
-  license before choosing it. Bind either transport to the same paired
+  our HTTPS/WebSocket relay. Signaling inside the encrypted relay session and
+  pinned native WebRTC replace the earlier PeerJS candidate. Bind either transport to the same paired
   identities and session authority. Direct connectivity is best effort; no TURN
   service is required for the fallback. Avoid a long connection spinner when
   only the simpler route works. Define protocol versioning, frame limits,
   backpressure and reconnect behavior; never replay uncertain input during a
-  transport change. Evaluate relayed encoded video separately if its bandwidth,
-  browser decoding and TCP behavior justify it. Core remote access must remain
+  transport change. Relayed encoded video now passes measured acceptance,
+  with bounded frame queues and stills fallback. Core remote access must remain
   useful with control and stills alone.
 - **End-to-end encryption.** Recommended direction discussed 2026-10-20:
   application content encrypted between the browser and phone, including input,

@@ -20,6 +20,9 @@ import com.google.firebase.messaging.FirebaseMessaging
 internal object WakeSupport {
     const val CHANNEL = "remote-connections"
     const val NOTIFICATION = 100
+    const val CONTROL_NOTIFICATION = 101
+    const val WORKER_NOTIFICATION = 102
+    const val VIDEO_NOTIFICATION = 103
 
     fun preferences(context: Context) = context.getSharedPreferences("paired-browser-v1", Context.MODE_PRIVATE)
 

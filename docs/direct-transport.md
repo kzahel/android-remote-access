@@ -39,3 +39,25 @@ and notice review, not a comprehensive legal or security audit. Distribution
 review remains a release gate. No audio/video tracks or native WebRTC codecs
 are used: H.264 is produced by Android MediaCodec and stays application-encrypted.
 Native internal tracing and info-level logging are disabled.
+
+## Measured acceptance
+
+2026-10-20: the owned API-35 emulator and the attached Pixel 7a (API 37) both
+established fresh pinned-identity encrypted sessions through native WebRTC and
+isolated Playwright Chromium against the public service. Screen viewing, Unicode
+typing, app launch/navigation, held dragging, long press, two-finger pinch and
+rotation, live H.264 quality changes, watchdog release and local disarm/removal
+passed. Synthetic manual/saved-PIN acceptance was on the emulator only.
+
+The Pixel decoded 50 frames in 5.001 seconds in Save data mode, with **zero
+received WebSocket media bytes** during that sample. Closing its actual browser
+peer connection while a native slider was held released input and recovered a
+fresh encrypted session through the relay. The interrupted input was not replayed.
+This qualifies those paths on one local network, not connectivity across every
+NAT or OEM. Separate forced-relay acceptance exercises the hosted media path.
+Private results remain in `.local/control-proof/` and `.local/physical-control-proof/`.
+
+Use `HOSTED_DIRECT=1` with the control acceptance runner to exercise native RTC;
+without it the harness forces direct setup to fail so relay coverage cannot be
+accidentally satisfied by a successful direct connection. See
+[control acceptance](control-acceptance.md) for target selection and limits.

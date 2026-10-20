@@ -8,6 +8,11 @@ on:
         description: Optional HTTPS development relay origin for hosted acceptance
         required: false
         type: string
+      control_acceptance:
+        description: Also run owned-emulator viewing, video, gestures and synthetic unlock
+        required: false
+        default: false
+        type: boolean
 permissions:
   contents: read
 jobs:
@@ -92,3 +97,12 @@ jobs:
       - run: pnpm test:hosted
         env:
           HOSTED_ORIGIN: ${{ inputs.hosted_origin }}
+      - name: Encrypted hosted control acceptance
+        if: inputs.control_acceptance
+        run: pnpm exec tsx scripts/hosted-acceptance.ts --control
+        env:
+          HOSTED_ORIGIN: ${{ inputs.hosted_origin }}
+          HOSTED_TOUCH: '1'
+          HOSTED_UNLOCK: '1'
+          HOSTED_VIDEO: '1'
+          HOSTED_ROTATION: '1'

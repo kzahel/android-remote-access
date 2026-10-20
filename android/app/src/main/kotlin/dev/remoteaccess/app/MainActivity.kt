@@ -385,8 +385,7 @@ class MainActivity : ComponentActivity() {
         button(layout, "Feature setup", R.id.open_features) { navigate("features") }
         connectionRequests(layout)
         toggle(layout, "Restore setup after restart", RestartRecovery.enabled(this), R.id.restore_setup) { enabled ->
-            RestartRecovery.setEnabled(this, enabled)
-            render()
+            perform { RestartRecovery.setEnabled(this, enabled) }
         }
         text(
             layout,

@@ -101,7 +101,7 @@ class HostedPairingTest {
             "wake" -> {
                 click("navigate_back")
                 click("open_settings")
-                click("enable_wake")
+                if (!store.snapshot.settings.automatic) click("enable_wake")
                 val allow = device.wait(Until.findObject(By.res("com.android.permissioncontroller:id/permission_allow_button")), 2000)
                 allow?.click()
                 waitFor(60000) { store.snapshot.browsers.all { it.wakeReady } }
@@ -156,17 +156,62 @@ class HostedPairingTest {
                     waitFor { dev.remoteaccess.app.control.ScreenAccessService.current != null }
                     waitFor { ForegroundAccess.listening(id) }
                 }
+                "enable-screen-access" -> {
+                    if (dev.remoteaccess.app.control.ScreenAccessService.current == null) {
+                        start()
+                        click("open_settings")
+                        click("open_features")
+                        tap(By.text("Screen access settings"))
+                        tap(By.res("android:id/button1"))
+                        val service = By.text("Remote screen access")
+                        if (!device.wait(Until.hasObject(service), 2000)) {
+                            tap(By.text(java.util.regex.Pattern.compile("Downloaded apps|Installed apps|Downloaded services")))
+                        }
+                        tap(service)
+                        tap(By.textStartsWith("Use Remote screen access"))
+                        tap(By.text("Allow"))
+                        waitFor { dev.remoteaccess.app.control.ScreenAccessService.current != null }
+                    }
+                    start()
+                }
+                "rotate" -> {
+                    assertTrue(device.executeShellCommand("getprop ro.kernel.qemu").trim() == "1")
+                    if (task.getBoolean("landscape")) device.setOrientationLeft() else device.setOrientationNatural()
+                }
+                "restart-setup" -> {
+                    start()
+                    click("open_settings")
+                    if (!RestartRecovery.enabled(context)) click("restore_setup")
+                    waitFor { RestartRecovery.enabled(context) }
+                }
+                "recovery-ready" -> {
+                    assertTrue(device.executeShellCommand("getprop ro.kernel.qemu").trim() == "1")
+                    assertTrue(RestartRecovery.enabled(context))
+                    waitFor(60000) { store.events().any { it.kind == "Setup restored after restart" } }
+                    val value = dev.remoteaccess.app.unlock.PinVault(context).read()
+                    assertTrue(value.contentEquals("314159".toCharArray()))
+                    value.fill('\u0000')
+                    waitFor(60000) { store.snapshot.browsers.all { it.synced && it.wakeReady } }
+                }
                 "assert-unlock-blocked" -> {
                     assertTrue(device.executeShellCommand("getprop ro.kernel.qemu").trim() == "1")
                     assertTrue(dev.remoteaccess.app.unlock.PinVault(context).guard.blocked())
                     assertTrue(!dev.remoteaccess.app.unlock.PinVault(context).saved())
-                    kotlin.test.assertEquals(3, store.events().count { it.kind == "Unlock requested" })
-                    kotlin.test.assertEquals(2, store.events().count { it.kind == "Phone unlocked" })
+                    val extra = if (task.optBoolean("wake")) 1 else 0
+                    kotlin.test.assertEquals(3 + extra, store.events().count { it.kind == "Unlock requested" })
+                    kotlin.test.assertEquals(2 + extra, store.events().count { it.kind == "Phone unlocked" })
                     // A new vault instance cannot admit a repeat after transport/session replacement.
                     kotlin.test.assertFails { dev.remoteaccess.app.unlock.PinVault(context).guard.begin() }
                 }
                 "approve-video" -> {
-                    assertTrue(device.executeShellCommand("getprop ro.kernel.qemu").trim() == "1")
+                    assertTrue(
+                        device.executeShellCommand("getprop ro.kernel.qemu").trim() == "1" ||
+                            InstrumentationRegistry.getArguments().getString("physicalControl") == "yes",
+                    )
+                    device.findObject(By.text("A single app"))?.let {
+                        it.click()
+                        tap(By.text("Entire screen"))
+                    }
                     tap(By.text(java.util.regex.Pattern.compile("Start now|Start|Share screen")))
                     waitFor(20000) { dev.remoteaccess.app.control.VideoStream.available(context) }
                 }

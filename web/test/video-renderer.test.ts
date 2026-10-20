@@ -39,12 +39,7 @@ beforeEach(() => {
   rejectConfig = false;
   rejectDecode = false;
   vi.stubGlobal("VideoDecoder", FakeDecoder);
-  vi.stubGlobal(
-    "EncodedVideoChunk",
-    class {
-      constructor(_value: unknown) {}
-    },
-  );
+  vi.stubGlobal("EncodedVideoChunk", class {});
 });
 afterEach(() => vi.unstubAllGlobals());
 const renderer = () => new VideoRenderer({} as HTMLCanvasElement, () => {});

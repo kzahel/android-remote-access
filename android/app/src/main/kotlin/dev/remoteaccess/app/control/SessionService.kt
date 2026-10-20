@@ -26,9 +26,9 @@ class SessionService : Service() {
         }
         val notification = notification(this)
         if (android.os.Build.VERSION.SDK_INT >= 34) {
-            startForeground(101, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+            startForeground(WakeSupport.CONTROL_NOTIFICATION, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         } else {
-            startForeground(101, notification)
+            startForeground(WakeSupport.CONTROL_NOTIFICATION, notification)
         }
         return START_NOT_STICKY
     }

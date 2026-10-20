@@ -25,8 +25,21 @@ const control = process.argv.includes("--control");
 const multi =
   process.env.HOSTED_MULTI === "1" || process.argv.includes("--multi");
 const physical = process.env.HOSTED_DEVICE;
-if ((multi || control) && physical)
+if (multi && physical)
   throw new Error("Multi-browser acceptance owns an emulator only");
+if (
+  control &&
+  physical &&
+  [
+    "HOSTED_UNLOCK",
+    "HOSTED_CONTROL_WAKE",
+    "HOSTED_BOOT",
+    "HOSTED_ROTATION",
+  ].some((key) => process.env[key] === "1")
+)
+  throw new Error(
+    "Physical control excludes credential, reboot, idle/unlock and orientation fixtures",
+  );
 const expectedModel = process.env.HOSTED_DEVICE_MODEL;
 const doze = process.env.HOSTED_DOZE === "1";
 if (physical && (!expectedModel || physical.startsWith("emulator-")))
@@ -38,7 +51,9 @@ if (doze && (!physical || process.env.HOSTED_FCM !== "1"))
 const state = path.join(
   root,
   control
-    ? ".local/control-proof"
+    ? physical
+      ? ".local/physical-control-proof"
+      : ".local/control-proof"
     : multi
       ? ".local/mobile-proof"
       : physical
@@ -60,6 +75,7 @@ const env = {
 const adb = (...args: string[]) =>
   execFileSync(adbPath, ["-s", serial, ...args], {
     encoding: "utf8",
+    maxBuffer: 16 * 1024 * 1024,
     timeout: args.includes("instrument") ? 120000 : 20000,
     stdio: ["ignore", "pipe", "pipe"],
   }).trim();
@@ -200,11 +216,21 @@ let batteryChanged = false;
 let displayChanged = false;
 let invitationId: string | undefined;
 let revoked = false;
+let controlCompleted = false;
 try {
   await until(() => adb("shell", "getprop", "sys.boot_completed") === "1");
   if (!physical && adb("shell", "getprop", "ro.kernel.qemu") !== "1")
     throw new Error("Refusing non-emulator");
-  if (control && existsSync(path.join(state, "synthetic-lock"))) {
+  if (
+    control &&
+    !physical &&
+    existsSync(path.join(state, "control-idle-overrides"))
+  ) {
+    adb("shell", "dumpsys", "deviceidle", "unforce");
+    adb("shell", "dumpsys", "battery", "reset");
+    await rm(path.join(state, "control-idle-overrides"));
+  }
+  if (control && !physical && existsSync(path.join(state, "synthetic-lock"))) {
     const result = adb("shell", "locksettings", "clear", "--old", "314159");
     if (!result.includes("Lock credential cleared"))
       throw new Error("Interrupted synthetic fixture lock recovery failed");
@@ -255,21 +281,25 @@ try {
   adb("shell", "run-as", appId, "mkdir", "-p", "files");
   browser = await chromium.launch({ headless: true });
   if (control) {
-    const storageTests = adb(
-      "shell",
-      "am",
-      "instrument",
-      "-w",
-      "-e",
-      "class",
-      "dev.remoteaccess.app.HostStoreTest,dev.remoteaccess.app.UnlockStorageTest,dev.remoteaccess.app.HostedNetworkTest",
-      `${appId}.test/androidx.test.runner.AndroidJUnitRunner`,
-    );
-    await writeFile(path.join(state, "storage-tests.log"), storageTests, {
-      mode: 0o600,
-    });
-    if (!storageTests.includes("OK (6 tests)"))
-      throw new Error("Native storage/migration tests failed; see private log");
+    if (!physical) {
+      const storageTests = adb(
+        "shell",
+        "am",
+        "instrument",
+        "-w",
+        "-e",
+        "class",
+        "dev.remoteaccess.app.HostStoreTest,dev.remoteaccess.app.UnlockStorageTest,dev.remoteaccess.app.HostedNetworkTest",
+        `${appId}.test/androidx.test.runner.AndroidJUnitRunner`,
+      );
+      await writeFile(path.join(state, "storage-tests.log"), storageTests, {
+        mode: 0o600,
+      });
+      if (!storageTests.includes("OK (6 tests)"))
+        throw new Error(
+          "Native storage/migration tests failed; see private log",
+        );
+    }
     await controlAcceptance({
       browser,
       origin,
@@ -278,7 +308,9 @@ try {
       serial,
       adb,
       privateWrite,
+      physical: !!physical,
     });
+    controlCompleted = true;
   } else if (multi) {
     await mobileAcceptance({
       browser,
@@ -514,7 +546,7 @@ try {
     await page.getByRole("button", { name: "Check connection" }).click();
     await page
       .getByRole("status")
-      .filter({ hasText: "Phone is unavailable" })
+      .filter({ hasText: /Phone is unavailable|Connection ended/ })
       .waitFor({ timeout: 30000 });
     const report = {
       renderedQrDecoded: true,
@@ -589,7 +621,7 @@ try {
   }
   for (const handle of logs) await cleanup("native log", () => handle.close());
   await cleanup("emulator log", () => log?.close());
-  if (physical && (!invitationId || revoked)) {
+  if (physical && (control ? controlCompleted : !invitationId || revoked)) {
     for (const pkg of installed.reverse())
       await cleanup("owned package", () => {
         adb("uninstall", pkg);
@@ -601,6 +633,10 @@ try {
           throw new Error("Owned test package remains installed");
       });
   }
+  if (physical && control && !controlCompleted)
+    console.error(
+      "Physical control did not finish revocation; preserving owned packages and keys for cleanup.",
+    );
   if (physical && previousActivity)
     await cleanup("previous task", () =>
       adb("shell", "am", "start", "--user", "0", "-n", previousActivity),

@@ -46,7 +46,11 @@ class VideoService : Service() {
         }
         request = current
         try {
-            startForeground(102, SessionService.notification(this), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+            startForeground(
+                dev.remoteaccess.app.WakeSupport.VIDEO_NOTIFICATION,
+                SessionService.notification(this),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION,
+            )
             val capture = checkNotNull(getSystemService(MediaProjectionManager::class.java).getMediaProjection(Activity.RESULT_OK, consent))
             projection = capture
             capture.registerCallback(
@@ -152,7 +156,9 @@ class VideoService : Service() {
                     }
                     resize = null
                 }
-                if (stream.quality != quality) configure()
+                if (stream.quality != quality) {
+                    configure()
+                }
                 val codec = checkNotNull(encoder)
                 if (stream.keyframe) {
                     stream.keyframe = false
