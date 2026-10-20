@@ -79,3 +79,9 @@ seconds with 267,388 encrypted relay bytes. The retained owner browser also
 migrated its existing pairing, opened the Pixel 9 URL, connected over direct
 WebRTC and displayed its authenticated model/contact time in a separate library
 tab. The physical phone was locked; no physical PIN was read or submitted.
+
+The separate hosted two-browser management regression passes with the new routes
+and storage: independent pairing/checks, permission revoke/repair, real
+process-absent FCM for both, persistence, global/per-browser pause, stale-generation
+rejection and isolated revocation/cleanup. Fresh receipt-to-exchange intervals
+were 184 and 238 ms; these are measurements, not wake availability guarantees.
