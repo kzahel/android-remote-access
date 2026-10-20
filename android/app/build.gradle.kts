@@ -5,8 +5,8 @@ plugins {
     kotlin("android")
     id("com.google.devtools.ksp")
     id("org.jlleitschuh.gradle.ktlint")
+    id("com.google.gms.google-services")
 }
-if (file("google-services.json").exists()) apply(plugin = "com.google.gms.google-services")
 val sharingWebsite = providers.gradleProperty("sharingWebsite").orElse("https://android-remote.graehlarts.com").get()
 val sharingUri = URI(sharingWebsite)
 require(

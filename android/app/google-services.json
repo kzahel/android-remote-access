@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "468242165253",
+    "project_id": "android-remote-access-50371",
+    "storage_bucket": "android-remote-access-50371.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:468242165253:android:b9bc43dae8d2395138366c",
+        "android_client_info": {
+          "package_name": "dev.remoteaccess.host"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBoMl3P7gug-zov06zfDVBO2bKvNL5uaAI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

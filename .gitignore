@@ -18,6 +18,7 @@ __pycache__/
 .local
 .kotlin/
 
-# Firebase client config is supplied locally; sender keys never belong here.
+# Only the reviewed public Android client config belongs in Git.
 google-services.json
+!android/app/google-services.json
 *service-account*.json

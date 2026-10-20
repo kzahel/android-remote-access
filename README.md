@@ -28,6 +28,12 @@ Requirements: Node 22+, pnpm 10.30.3, JDK 17 and Android SDK platform 36 / build
 tools 35.0.0 or 36.0.0. Set `ANDROID_HOME` to the SDK. Gradle is supplied by the
 committed wrapper with a pinned distribution checksum.
 
+The public Android Firebase client configuration is checked in at
+`android/app/google-services.json`, so ordinary builds include remote wake.
+The relay's private Firebase service-account credentials are provisioned
+separately and must never be committed. A separate deployment needs its own
+Android Firebase registration/client config and matching relay sender project.
+
 ```sh
 pnpm install --frozen-lockfile
 pnpm build
@@ -71,7 +77,7 @@ an API-35 emulator on port 5594 and an isolated Chromium; artifacts stay in
 Existing phone demos retain temporary root asset symlinks and the root server launcher;
 new prototype commands run from `spike/`.
 
-Configured Firebase builds can exercise the full native management UI with two
+Android builds can exercise the full native management UI with two
 independent browsers and real process-absent wake delivery:
 
 ```sh

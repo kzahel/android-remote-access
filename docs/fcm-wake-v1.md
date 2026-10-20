@@ -3,8 +3,9 @@
 Implementation and hosted emulator acceptance: **2026-10-20**. A separate
 Firebase project, Android registration and dedicated relay sender are provisioned.
 Real Firebase delivery from the hosted relay passes with the application process
-and socket absent. Concrete Firebase identities and Pi credential paths belong
-in the private dotfiles runbook. A physical Pixel 7a also passes screen-off
+and socket absent. Private sender identities and Pi credential paths belong
+in the private dotfiles runbook; public Android client configuration is checked
+in with the app. A physical Pixel 7a also passes screen-off
 forced-Doze wake; natural overnight reliability remains unqualified.
 
 ## Decision and wire behavior
@@ -13,9 +14,14 @@ Use the existing hosted relay as the Firebase sender. It has a dedicated service
 account, independent of sibling products; no separate broker is required. Google
 ADC reads a systemd credential mount, never an APK/browser configuration value.
 `FIREBASE_PROJECT_ID` enables the sender. Omitting it preserves the foreground
-pairing behavior. Keep Android's downloaded client config at the ignored
-`android/app/google-services.json`. Its absence permits ordinary builds and
-pairing tests, but the app reports that remote wake is not configured.
+pairing behavior. Android's public client config is checked in at
+`android/app/google-services.json`; it contains client/project identifiers and
+an API key embedded in the APK, not the relay's private sending authority.
+The Google Services plugin is required for normal builds, so missing client
+configuration fails the build instead of silently producing an APK without
+remote wake. For a separate deployment, replace this config with the matching
+Android registration from that deployment's Firebase project and configure its
+relay sender separately. Never commit service-account keys.
 
 Firebase Messaging 25.1.1 (BoM 34.16.0) uses installation IDs and `onRegistered`.
 The relay pins Firebase Admin 14.2.0, with FID delivery support. The installed SDKs
@@ -87,7 +93,7 @@ restart, removal and subsequent refusal against the previously deployed relay.
 This is backward compatibility evidence, **not FCM delivery evidence**. The
 owned emulator and isolated Playwright Chromium were reaped.
 
-Build with the downloaded client config and run:
+Build with the checked-in client config and run:
 
 ```sh
 HOSTED_FCM=1 HOSTED_ORIGIN=https://YOUR_DEVELOPMENT_ORIGIN pnpm test:hosted
