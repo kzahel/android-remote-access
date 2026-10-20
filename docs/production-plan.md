@@ -107,10 +107,35 @@ Write a short decision record for each before building it.
   transport change. Evaluate relayed encoded video separately if its bandwidth,
   browser decoding and TCP behavior justify it. Core remote access must remain
   useful with control and stills alone.
-- **End-to-end encryption.** If the product claims the relay cannot see the
-  screen, keys must be the paired keys and the browser must verify them. A
-  relay-served web viewer weakens that claim against the operator itself; say
-  so, or offer an installable viewer later.
+- **End-to-end encryption.** Recommended direction discussed 2026-10-20:
+  application content encrypted between the browser and phone, including input,
+  screenshots, video payloads and any entered PIN. HTTPS/WSS remains the outer
+  transport; terminating TLS at our relay must not reveal application plaintext.
+  Use QR-paired identities to authenticate a fresh ephemeral key exchange for
+  each session. Persist counterpart key pins at the endpoints, bind both
+  identities, roles, nonces, ephemeral keys and protocol version into the
+  authenticated transcript, confirm keys and check current authority before
+  admitting commands. Derive independent directional/channel keys; authenticate
+  record headers and reject replay. Never reuse a record key/nonce allocation
+  across reconnects or independent transport lanes. The lock PIN and FCM
+  delivery registration are not encryption keys.
+  Follow the [JSTorrent live-session reference](sibling-repositories.md#babytrack-and-jstorrent-encryption-references)
+  rather than Babytrack's group-history model or OPAQUE passphrase login for
+  this QR-first product. Exact protocol/library selection remains open:
+  native WebCrypto/Android cryptography (for example authenticated ephemeral
+  P-256 ECDH, HKDF and AES-GCM records) is an interoperability candidate, not a
+  selected or audited construction. Reusing sibling Rust/native-Wasm crypto is
+  another option with a stack cost. Specify and review the handshake, record
+  limits, nonce/rekey rules and TS/Kotlin vectors before implementation.
+  The same security identity must hold over direct and relayed paths. WebRTC
+  DTLS alone is insufficient if signaling can substitute the peer: authenticate
+  its negotiated channel/fingerprint through the E2E session, or carry the
+  application-encrypted records through its data channels. Decide smooth-media
+  integration explicitly; plaintext video must never be sent through fallback.
+  The relay still sees routing/timing/size metadata and can deny service. A
+  compromised hosted viewer can access plaintext at the browser endpoint;
+  immutable assets/CSP reduce risk but do not remove that trust. An independently
+  distributed viewer would be a separate future delivery decision.
 - **Identity and sessions.** Keep pairing (QR, done), device identity (Keystore
   key, done), session authority (short-lived grants, step-up before unlock) and
   optional account sign-in separate. Sign-in, if added, recovers and syncs

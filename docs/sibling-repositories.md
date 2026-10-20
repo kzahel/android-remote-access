@@ -116,6 +116,33 @@ unlock, access before first unlock, force-stop recovery or an overnight
 socket-free control session. Keep our paired-device/session authority independent
 of delivery registration and preserve the stated [platform limits](android-platform.md).
 
+## Babytrack and JSTorrent encryption references
+
+Source-reviewed **2026-10-20**, read-only, with clean sibling working trees:
+
+| Reference | Committed baseline | Mechanism and relevance |
+| --- | --- | --- |
+| [Babytrack encryption topic](../../babytrack/docs/topics/sync-and-encryption.md), [sharing protocol](../../babytrack/docs/protocol/sharing-v1.md), [wire crypto](../../babytrack/wire/src/crypto.rs) and [HPKE](../../babytrack/core/src/hpke.rs) | `4118bb98d802eb0e200c174e9f799b477bed5ab1` | Encrypted durable records: XChaCha20-Poly1305 epoch keys, Ed25519 signatures and RFC 9180 HPKE (X25519/HKDF-SHA256/ChaCha20-Poly1305) grants to authorized devices. Shared Rust/native-Wasm crypto and known-answer vectors. Useful for relay blindness, key ownership and device removal; its group epochs/history machinery is not needed for our live phone sessions. |
+| [JSTorrent authentication topic](../../jstorrent/docs/topics/remote-access-authentication.md), [session/resume construction](../../jstorrent/docs/tactical/192-production-owner-relay-access.md), [resume source](../../jstorrent/crates/rstorrent-remote-crypto/src/resume.rs) and [record source](../../jstorrent/crates/rstorrent-remote-crypto/src/record.rs) | `fe4be51c235767db87e05a2dcba70747c14687f4` | Closer live-session reference: OPAQUE passphrase bootstrap, then remembered-browser P-256 signing identities and transcript-bound fresh ephemeral P-256 ECDH on resume. HKDF-SHA512 derives directional ChaCha20-Poly1305 records with authenticated headers and sequences. One Rust core runs natively and via Wasm; the opaque relay has no application decryption keys. Our QR bootstrap can replace the passphrase UX, but that is a new protocol composition requiring its own review. |
+
+These are source mechanisms, not a new cryptographic audit or physical test.
+Neither requires an account just to obtain E2E protection. Neither makes the
+Android lock PIN an encryption secret. Both document the hosted-web boundary:
+a compromised site can serve JavaScript that accesses plaintext at the endpoint.
+Relay privacy and independently trusted client distribution are distinct claims.
+
+For this product, prefer JSTorrent's separation of paired identities, fresh
+session keys, application records and opaque routing. Keep endpoint public-key
+pins and authorization on the phone/browser, not solely in the relay database.
+The current spike's relay-authenticated pairing is not yet an E2E channel, and
+the browser must gain durable phone-key pinning before production sessions.
+Consult Babytrack for key lifecycle and vectors without adding shared-history
+keys to a live remote-control protocol. Copying the siblings' shared crypto
+implementation would introduce Rust/native-Wasm bindings; using platform
+cryptography in our TS/Kotlin stack instead requires the same exact wire spec,
+cross-language vectors and handshake review. Neither implementation choice is
+selected by this source comparison.
+
 ## Licensing and ownership
 
 MC and JSTorrent declare MIT in their repository documentation; examine exact
