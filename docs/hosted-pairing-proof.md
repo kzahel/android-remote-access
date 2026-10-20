@@ -67,7 +67,9 @@ camera optics, Play-services scanner module download or real-phone ergonomics.
 
 ## Remaining boundaries
 
-The Android host supports one paired browser. The original pairing acceptance
+The original acceptance used one paired browser. The subsequent
+[mobile-management slice](mobile-management.md) adds multiple independent grants,
+local nicknames, access policy and SQLite activity history. The original pairing acceptance
 uses a foreground connection; the subsequent [FCM slice](fcm-wake-v1.md) adds a
 bounded background connection check after real push delivery. The only encrypted
 application operation is a fixed connection check, not a general command handler. Durable

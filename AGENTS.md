@@ -88,6 +88,14 @@ hostname and DNS/Caddy configuration in dotfiles, and committing both repositori
 Keep the service independent of existing products. This does not authorize Play
 publication, new physical-phone lock/debugging changes or unrelated service changes.
 
+The subsequent owner request authorizes the complete mobile-management slice:
+Room/SQLite and migration, multiple paired browsers and local nicknames, global
+and per-browser access switches, Settings, local activity history, end-to-end
+verification and incremental commits. Keep the existing plain native appearance
+and generic utility copy. See `docs/mobile-management.md`. This extends the
+current pairing/wake product; it does not claim screen control has been ported or
+authorize new physical-phone lock/debugging changes.
+
 ## Research discipline
 
 - Prefer official Android/Firebase documentation, official vendor help, and

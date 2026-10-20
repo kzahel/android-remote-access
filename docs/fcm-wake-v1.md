@@ -25,8 +25,9 @@ before network registration. This follows the pinned
 [YA lifecycle reference](sibling-repositories.md#yep-anywhere-fcm-implementation-reference)
 without reusing its registration, sender identity or application runtime.
 
-1. The phone owner pairs normally, taps **Enable remote wake** and allows remote
-   connection notifications. Disabled notifications or a revoked local grant
+1. The phone owner pairs normally, enables **Connect when requested** in Settings
+   and allows connection notifications. Global Remote access and the individual
+   browser must also be enabled. Disabled notifications or revoked local grants
    prevent wake work. Firebase registration is explicit rather than automatic.
 2. The native callback saves the current delivery address and uses a short-lived
    management socket to refresh it at the relay. That socket authenticates with
@@ -36,7 +37,8 @@ without reusing its registration, sender identity or application runtime.
 3. An authenticated browser socket creates a pending request if the phone has no
    session socket. It expires in 60 seconds. The sender sends data fields
    `intent: "connect-v1"`, a random 16-byte hex `requestId`, and Unix-seconds
-   `expires`. Android priority is high, TTL 60 seconds and collapse key
+   `expires`, plus the selected `pairingId` and current access `generation`
+   for managed pairings. Android priority is high, TTL 60 seconds and collapse key
    `connect-v1`. No input, PIN, session credential or E2E key goes through FCM.
 4. Native receipt validates shape/version/expiry and checks the local opt-in,
    notification permission and pairing. It presents a visible connection
@@ -173,3 +175,15 @@ Relevant platform guidance:
 [public client configuration](https://firebase.google.com/docs/projects/learn-more#config-files-objects).
 These links describe platform boundaries; this implementation's acceptance is
 limited to the checks above.
+
+
+## Multi-browser management extension
+
+The [mobile-management slice](mobile-management.md) moves grants/access policy
+from a single preference record into Room, preserves existing wake opt-in, and
+registers each browser relationship against the installation address. Management
+first synchronizes that pair's phone-only access generation. The native host
+requires a matching pairing/generation in wake hints and rechecks local policy
+for scheduling, handshake and records. Disarm/disable closes sessions and
+invalidates older work; disabling automatic requests is a separate setting.
+The historical receipts above describe the original single-browser UI.

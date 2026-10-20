@@ -15,6 +15,9 @@ See [hosted acceptance](docs/hosted-pairing-proof.md) for measured scope. The
 [FCM wake slice](docs/fcm-wake-v1.md) now passes real delivery from the hosted
 relay with the app process/socket absent, on an owned emulator and a physical
 Pixel 7a, including screen-off forced Doze.
+The Android host also manages multiple paired browsers, local nicknames, global
+and per-browser access switches, and local SQLite activity history. See
+[mobile management](docs/mobile-management.md).
 Screen viewing/control and WebRTC are later slices. The
 [manual-access spike](spike/README.md) remains the working remote-control demo.
 This project is independent of Yep Anywhere and needs no AI runtime.
@@ -67,6 +70,16 @@ an API-35 emulator on port 5594 and an isolated Chromium; artifacts stay in
 
 Existing phone demos retain temporary root asset symlinks and the root server launcher;
 new prototype commands run from `spike/`.
+
+Configured Firebase builds can exercise the full native management UI with two
+independent browsers and real process-absent wake delivery:
+
+```sh
+HOSTED_ORIGIN=https://YOUR_DEVELOPMENT_ORIGIN pnpm test:mobile
+```
+
+This owns an emulator and isolated Chromium; it never selects a physical phone.
+Private screenshots/results stay in `.local/mobile-proof/`.
 
 ## Evidence and plans
 

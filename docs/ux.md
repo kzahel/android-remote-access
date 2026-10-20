@@ -119,3 +119,13 @@ screen says it was saved successfully.
 Hands-on work would require a separately authorized scope and disposable
 accounts/fixtures. The current research makes no claim that these studies have
 been performed or that a particular flow has won.
+
+
+## Current mobile management (2026-10-20)
+
+The owner selected the simple implemented native Android style, generic utility
+copy, a compact status home, paired-browser management, Settings and local Activity.
+The earlier proposed journeys above remain research, not a description of all
+implemented screens. See [the implementation plan](mobile-management.md).
+Browser nicknames are local labels; Allowed/Disabled is persistent authority,
+Connected is live session state, and Last connected is timestamped history.

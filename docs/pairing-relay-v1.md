@@ -68,3 +68,26 @@ rollback belong in dotfiles. The product repository contains a reproducible
 web/relay build and public acceptance runner. This is a development deployment,
 not an audited consumer release. Physical camera and overnight FCM acceptance
 remain separate from automated decoded-image enrollment.
+
+
+## Mobile policy extension (2026-10-20)
+
+Each browser has its own pairing ID and pinned grant; a phone identity can grant
+multiple browsers. Enrollment and encrypted session formats remain v1. The phone
+now persists grants and access policy in Room, with private keys still in Keystore.
+
+An authenticated phone `mode: "registration"` socket may send `setAccess` with
+`enabled` and a fresh 16-byte hex `generation`, receiving `accessUpdated` before
+registering/removing push delivery. Only the phone management role may change
+policy. A changed policy is persisted and closes that pair's pending/active route.
+Paused viewers are rejected. Session-role phones must present the current
+`generation` once the pairing has opted into this extension. Unextended old grants
+remain readable and usable under their original contract.
+
+Push registrations attach that generation. Hints include `pairingId` and
+`generation`; the new native host requires both and rejects superseded generations
+before scheduling and throughout execution. They select a local pin, never grant
+trust. Local disarm/disable/revoke applies immediately even if relay synchronization
+fails. Re-enabling rotates the generation again; old requests cannot revive.
+Only one native session lease is admitted across all pairings. Management refresh
+with unchanged policy does not displace an active encrypted session.

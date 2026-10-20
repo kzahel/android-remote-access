@@ -363,3 +363,16 @@ Firebase send is not delivery evidence, and force-stop expects local recovery.
 Use an app-specific Firebase registration and authorized sender configuration;
 never borrow YA registrations or credentials. Pairing and crypto tests alone
 do not establish real FCM delivery; the separate opt-in FCM acceptance does.
+
+
+## Mobile management direction (2026-10-20)
+
+The owner prefers the current simple native Android appearance to the proposed
+HTML mockups. Keep the product language generic. The implemented management
+slice retains native views with AndroidX lifecycle/back support rather than
+introducing a new visual system or Compose solely for these screens.
+
+See [mobile management](mobile-management.md) for the authorized plan: Room,
+multiple browser grants and local nicknames, one active session, global and
+per-browser pause, removal, Settings and bounded local Activity. These screens
+manage pairing and encrypted checks; capture/input remain a later slice.

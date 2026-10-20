@@ -10,6 +10,7 @@ import { chromium } from "@playwright/test";
 import jsQR from "jsqr";
 import { PNG } from "pngjs";
 import { decodeInvitation } from "../protocol/src/enrollment.js";
+import { mobileAcceptance } from "./mobile-management-acceptance.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const origin = process.env.HOSTED_ORIGIN;
@@ -19,7 +20,11 @@ if (
   !origin.startsWith("https://")
 )
   throw new Error("Set HOSTED_ORIGIN to the HTTPS development relay origin");
+const multi =
+  process.env.HOSTED_MULTI === "1" || process.argv.includes("--multi");
 const physical = process.env.HOSTED_DEVICE;
+if (multi && physical)
+  throw new Error("Multi-browser acceptance owns an emulator only");
 const expectedModel = process.env.HOSTED_DEVICE_MODEL;
 const doze = process.env.HOSTED_DOZE === "1";
 if (physical && (!expectedModel || physical.startsWith("emulator-")))
@@ -30,7 +35,11 @@ if (doze && (!physical || process.env.HOSTED_FCM !== "1"))
   throw new Error("Doze acceptance requires physical FCM mode");
 const state = path.join(
   root,
-  physical ? ".local/physical-hosted-proof" : ".local/hosted-proof",
+  multi
+    ? ".local/mobile-proof"
+    : physical
+      ? ".local/physical-hosted-proof"
+      : ".local/hosted-proof",
 );
 const fcm = process.env.HOSTED_FCM === "1";
 const sdk = process.env.ANDROID_HOME ?? path.join(os.homedir(), "Android/Sdk");
@@ -170,7 +179,12 @@ const privateWrite = (file: string, value: string) => {
   if (!/^[a-z-]+$/.test(file)) throw new Error("Invalid fixture filename");
   return execFileSync(
     adbPath,
-    ["-s", serial, "shell", `run-as ${appId} sh -c 'cat > files/${file}'`],
+    [
+      "-s",
+      serial,
+      "shell",
+      `run-as ${appId} sh -c 'cat > files/${file}.next && mv files/${file}.next files/${file}'`,
+    ],
     { input: value, timeout: 10000, stdio: ["pipe", "pipe", "pipe"] },
   );
 };
@@ -198,208 +212,12 @@ try {
     installed.push(pkg);
   }
   // Physical mode only installs absent packages and never clears existing data.
-  if (!physical) adb("shell", "pm", "clear", appId);
-  if (fcm && !physical)
-    adb("shell", "pm", "grant", appId, "android.permission.POST_NOTIFICATIONS");
-  adb("shell", "run-as", appId, "mkdir", "-p", "files");
-  browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({
-    viewport: { width: 1280, height: 1000 },
-    deviceScaleFactor: 3,
-  });
-  const page = await context.newPage();
-  await page.goto(origin);
-  await page.getByRole("button", { name: "Create pairing code" }).click();
-  const qr = page.getByRole("img", { name: "Scan to pair this browser" });
-  await qr.waitFor();
-  const image = await qr.screenshot({ path: path.join(state, "qr.png") });
-  const png = PNG.sync.read(image);
-  const decoded = jsQR(new Uint8ClampedArray(png.data), png.width, png.height);
-  if (!decoded) throw new Error("Rendered QR did not decode");
-  const invitation = decodeInvitation(decoded.data);
-  invitationId = invitation.id;
-  if (invitation.origin !== origin) throw new Error("Wrong origin in QR");
-  privateWrite("hosted-pair-uri", decoded.data);
-  async function runNative(label: string) {
-    adb(
-      "shell",
-      "run-as",
-      appId,
-      "rm",
-      "-f",
-      "files/hosted-stage",
-      "files/hosted-command",
-    );
-    const logFile = await open(path.join(state, `${label}.log`), "w", 0o600);
-    logs.push(logFile);
-    instrument = spawn(
-      adbPath,
-      [
-        "-s",
-        serial,
-        "shell",
-        "am",
-        "instrument",
-        "-w",
-        "-e",
-        "class",
-        "dev.remoteaccess.app.HostedPairingTest#pairOrReconnectAndRevoke",
-        `${appId}.test/androidx.test.runner.AndroidJUnitRunner`,
-      ],
-      { stdio: ["ignore", logFile.fd, logFile.fd] },
-    );
-    const deadline = Date.now() + 120000;
-    let connected = false;
-    while (Date.now() < deadline) {
-      if (instrument.exitCode !== null)
-        throw new Error(
-          "Native fixture exited before connection; see private log",
-        );
-      try {
-        connected =
-          adb("shell", "run-as", appId, "cat", "files/hosted-stage") ===
-          "connected";
-      } catch {}
-      if (connected) break;
-      await delay(400);
-    }
-    if (!connected)
-      throw new Error("Native fixture did not connect; see private log");
-  }
-  async function finishNative(label: string, action: string) {
-    privateWrite("hosted-command", action);
-    await until(() => instrument?.exitCode !== null, fcm ? 90000 : 30000);
-    const nativeLog = await readFile(path.join(state, `${label}.log`), "utf8");
-    if (!nativeLog.includes("OK (1 test)") || nativeLog.includes("FAILURES!!!"))
-      throw new Error("Native acceptance failed; see private log");
-  }
-  async function check() {
-    await page
-      .getByRole("button", { name: "Check encrypted connection" })
-      .click();
-    await page
-      .getByRole("status")
-      .filter({ hasText: "Encrypted connection passed." })
-      .waitFor({ timeout: fcm ? 80000 : 30000 });
-  }
-  await runNative("pair");
-  await check();
-  await finishNative("pair", fcm ? "wake" : "finish");
-  const readCheckpoints = () => {
-    const settings = adb(
-      "shell",
-      "run-as",
-      appId,
-      "cat",
-      "shared_prefs/paired-browser-v1.xml",
-    );
-    const timestamp = (key: string) =>
-      Number(
-        settings.match(
-          new RegExp(`<long name="${key}" value="([0-9]+)"`),
-        )?.[1] ?? 0,
-      );
-    return {
-      receipt: timestamp("lastPushReceipt"),
-      exchange: timestamp("lastWakeExchange"),
-    };
-  };
-  async function wakeCheck() {
-    // Process reclamation, not force-stop: Firebase must be allowed to restart it.
-    await until(() => {
-      adb("shell", "am", "kill", "--user", "current", appId);
-      // A disconnected ADB target must never count as an absent process.
-      return (
-        adb(
-          "shell",
-          `if pidof ${appId} >/dev/null; then echo present; else echo absent; fi`,
-        ) === "absent"
-      );
-    }, 20000);
-    await page.reload();
-    const before = readCheckpoints();
-    const clockStart = Date.now();
-    const phoneTime = Number(adb("shell", "date", "+%s%3N"));
-    const clockEnd = Date.now();
-    if (!Number.isSafeInteger(phoneTime) || phoneTime <= 0)
-      throw new Error("Invalid device clock");
-    const clockOffset = phoneTime - (clockStart + clockEnd) / 2;
-    const requestedAt = Date.now() + clockOffset;
-    await check();
-    const checkpoints = await until(() => {
-      const current = readCheckpoints();
-      return current.receipt > before.receipt &&
-        current.exchange > before.exchange &&
-        current.exchange >= current.receipt
-        ? current
-        : undefined;
-    }, 10000);
-    if (!checkpoints) throw new Error("Missing fresh native FCM checkpoints");
-    return {
-      processAbsentBeforeWake: true,
-      noApplicationSocketBeforeWake: true,
-      firebaseReceived: true,
-      nativeEncryptedExchange: true,
-      requestToReceiptMs: Math.round(checkpoints.receipt - requestedAt),
-      requestToExchangeMs: Math.round(checkpoints.exchange - requestedAt),
-      clockEstimateUncertaintyMs: Math.ceil((clockEnd - clockStart) / 2),
-    };
-  }
-  let wakeEvidence = {};
-  if (fcm) {
-    if (
-      adb("shell", "run-as", appId, "cat", "files/hosted-stage") !==
-      "wake-ready"
-    )
-      throw new Error("Native FCM opt-in did not complete");
-    wakeEvidence = await wakeCheck();
-    console.log("Background FCM wake passed");
-  }
-  // A fresh Android process and a page reload must retain exact paired identities.
-  adb("shell", "am", "force-stop", appId);
-  await page.reload();
-  await runNative("reconnect");
-  await check();
-  await finishNative("reconnect", doze ? "wake" : "revoke");
-  let dozeEvidence = {};
-  if (doze) {
-    batteryChanged = true;
-    adb("shell", "dumpsys", "battery", "unplug");
-    displayChanged = true;
-    adb("shell", "input", "keyevent", "KEYCODE_SLEEP");
-    idleChanged = true;
-    adb("shell", "dumpsys", "deviceidle", "force-idle");
-    if (adb("shell", "dumpsys", "deviceidle", "get", "deep") !== "IDLE")
-      throw new Error("Phone did not enter deep idle");
-    console.log(
-      "Deep IDLE verified; allowing push cooldown with no ADB polling",
-    );
-    await delay(31000);
-    if (adb("shell", "dumpsys", "deviceidle", "get", "deep") !== "IDLE")
-      throw new Error("Phone left deep idle before wake request");
-    const screenOff = /mWakefulness=(Asleep|Dozing)\b/.test(
-      adb("shell", "dumpsys", "power"),
-    );
-    const exempt = adb("shell", "dumpsys", "deviceidle", "whitelist")
-      .split("\n")
-      .some((line) => line.split(",").includes(appId));
-    if (!screenOff || exempt)
-      throw new Error(
-        "Doze test requires screen off and no host battery exemption",
-      );
-    dozeEvidence = {
-      forcedDeepIdleBeforeWake: true,
-      screenOffBeforeWake: true,
-      hostBatteryExempt: false,
-      dozeWake: await wakeCheck(),
-    };
-    console.log("Forced-Doze FCM wake passed");
-    adb("shell", "dumpsys", "deviceidle", "unforce");
-    idleChanged = false;
-    adb("shell", "dumpsys", "battery", "reset");
-    batteryChanged = false;
-    // Cleanup uses the owned fixture's native signing key; no unlock/PIN is needed.
-    const result = adb(
+  if (!physical) {
+    // An interrupted owned fixture must revoke its grants before a data reset
+    // destroys the only signing key capable of cleaning up hosted authority.
+    adb("shell", "run-as", appId, "mkdir", "-p", "files");
+    privateWrite("hosted-stage", "owned-fixture-cleanup");
+    const cleanup = adb(
       "shell",
       "am",
       "instrument",
@@ -409,40 +227,281 @@ try {
       "dev.remoteaccess.app.HostedPairingTest#revokeFixture",
       `${appId}.test/androidx.test.runner.AndroidJUnitRunner`,
     );
-    if (!result.includes("OK (1 test)"))
-      throw new Error("Locked fixture revocation failed");
+    await writeFile(path.join(state, "previous-fixture-cleanup.log"), cleanup, {
+      mode: 0o600,
+    });
+    if (!cleanup.includes("OK (1 test)"))
+      throw new Error(
+        "Previous owned fixture cleanup failed; preserving authority and keys",
+      );
+    adb("shell", "pm", "clear", appId);
   }
-  const response = await fetch(`${origin}/api/pair/${invitation.id}`);
-  if (response.status !== 410)
-    throw new Error("Revocation not durable at relay");
-  revoked = true;
-  await page
-    .getByRole("button", { name: "Check encrypted connection" })
-    .click();
-  await page
-    .getByRole("status")
-    .filter({ hasText: "Phone is unavailable" })
-    .waitFor({ timeout: 30000 });
-  const report = {
-    renderedQrDecoded: true,
-    normalGrantUI: true,
-    encryptedExchanges: doze ? 4 : fcm ? 3 : 2,
-    physicalDevice: Boolean(physical),
-    ...wakeEvidence,
-    ...dozeEvidence,
-    persistedAfterAndroidProcessRestart: true,
-    persistedAfterBrowserReload: true,
-    revoked: true,
-    rejectedAfterRevocation: true,
-    publicHttpsWss: true,
-    androidApi: Number(adb("shell", "getprop", "ro.build.version.sdk")),
-  };
-  await writeFile(
-    path.join(state, "result.json"),
-    `${JSON.stringify(report, null, 2)}\n`,
-    { mode: 0o600 },
-  );
-  console.log(JSON.stringify(report));
+  if (fcm && !physical)
+    adb("shell", "pm", "grant", appId, "android.permission.POST_NOTIFICATIONS");
+  adb("shell", "run-as", appId, "mkdir", "-p", "files");
+  browser = await chromium.launch({ headless: true });
+  if (multi) {
+    await mobileAcceptance({
+      browser,
+      origin,
+      state,
+      adbPath,
+      serial,
+      adb,
+      privateWrite,
+    });
+  } else {
+    const context = await browser.newContext({
+      viewport: { width: 1280, height: 1000 },
+      deviceScaleFactor: 3,
+    });
+    const page = await context.newPage();
+    await page.goto(origin);
+    await page.getByRole("button", { name: "Create pairing code" }).click();
+    const qr = page.getByRole("img", { name: "Scan to pair this browser" });
+    await qr.waitFor();
+    const image = await qr.screenshot({ path: path.join(state, "qr.png") });
+    const png = PNG.sync.read(image);
+    const decoded = jsQR(
+      new Uint8ClampedArray(png.data),
+      png.width,
+      png.height,
+    );
+    if (!decoded) throw new Error("Rendered QR did not decode");
+    const invitation = decodeInvitation(decoded.data);
+    invitationId = invitation.id;
+    if (invitation.origin !== origin) throw new Error("Wrong origin in QR");
+    privateWrite("hosted-pair-uri", decoded.data);
+    async function runNative(label: string) {
+      adb(
+        "shell",
+        "run-as",
+        appId,
+        "rm",
+        "-f",
+        "files/hosted-stage",
+        "files/hosted-command",
+      );
+      const logFile = await open(path.join(state, `${label}.log`), "w", 0o600);
+      logs.push(logFile);
+      instrument = spawn(
+        adbPath,
+        [
+          "-s",
+          serial,
+          "shell",
+          "am",
+          "instrument",
+          "-w",
+          "-e",
+          "class",
+          "dev.remoteaccess.app.HostedPairingTest#pairOrReconnectAndRevoke",
+          `${appId}.test/androidx.test.runner.AndroidJUnitRunner`,
+        ],
+        { stdio: ["ignore", logFile.fd, logFile.fd] },
+      );
+      const deadline = Date.now() + 120000;
+      let connected = false;
+      while (Date.now() < deadline) {
+        if (instrument.exitCode !== null)
+          throw new Error(
+            "Native fixture exited before connection; see private log",
+          );
+        try {
+          connected =
+            adb("shell", "run-as", appId, "cat", "files/hosted-stage") ===
+            "connected";
+        } catch {}
+        if (connected) break;
+        await delay(400);
+      }
+      if (!connected)
+        throw new Error("Native fixture did not connect; see private log");
+    }
+    async function finishNative(label: string, action: string) {
+      privateWrite("hosted-command", action);
+      await until(() => instrument?.exitCode !== null, fcm ? 90000 : 30000);
+      const nativeLog = await readFile(
+        path.join(state, `${label}.log`),
+        "utf8",
+      );
+      if (
+        !nativeLog.includes("OK (1 test)") ||
+        nativeLog.includes("FAILURES!!!")
+      )
+        throw new Error("Native acceptance failed; see private log");
+    }
+    async function check() {
+      await page
+        .getByRole("button", { name: "Check encrypted connection" })
+        .click();
+      await page
+        .getByRole("status")
+        .filter({ hasText: "Encrypted connection passed." })
+        .waitFor({ timeout: fcm ? 80000 : 30000 });
+    }
+    await runNative("pair");
+    await check();
+    await finishNative("pair", fcm ? "wake" : "finish");
+    const readCheckpoints = () => {
+      const settings = adb(
+        "shell",
+        "run-as",
+        appId,
+        "cat",
+        "shared_prefs/paired-browser-v1.xml",
+      );
+      const timestamp = (key: string) =>
+        Number(
+          settings.match(
+            new RegExp(`<long name="${key}" value="([0-9]+)"`),
+          )?.[1] ?? 0,
+        );
+      return {
+        receipt: timestamp("lastPushReceipt"),
+        exchange: timestamp("lastWakeExchange"),
+      };
+    };
+    async function wakeCheck() {
+      // Process reclamation, not force-stop: Firebase must be allowed to restart it.
+      await until(() => {
+        adb("shell", "am", "kill", "--user", "current", appId);
+        // A disconnected ADB target must never count as an absent process.
+        return (
+          adb(
+            "shell",
+            `if pidof ${appId} >/dev/null; then echo present; else echo absent; fi`,
+          ) === "absent"
+        );
+      }, 20000);
+      await page.reload();
+      const before = readCheckpoints();
+      const clockStart = Date.now();
+      const phoneTime = Number(adb("shell", "date", "+%s%3N"));
+      const clockEnd = Date.now();
+      if (!Number.isSafeInteger(phoneTime) || phoneTime <= 0)
+        throw new Error("Invalid device clock");
+      const clockOffset = phoneTime - (clockStart + clockEnd) / 2;
+      const requestedAt = Date.now() + clockOffset;
+      await check();
+      const checkpoints = await until(() => {
+        const current = readCheckpoints();
+        return current.receipt > before.receipt &&
+          current.exchange > before.exchange &&
+          current.exchange >= current.receipt
+          ? current
+          : undefined;
+      }, 10000);
+      if (!checkpoints) throw new Error("Missing fresh native FCM checkpoints");
+      return {
+        processAbsentBeforeWake: true,
+        noApplicationSocketBeforeWake: true,
+        firebaseReceived: true,
+        nativeEncryptedExchange: true,
+        requestToReceiptMs: Math.round(checkpoints.receipt - requestedAt),
+        requestToExchangeMs: Math.round(checkpoints.exchange - requestedAt),
+        clockEstimateUncertaintyMs: Math.ceil((clockEnd - clockStart) / 2),
+      };
+    }
+    let wakeEvidence = {};
+    if (fcm) {
+      if (
+        adb("shell", "run-as", appId, "cat", "files/hosted-stage") !==
+        "wake-ready"
+      )
+        throw new Error("Native FCM opt-in did not complete");
+      wakeEvidence = await wakeCheck();
+      console.log("Background FCM wake passed");
+    }
+    // A fresh Android process and a page reload must retain exact paired identities.
+    adb("shell", "am", "force-stop", appId);
+    await page.reload();
+    await runNative("reconnect");
+    await check();
+    await finishNative("reconnect", doze ? "wake" : "revoke");
+    let dozeEvidence = {};
+    if (doze) {
+      batteryChanged = true;
+      adb("shell", "dumpsys", "battery", "unplug");
+      displayChanged = true;
+      adb("shell", "input", "keyevent", "KEYCODE_SLEEP");
+      idleChanged = true;
+      adb("shell", "dumpsys", "deviceidle", "force-idle");
+      if (adb("shell", "dumpsys", "deviceidle", "get", "deep") !== "IDLE")
+        throw new Error("Phone did not enter deep idle");
+      console.log(
+        "Deep IDLE verified; allowing push cooldown with no ADB polling",
+      );
+      await delay(31000);
+      if (adb("shell", "dumpsys", "deviceidle", "get", "deep") !== "IDLE")
+        throw new Error("Phone left deep idle before wake request");
+      const screenOff = /mWakefulness=(Asleep|Dozing)\b/.test(
+        adb("shell", "dumpsys", "power"),
+      );
+      const exempt = adb("shell", "dumpsys", "deviceidle", "whitelist")
+        .split("\n")
+        .some((line) => line.split(",").includes(appId));
+      if (!screenOff || exempt)
+        throw new Error(
+          "Doze test requires screen off and no host battery exemption",
+        );
+      dozeEvidence = {
+        forcedDeepIdleBeforeWake: true,
+        screenOffBeforeWake: true,
+        hostBatteryExempt: false,
+        dozeWake: await wakeCheck(),
+      };
+      console.log("Forced-Doze FCM wake passed");
+      adb("shell", "dumpsys", "deviceidle", "unforce");
+      idleChanged = false;
+      adb("shell", "dumpsys", "battery", "reset");
+      batteryChanged = false;
+      // Cleanup uses the owned fixture's native signing key; no unlock/PIN is needed.
+      const result = adb(
+        "shell",
+        "am",
+        "instrument",
+        "-w",
+        "-e",
+        "class",
+        "dev.remoteaccess.app.HostedPairingTest#revokeFixture",
+        `${appId}.test/androidx.test.runner.AndroidJUnitRunner`,
+      );
+      if (!result.includes("OK (1 test)"))
+        throw new Error("Locked fixture revocation failed");
+    }
+    const response = await fetch(`${origin}/api/pair/${invitation.id}`);
+    if (response.status !== 410)
+      throw new Error("Revocation not durable at relay");
+    revoked = true;
+    await page
+      .getByRole("button", { name: "Check encrypted connection" })
+      .click();
+    await page
+      .getByRole("status")
+      .filter({ hasText: "Phone is unavailable" })
+      .waitFor({ timeout: 30000 });
+    const report = {
+      renderedQrDecoded: true,
+      normalGrantUI: true,
+      encryptedExchanges: doze ? 4 : fcm ? 3 : 2,
+      physicalDevice: Boolean(physical),
+      ...wakeEvidence,
+      ...dozeEvidence,
+      persistedAfterAndroidProcessRestart: true,
+      persistedAfterBrowserReload: true,
+      revoked: true,
+      rejectedAfterRevocation: true,
+      publicHttpsWss: true,
+      androidApi: Number(adb("shell", "getprop", "ro.build.version.sdk")),
+    };
+    await writeFile(
+      path.join(state, "result.json"),
+      `${JSON.stringify(report, null, 2)}\n`,
+      { mode: 0o600 },
+    );
+    console.log(JSON.stringify(report));
+  }
 } finally {
   if (invitationId && !revoked)
     console.error(

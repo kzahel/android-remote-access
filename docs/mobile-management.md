@@ -56,3 +56,38 @@ Preserve v1 enrollment/crypto wire compatibility and existing relay state.
 
 Physical lock/debugging settings, unrelated apps, existing transports and services
 are unchanged. Natural overnight/reboot qualification remains separate.
+
+## Implementation and acceptance
+
+Implemented in the root Android host and hosted relay on 2026-10-20. The UI uses
+plain native views, AndroidX back handling and a scrollable status/list rather
+than the earlier HTML mockups. Up to 32 independently pinned browser grants can
+be retained; owners can rename, pause, disconnect and remove each one. Settings
+separates automatic requests from global permission. Activity is local, loads history in batches, and is pruned at startup/read/write to 30 days/10,000 rows. Room schemas are
+exported for future migrations. Database/preferences/files are explicitly
+excluded from cloud backup and device transfer; signing keys remain in Keystore.
+
+`pnpm test:mobile` requires the normal Android build with the operator's ignored
+Firebase client configuration and `HOSTED_ORIGIN` pointing at the compatible
+hosted relay. It owns an API-35 Google APIs emulator and two isolated Chromium
+contexts. It never selects a physical phone. It tests rendered-QR decoding,
+ordinary Grant/rename/switch/confirmation controls, both encrypted checks, real
+FCM wake with the app process absent for each browser, persisted aliases and
+last-connected timestamps, global/per-browser gating, active route closure,
+disconnect without unpairing, isolated removal and subsequent rejection.
+The native Room tests cover transactional legacy import, preserved revocation,
+independent authority, superseded generations and bounded/redacted history.
+
+Private screenshots, native logs and the result receipt live under
+`.local/mobile-proof/`. Fixture writes are atomic. A previous interrupted owned
+fixture is revoked with its retained native key before any app-data reset; failed
+cleanup preserves the AVD for repair. Both normal acceptance and management
+acceptance close their browser/emulator processes.
+
+The first complete management run passed all the checks above, including real
+FCM receipt and encrypted exchanges for both browser identities. Build, Android
+lint, ktlint, TypeScript checking, Biome, 63 TS tests and 14 Kotlin protocol tests
+pass. Three native Room tests and the command-driven native management flow pass.
+This is emulator evidence; it does not extend the earlier physical Pixel receipt
+to the new management UI or qualify natural overnight/reboot recovery. Screen
+capture/input and WebRTC remain separate product slices.
