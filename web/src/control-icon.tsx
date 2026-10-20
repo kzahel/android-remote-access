@@ -13,11 +13,31 @@ export type ControlIconName =
   | "info"
   | "close"
   | "quality"
+  | "screen"
+  | "touch"
+  | "notifications"
   | "keyboard";
 
 /** Small, consistent line icons; the enclosing button supplies its accessible name. */
 export function ControlIcon({ name }: { name: ControlIconName }) {
   const shapes = {
+    screen: (
+      <>
+        <rect x="3" y="3" width="18" height="14" rx="2" />
+        <path d="M8 21h8m-4-4v4" />
+      </>
+    ),
+    touch: (
+      <>
+        <path d="M8 13V6a2 2 0 0 1 4 0v6l2-1 6 3-1 6H9l-5-6a2 2 0 0 1 3-2l1 1Z" />
+        <path d="M4 5a6 6 0 0 1 12 0" />
+      </>
+    ),
+    notifications: (
+      <>
+        <path d="M5 9a7 7 0 0 1 14 0v5l2 3H3l2-3V9Zm4 11a3 3 0 0 0 6 0" />
+      </>
+    ),
     menu: <path d="M4 6h16M4 12h16M4 18h16" />,
     close: <path d="m6 6 12 12M6 18 18 6" />,
     phone: (

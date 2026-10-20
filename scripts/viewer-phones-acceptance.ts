@@ -222,9 +222,13 @@ try {
   ] as const) {
     await a.setViewportSize({ width, height });
     const previewFrame = await frame(a);
-    await a.getByText("Phone features", { exact: true }).click();
-    assert.deepEqual(await frame(a), previewFrame);
-    await a.getByText("Phone features", { exact: true }).click();
+    await expect(
+      a.getByRole("region", { name: "Phone features" }),
+    ).toBeVisible();
+    await expect(
+      a.getByRole("img", { name: "Screen viewing: Enabled", exact: true }),
+    ).toBeVisible();
+    assert.equal(await a.locator(".phone-preview details").count(), 0);
     await a.screenshot({ path: path.join(artifacts, `${name}-preview.png`) });
     await a
       .getByRole("button", { name: "Connect to phone", exact: true })
@@ -240,6 +244,147 @@ try {
     assert.deepEqual(await frame(a), previewFrame);
   }
   await a.setViewportSize({ width: 1280, height: 1000 });
+  // The centered card, not just its outer screen frame, must remain fixed as
+  // requests, contact history and capability reports arrive or fail.
+  const states = await context.newPage();
+  await states.goto(`${origin}/fixture-bootstrap`);
+  await states.evaluate(() => {
+    sessionStorage.setItem("fixture-delay", "true");
+    sessionStorage.setItem("fixture-control-delay", "true");
+  });
+  async function previewGeometry() {
+    return states.evaluate(() => ({
+      boxes: Array.from(
+        document.querySelectorAll(
+          ".screen-stage, .control-dock, .connect-panel, .connect-panel > button, .contact-detail, .preview-features, .capability",
+        ),
+      ).map((element) => {
+        const { x, y, width, height } = element.getBoundingClientRect();
+        return { x, y, width, height };
+      }),
+      scroll: [
+        scrollX,
+        scrollY,
+        document.querySelector(".preview-overlay")?.scrollTop,
+      ],
+    }));
+  }
+  async function recheck() {
+    const before = await states.evaluate(() => window.phonesFixture.checks);
+    await states.evaluate(() =>
+      window.dispatchEvent(
+        new PageTransitionEvent("pageshow", { persisted: true }),
+      ),
+    );
+    await expect
+      .poll(() => states.evaluate(() => window.phonesFixture.checks))
+      .toBe(before + 1);
+  }
+  for (const [name, width, height] of [
+    ["desktop", 1280, 1000],
+    ["mobile", 390, 844],
+    ["small-mobile", 320, 680],
+    ["landscape", 844, 390],
+  ] as const) {
+    await states.setViewportSize({ width, height });
+    await states.goto(a.url());
+    await expect
+      .poll(() => states.evaluate(() => window.phonesFixture?.checks ?? 0))
+      .toBe(1);
+    await expect(
+      states.getByRole("img", { name: /Status unknown/ }),
+    ).toHaveCount(3);
+    const baseline = await previewGeometry();
+    await states.evaluate(() => {
+      window.phonesFixture.features = {
+        type: "features",
+        v: 1,
+        screenViewing: "permission-needed",
+        touchControl: "unavailable",
+        connectionRequests: "notifications-needed",
+      };
+      window.phonesFixture.finishCheck();
+    });
+    await expect(states.getByRole("status")).toHaveText("Ready to connect");
+    await expect(
+      states.getByRole("img", { name: /Screen viewing: Off/ }),
+    ).toBeVisible();
+    await expect(
+      states.getByRole("img", { name: /Touch control: Unavailable/ }),
+    ).toBeVisible();
+    await expect(
+      states.getByRole("img", {
+        name: /Connection requests: Enable notifications/,
+      }),
+    ).toBeVisible();
+    assert.deepEqual(await previewGeometry(), baseline);
+    await states.screenshot({
+      path: path.join(artifacts, `${name}-capabilities-off.png`),
+    });
+    await recheck();
+    assert.deepEqual(await previewGeometry(), baseline);
+    await states.evaluate(() => {
+      window.phonesFixture.fail = true;
+      window.phonesFixture.finishCheck();
+    });
+    await expect(states.getByRole("status")).toHaveText(
+      "Fixture phone is unavailable",
+    );
+    assert.deepEqual(await previewGeometry(), baseline);
+    await states
+      .getByRole("button", { name: "Connect to phone", exact: true })
+      .click();
+    await expect
+      .poll(() => states.evaluate(() => window.phonesFixture.controls))
+      .toBe(1);
+    await expect(
+      states.getByRole("button", { name: "Connect to phone", exact: true }),
+    ).toHaveText("Connecting…");
+    assert.deepEqual(await previewGeometry(), baseline);
+    await states
+      .getByRole("button", { name: "Cancel connection", exact: true })
+      .click();
+    await expect(states.getByRole("status")).toHaveText("Connection cancelled");
+    assert.deepEqual(await previewGeometry(), baseline);
+    await states
+      .getByRole("button", { name: "Connect to phone", exact: true })
+      .click();
+    await expect
+      .poll(() => states.evaluate(() => window.phonesFixture.controls))
+      .toBe(2);
+    await states.evaluate(() => window.phonesFixture.finishControl());
+    await expect(states.getByRole("status")).toHaveText(
+      "Fixture phone is unavailable",
+    );
+    assert.deepEqual(await previewGeometry(), baseline);
+    await recheck();
+    await states.evaluate(() => {
+      window.phonesFixture.fail = false;
+      window.phonesFixture.features = {
+        type: "features",
+        v: 1,
+        screenViewing: "enabled",
+        touchControl: "enabled",
+        connectionRequests: "enabled",
+      };
+      window.phonesFixture.finishCheck();
+    });
+    await expect(states.getByRole("status")).toHaveText("Ready to connect");
+    await expect(states.getByRole("img", { name: /: Enabled$/ })).toHaveCount(
+      3,
+    );
+    assert.deepEqual(await previewGeometry(), baseline);
+    await states.emulateMedia({ colorScheme: "dark" });
+    assert.deepEqual(await previewGeometry(), baseline);
+    await states.screenshot({
+      path: path.join(artifacts, `${name}-capabilities-dark.png`),
+    });
+    await states.emulateMedia({ colorScheme: "light" });
+  }
+  await states.close();
+  console.log(
+    "Preview card and capability icons stay fixed through loading, errors, cancellation and theme changes at four sizes",
+  );
   assert.equal(
     await a.evaluate(() => window.phonesFixture.checks),
     1,

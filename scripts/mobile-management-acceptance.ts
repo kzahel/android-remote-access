@@ -292,24 +292,20 @@ export async function mobileAcceptance(f: Fixture) {
     for (const peer of [a, b]) {
       await command("foreground", { id: peer.id });
       await check(peer.page);
-      await peer.page.getByText("Phone features", { exact: true }).click();
-      await peer.page.getByRole("region", { name: "Phone features" }).waitFor();
-      assert.match(
-        await peer.page
-          .getByRole("region", { name: "Phone features" })
-          .innerText(),
-        /Off/,
-      );
+      await peer.page
+        .getByRole("img", { name: "Connection requests: Off", exact: true })
+        .waitFor();
     }
     console.log("Both browsers passed encrypted checks");
     await command("deny-feature-permission");
     await command("foreground", { id: a.id, automatic: true });
     await check(a.page);
-    await a.page.getByText("Phone features", { exact: true }).click();
-    assert.match(
-      await a.page.getByRole("region", { name: "Phone features" }).innerText(),
-      /Enable notifications/,
-    );
+    await a.page
+      .getByRole("img", {
+        name: "Connection requests: Enable notifications on the phone",
+        exact: true,
+      })
+      .waitFor();
     await command("automatic", { enabled: false });
     await command("home");
     await shot("home-two-browsers");

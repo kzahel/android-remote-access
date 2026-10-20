@@ -173,7 +173,7 @@ returning from the Back/Forward cache performs a fresh check.
 
 The screen frame and right-side controls appear before connecting. A compact
 Connect overlay starts viewing/control; unavailable controls remain disabled.
-Feature readiness is available under the optional Phone features disclosure.
+Feature readiness appears in a permanent icon row with enabled/off/unknown badges.
 Preview, connecting, live viewing and disconnected states share the same frame,
 so their screen and control geometry stays stable. The canvas retains the actual
 phone aspect ratio and touch mapping inside that frame.
@@ -206,3 +206,21 @@ receipt-to-exchange intervals were 193 and 189 ms; these are fixture measurement
 This run used a clean archive of the committed Android sources, separate from
 concurrent mobile UI edits. Both fixture grants were removed, and the runners
 reaped their emulators and isolated Chromium processes.
+
+### Stable connection card and capability icons — 2026-10-20
+
+The centered Connect card now reserves fixed rows for its action, contact time,
+capabilities and cancellation. Cancel becomes visible in its reserved space;
+checks and connection attempts do not resize or recenter the card. Screen,
+Touch and Requests icons are always visible, including before the first report.
+Each has a check, minus or question-mark badge for enabled, off or unknown.
+Accessible names and hover titles give the full capability/status and any repair
+action. The former capabilities disclosure is removed.
+
+The isolated phone regression now measures the card, both buttons, contact row
+and individual capability icons as well as the outer screen/rail. Their geometry
+and page/overlay scroll remain identical through delayed checks/connections,
+enabled/disabled/unknown reports, errors, cancellation and light/dark changes at
+1280×1000, 390×844, 320×680 and 844×390. Existing five-size live-viewer geometry,
+multi-phone/tab and lifecycle checks also pass, along with type checks, Biome and
+the production build. This presentation-only change needs no Android reinstall.

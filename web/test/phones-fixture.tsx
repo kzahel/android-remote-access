@@ -1,5 +1,6 @@
 import { b64 } from "@remote/protocol";
 import type { Command, ControlState, Reply } from "@remote/protocol/control";
+import type { PhoneFeatures } from "@remote/protocol/features";
 import { createRoot } from "react-dom/client";
 import type { RemoteSession } from "../src/control-session.js";
 import type { ViewerServices } from "../src/phone-page.js";
@@ -23,18 +24,47 @@ const jpeg = new Uint8Array(
 window.phonesFixture = {
   fail: sessionStorage.getItem("fixture-fail") === "true",
   delay: sessionStorage.getItem("fixture-delay") === "true",
+  controlDelay: sessionStorage.getItem("fixture-control-delay") === "true",
   calls: [],
   closed: 0,
   checks: 0,
   controls: 0,
   drop: () => {},
+  finishCheck: () => {},
+  finishControl: () => {},
+  features: {
+    type: "features",
+    v: 1,
+    screenViewing: "enabled",
+    touchControl: "enabled",
+    connectionRequests: "enabled",
+  },
 };
+async function deferred(
+  kind: "finishCheck" | "finishControl",
+  signal?: AbortSignal,
+) {
+  await new Promise<void>((resolve, reject) => {
+    const abort = () => {
+      signal?.removeEventListener("abort", abort);
+      reject(new DOMException("Cancelled", "AbortError"));
+    };
+    window.phonesFixture[kind] = () => {
+      signal?.removeEventListener("abort", abort);
+      resolve();
+    };
+    if (signal?.aborted) abort();
+    else signal?.addEventListener("abort", abort, { once: true });
+  });
+}
 const services: ViewerServices = {
   async connect(identity, grant, _report, signal) {
     if (b64(identity.publicKey) !== grant.viewer)
       throw Error("Wrong browser identity");
     window.phonesFixture.controls++;
     window.phonesFixture.calls.push(grant.id);
+    if (window.phonesFixture.controlDelay)
+      await deferred("finishControl", signal);
     if (window.phonesFixture.fail) throw Error("Fixture phone is unavailable");
     const state: ControlState = {
       type: "state",
@@ -80,22 +110,9 @@ const services: ViewerServices = {
       throw Error("Wrong browser identity");
     window.phonesFixture.checks++;
     window.phonesFixture.calls.push(grant.id);
+    if (window.phonesFixture.delay) await deferred("finishCheck", signal);
     if (window.phonesFixture.fail) throw Error("Fixture phone is unavailable");
-    if (window.phonesFixture.delay)
-      await new Promise<void>((_resolve, reject) =>
-        signal?.addEventListener(
-          "abort",
-          () => reject(new DOMException("Cancelled", "AbortError")),
-          { once: true },
-        ),
-      );
-    return {
-      type: "features",
-      v: 1,
-      screenViewing: "enabled",
-      touchControl: "enabled",
-      connectionRequests: "enabled",
-    };
+    return window.phonesFixture.features;
   },
 };
 const root = document.getElementById("root");
@@ -107,11 +124,15 @@ declare global {
     phonesFixture: {
       fail: boolean;
       delay: boolean;
+      controlDelay: boolean;
       calls: string[];
       closed: number;
       checks: number;
       controls: number;
       drop: () => void;
+      finishCheck: () => void;
+      finishControl: () => void;
+      features: PhoneFeatures | undefined;
     };
   }
 }
