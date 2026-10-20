@@ -1,0 +1,52 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #16322f;
+  background: #f2f6f2;
+  line-height: 1.6;
+}
+body {
+  margin: 0;
+}
+main {
+  max-width: 660px;
+  margin: 8vh auto;
+  padding: 32px;
+}
+h1 {
+  font-size: clamp(2.5rem, 7vw, 4rem);
+  line-height: 1.1;
+  letter-spacing: -0.045em;
+}
+.eyebrow {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+button {
+  background: #164e43;
+  color: white;
+  border: 0;
+  border-radius: 8px;
+  padding: 14px 20px;
+  margin: 8px 12px 8px 0;
+  font: inherit;
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+button.secondary {
+  background: #dce8e0;
+  color: #16322f;
+}
+section {
+  margin-top: 24px;
+}
+svg {
+  max-width: 100%;
+  height: auto;
+}
+[role="status"] {
+  min-height: 3em;
+}

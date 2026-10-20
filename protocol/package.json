@@ -6,6 +6,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./enrollment": {
+      "types": "./dist/enrollment.d.ts",
+      "import": "./dist/enrollment.js"
     }
   },
   "scripts": {

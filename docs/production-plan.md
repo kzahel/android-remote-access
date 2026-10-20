@@ -3,8 +3,8 @@
 Written 2026-10-19 at the owner's request, updated 2026-10-20 with repository
 and stack decisions. Production implementation is authorized in this repository;
 the remote-control runtime remains the preserved spike. The first production
-crypto interoperability slice is implemented; see [its acceptance](crypto-proof.md). No production relay or store listing
-exists. Evidence references point to the spike documents; anything not listed
+crypto interoperability slice is implemented; see [its acceptance](crypto-proof.md). The next development slice adds a hosted pairing/relay service; no store
+listing exists. Evidence references point to the spike documents; anything not listed
 there as tested is a hypothesis.
 
 ## Goal
@@ -26,8 +26,8 @@ and open questions are identified separately below.
 1. Aim for a Play-published consumer app, not a research artifact.
 2. We host and operate the relay, following the existing projects' hosting and
    deployment patterns documented in dotfiles. Consumers will not need a VPN;
-   Tailscale was only the spike's stand-in. The concrete machine and domain are
-   still to be selected.
+   Tailscale was only the spike's stand-in. The 2026-10-20 follow-up selects the Pi and
+   `android-remote.graehlarts.com` for the hosted development instance.
 3. Account-free pairing comes first: a QR code shown in the browser, scanned on
    the phone, confirmed with **Grant**. Sign-in may be added later as an option.
 4. The pairing flow was prototyped in this repository before any production
@@ -139,8 +139,8 @@ Write a short decision record for each before building it.
   compromised hosted viewer can access plaintext at the browser endpoint;
   immutable assets/CSP reduce risk but do not remove that trust. An independently
   distributed viewer would be a separate future delivery decision.
-- **Identity and sessions.** Keep pairing (QR, done), device identity (Keystore
-  key, done), session authority (short-lived grants, step-up before unlock) and
+- **Identity and sessions.** Keep pairing (QR prototype; production enrollment in progress), device identity (Keystore
+  key, implemented), session authority (short-lived grants, step-up before unlock) and
   optional account sign-in separate. Sign-in, if added, recovers and syncs
   paired keys; it must not be required for an unattended phone to reconnect.
 - **Wake.** Prefer an on-demand application connection: an authorized viewer
@@ -340,3 +340,23 @@ emulator screenshots.
 - Pricing and what a free tier includes.
 - Supported Android versions, OEMs and devices without Google Play services.
 - Play-only or also a direct APK.
+
+## Hosted pairing/relay slice (2026-10-20)
+
+The owner authorizes the Pi development deployment, DNS/Caddy configuration and
+commits in this repository and dotfiles. See [pairing/relay v1](pairing-relay-v1.md)
+for enrollment and routing. Root `pnpm test:hosted`, with `HOSTED_ORIGIN` supplied
+by the operator, owns an emulator and real Chromium, decodes the rendered QR
+screenshot, supplies it through the normal Android pairing intent, taps Grant,
+checks encrypted exchanges, restarts the native process/reloads the browser,
+and revokes the paired browser. Camera optics are a separate physical check.
+
+FCM follows this hosted slice. Its acceptance has three layers: deterministic
+sender/registration/revocation tests; real Firebase delivery with the application
+relay socket closed and native receipt → authenticated exchange evidence; then
+physical forced-Doze and natural overnight runs. Include token replacement,
+duplicate/expired wake hints, offline recovery and revoked requests. An accepted
+Firebase send is not delivery evidence, and force-stop expects local recovery.
+Use an app-specific Firebase registration and authorized sender configuration;
+never borrow YA registrations or credentials. No real FCM delivery is claimed
+by the pairing or crypto tests.

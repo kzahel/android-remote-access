@@ -1,0 +1,58 @@
+package dev.remoteaccess.app
+
+import android.content.Intent
+import android.net.Uri
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.By
+import androidx.test.uiautomator.UiDevice
+import androidx.test.uiautomator.Until
+import org.junit.Test
+import org.junit.runner.RunWith
+import java.io.File
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
+
+/** Injects decoded QR content through the normal deep link, then exercises Grant. */
+@RunWith(AndroidJUnit4::class)
+class HostedPairingTest {
+    @Test
+    fun pairOrReconnectAndRevoke() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val device = UiDevice.getInstance(instrumentation)
+        val stage = File(context.filesDir, "hosted-stage")
+        val command = File(context.filesDir, "hosted-command")
+        val uriFile = File(context.filesDir, "hosted-pair-uri")
+        val pairing = uriFile.exists()
+        stage.delete()
+        command.delete()
+        val intent = Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        if (pairing) {
+            intent.action = Intent.ACTION_VIEW
+            intent.data = Uri.parse(uriFile.readText())
+            uriFile.delete()
+        }
+        context.startActivity(intent)
+        if (pairing) {
+            val grant = device.wait(Until.findObject(By.text("Grant")), 15000)
+            assertNotNull(grant, "Normal grant screen missing")
+            grant.click()
+        }
+        assertTrue(device.wait(Until.hasObject(By.text("Browser paired. Tap Connect.")), 90000))
+        val before = KeystoreIdentity.loadOrCreate("phone-identity-v1").publicKey
+        assertTrue(before.contentEquals(KeystoreIdentity.loadOrCreate("phone-identity-v1").publicKey))
+        device.findObject(By.text("Connect")).click()
+        assertTrue(device.wait(Until.hasObject(By.text("Waiting for your browser")), 20000))
+        stage.writeText("connected")
+        val deadline = System.nanoTime() + 120_000_000_000L
+        while (!command.exists() && System.nanoTime() < deadline) Thread.sleep(200)
+        assertTrue(command.exists(), "Browser runner did not finish")
+        if (command.readText() == "revoke") {
+            device.findObject(By.text("Remove browser")).click()
+            assertTrue(device.wait(Until.hasObject(By.text("Browser removed")), 20000))
+            stage.writeText("revoked")
+        }
+        command.delete()
+    }
+}

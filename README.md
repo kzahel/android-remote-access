@@ -11,7 +11,9 @@ phone without visiting it physically.
 **Stage: production foundation plus preserved phone prototypes.** The first
 production slice implements an experimental paired crypto session in TypeScript
 and Kotlin with shared vectors and a React interoperability harness. It does
-not yet implement production phone control or a hosted relay. The
+not yet implement production phone control. The next slice adds QR enrollment,
+durable paired identities and a hosted development relay; see
+[pairing/relay v1](docs/pairing-relay-v1.md). The
 [manual-access spike](spike/README.md) remains the working remote-control demo.
 This project is independent of Yep Anywhere and needs no AI runtime.
 

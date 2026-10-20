@@ -74,6 +74,12 @@ new device-setting changes or changes to unrelated sibling products. Use the
 pinned YA FCM reference in `docs/sibling-repositories.md` without making YA a
 runtime dependency.
 
+The later 2026-10-20 owner request authorizes implementing the next pairing/relay
+slice, deploying its development service on the Pi, adding the proposed HTTPS
+hostname and DNS/Caddy configuration in dotfiles, and committing both repositories.
+Keep the service independent of existing products. This does not authorize Play
+publication, new physical-phone lock/debugging changes or unrelated service changes.
+
 ## Research discipline
 
 - Prefer official Android/Firebase documentation, official vendor help, and

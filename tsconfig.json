@@ -11,5 +11,12 @@
     "skipLibCheck": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["protocol/src", "protocol/test", "web/src", "scripts"]
+  "include": [
+    "protocol/src",
+    "protocol/test",
+    "web/src",
+    "scripts",
+    "relay/src",
+    "relay/test"
+  ]
 }

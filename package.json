@@ -7,25 +7,29 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "pnpm --filter @remote/protocol build && pnpm --filter @remote/web build",
+    "build": "pnpm --filter @remote/protocol build && pnpm --filter @remote/relay build && pnpm --filter @remote/web build",
     "typecheck": "pnpm --filter @remote/protocol build && pnpm -r typecheck",
     "lint": "pnpm check:ts && ./android/gradlew -p android ktlintCheck :app:lint",
-    "format": "biome check --write protocol web/src scripts",
-    "format:check": "biome format protocol web/src scripts package.json tsconfig.json biome.json vitest.config.ts web/vite.config.ts web/package.json && ./android/gradlew -p android ktlintCheck",
+    "format": "biome check --write protocol web/src scripts relay",
+    "format:check": "biome format protocol web/src scripts relay package.json tsconfig.json biome.json vitest.config.ts web/vite.config.ts web/package.json && ./android/gradlew -p android ktlintCheck",
     "test": "vitest run && ./android/gradlew -p android :protocol:test",
     "test:ts": "vitest run",
     "test:spike": "npm --prefix spike test",
     "test:interop": "tsx scripts/crypto-interop.ts",
     "build:android": "./android/gradlew -p android :app:assembleDebug :app:assembleDebugAndroidTest",
-    "check:ts": "biome check protocol web/src scripts package.json tsconfig.json biome.json vitest.config.ts web/vite.config.ts web/package.json"
+    "check:ts": "biome check protocol web/src scripts relay package.json tsconfig.json biome.json vitest.config.ts web/vite.config.ts web/package.json",
+    "test:hosted": "tsx scripts/hosted-acceptance.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.8",
     "@playwright/test": "1.58.2",
     "@types/node": "22.19.15",
+    "@types/pngjs": "6.0.5",
+    "jsqr": "1.4.0",
+    "pngjs": "7.0.0",
     "tsx": "4.21.0",
     "typescript": "5.9.3",
-    "vitest": "3.2.4",
-    "vite": "6.4.1"
+    "vite": "6.4.1",
+    "vitest": "3.2.4"
   }
 }

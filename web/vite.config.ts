@@ -1,4 +1,4 @@
 import { defineConfig } from "vite";
 export default defineConfig({
-  build: { rollupOptions: { input: "crypto.html" } },
+  build: { rollupOptions: { input: "viewer.html" } },
 });
