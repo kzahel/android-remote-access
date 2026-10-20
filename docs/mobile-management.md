@@ -84,8 +84,12 @@ fixture is revoked with its retained native key before any app-data reset; faile
 cleanup preserves the AVD for repair. Both normal acceptance and management
 acceptance close their browser/emulator processes.
 
-The first complete management run passed all the checks above, including real
-FCM receipt and encrypted exchanges for both browser identities. Build, Android
+The final management run passed all the checks above, including real
+FCM receipt and encrypted exchanges for both browser identities, persisted global
+disarm after process restart, and pausing one browser while the other remained
+connected. The existing single-browser hosted/FCM regression also passed against
+the final deployed relay: three encrypted exchanges, restart/reload persistence,
+process-absent wake, revocation and rejection. Build, Android
 lint, ktlint, TypeScript checking, Biome, 63 TS tests and 14 Kotlin protocol tests
 pass. Three native Room tests and the command-driven native management flow pass.
 This is emulator evidence; it does not extend the earlier physical Pixel receipt
