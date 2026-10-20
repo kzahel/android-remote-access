@@ -72,6 +72,34 @@ describe("control boundary", () => {
       ),
     ).toBe("415243310d00000000000008333134313539");
   });
+  it("bounds video metadata before decoder allocation", () => {
+    const record = new Uint8Array(56),
+      v = new DataView(record.buffer);
+    record.set([65, 82, 80, 49, 5, 0, 0, 0]);
+    v.setUint32(8, 1);
+    [1, 2, 720, 1600, 1080, 2400, 1].forEach((n, i) => {
+      v.setUint32(12 + i * 4, n);
+    });
+    v.setBigUint64(40, 1000n);
+    record.set([0, 0, 0, 1, 0x65, 1, 2, 3], 48);
+    expect(decodeReply(record)).toMatchObject({
+      kind: "video",
+      key: true,
+      scene: 2,
+      timestamp: 1000,
+    });
+    for (const offset of [12, 16, 20, 24, 28, 32]) {
+      const bad = record.slice();
+      new DataView(bad.buffer).setUint32(offset, 0);
+      expect(() => decodeReply(bad)).toThrow();
+    }
+    v.setUint32(36, 2);
+    expect(() => decodeReply(record)).toThrow();
+    v.setUint32(36, 1);
+    v.setBigUint64(40, 2n ** 60n);
+    expect(() => decodeReply(record)).toThrow();
+    expect(() => encodeCommand(1, { op: "video", quality: 4 as 1 })).toThrow();
+  });
   it("rejects unknown, oversized and malformed responses", () => {
     const good = new Uint8Array(
       Buffer.from("41525031020000000000000100", "hex"),

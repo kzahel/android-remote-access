@@ -7,7 +7,16 @@ export type TouchBatch = {
   contacts: { id: number; held: boolean; path: { x: number; y: number }[] }[];
 };
 export type Command =
-  | { op: "start" | "status" | "capture" | "wake" | "apps" }
+  | {
+      op:
+        | "start"
+        | "status"
+        | "capture"
+        | "wake"
+        | "apps"
+        | "videoFrame"
+        | "videoKey";
+    }
   | { op: "tap"; scene: number; x: number; y: number }
   | {
       op: "swipe";
@@ -23,7 +32,8 @@ export type Command =
   | { op: "launch"; packageName: string }
   | { op: "touch"; batch: TouchBatch }
   | { op: "release" | "unlockSaved" | "sleep" }
-  | { op: "unlock"; pin: string };
+  | { op: "unlock"; pin: string }
+  | { op: "video"; quality: 0 | 1 | 2 | 3 };
 const operations = [
   "start",
   "status",
@@ -40,6 +50,9 @@ const operations = [
   "unlock",
   "unlockSaved",
   "sleep",
+  "video",
+  "videoFrame",
+  "videoKey",
 ] as const;
 export const MAX_COMMAND = 4112;
 export function encodeCommand(
@@ -69,6 +82,11 @@ export function encodeCommand(
       tail = new Uint8Array([
         ["back", "home", "recents"].indexOf(command.action) + 1,
       ]);
+      break;
+    case "video":
+      if (![0, 1, 2, 3].includes(command.quality))
+        throw new Error("Invalid video quality");
+      tail = new Uint8Array([command.quality]);
       break;
     case "unlock":
       if (!/^[0-9]{4,16}$/.test(command.pin))
@@ -115,6 +133,7 @@ export type ControlState = {
   width: number;
   height: number;
   scene: number;
+  videoActive?: boolean;
   unlockSupported?: boolean;
   unlockAllowed?: boolean;
   savedPin?: boolean;
@@ -125,6 +144,18 @@ export type Reply = { id: number } & (
   | { kind: "apps"; apps: AppEntry[] }
   | { kind: "state"; state: ControlState }
   | { kind: "result"; code: number }
+  | {
+      kind: "video";
+      epoch: number;
+      scene: number;
+      width: number;
+      height: number;
+      sourceWidth: number;
+      sourceHeight: number;
+      key: boolean;
+      timestamp: number;
+      data: Uint8Array<ArrayBuffer>;
+    }
   | {
       kind: "image";
       scene: number;
@@ -165,6 +196,7 @@ export function decodeReply(data: Uint8Array<ArrayBuffer>): Reply {
       )
         throw new Error("Invalid state");
       for (const field of [
+        "videoActive",
         "unlockSupported",
         "unlockAllowed",
         "savedPin",
@@ -196,6 +228,41 @@ export function decodeReply(data: Uint8Array<ArrayBuffer>): Reply {
       )
         throw new Error("Invalid image");
       return { id, kind: "image", scene, width, height, jpeg: data.slice(24) };
+    }
+    case 5: {
+      if (data.length < 52 || data.length > 524288)
+        throw new Error("Invalid video frame");
+      const epoch = view.getUint32(12),
+        scene = view.getUint32(16),
+        width = view.getUint32(20),
+        height = view.getUint32(24),
+        sourceWidth = view.getUint32(28),
+        sourceHeight = view.getUint32(32),
+        flags = view.getUint32(36),
+        timestamp = Number(view.getBigUint64(40));
+      if (
+        !epoch ||
+        !scene ||
+        [width, height, sourceWidth, sourceHeight].some(
+          (n) => !n || n > 16384,
+        ) ||
+        flags > 1 ||
+        !Number.isSafeInteger(timestamp)
+      )
+        throw new Error("Invalid video geometry");
+      return {
+        id,
+        kind: "video",
+        epoch,
+        scene,
+        width,
+        height,
+        sourceWidth,
+        sourceHeight,
+        key: flags === 1,
+        timestamp,
+        data: data.slice(48),
+      };
     }
     case 4: {
       if (data.length > 131072) throw new Error("Invalid app list");

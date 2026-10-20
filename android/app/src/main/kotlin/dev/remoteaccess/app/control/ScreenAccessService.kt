@@ -34,7 +34,8 @@ class ScreenAccessService : AccessibilityService() {
     private var gesture = false
     private val touch = TouchController(this, main)
     private val unlock = PinUnlock(this, main)
-    private var capturedAt = 0L
+
+    @Volatile private var capturedAt = 0L
 
     @Volatile private var screenWidth = 0
 
@@ -78,15 +79,30 @@ class ScreenAccessService : AccessibilityService() {
         if (current === this) current = null
         dev.remoteaccess.app.HostStore.get(this).listeners.forEach { it() }
         invalidate()
+        VideoStream.close(this)
         compression.shutdownNow()
         super.onDestroy()
     }
 
     private fun locked() = getSystemService(KeyguardManager::class.java).isKeyguardLocked
 
+    internal fun videoGeometry(
+        width: Int,
+        height: Int,
+    ): Int {
+        if (locked()) return scene
+        screenWidth = width
+        screenHeight = height
+        capturedAt = android.os.SystemClock.elapsedRealtime()
+        return scene
+    }
+
     fun state(): JSONObject =
         JSONObject().put("type", "state").put("v", 1).put("accessibility", true)
-            .put("locked", locked()).put("width", screenWidth).put("height", screenHeight).put("scene", scene)
+            .put(
+                "locked",
+                locked(),
+            ).put("width", screenWidth).put("height", screenHeight).put("scene", scene).put("videoActive", VideoStream.available(this))
 
     fun execute(
         command: ControlCommand,
@@ -101,6 +117,22 @@ class ScreenAccessService : AccessibilityService() {
             if (command.op == 9) {
                 unlock.wake()
                 return@post result(0)
+            }
+            if (command.op == 16) {
+                if (locked()) return@post result(3)
+                return@post result(if (VideoStream.configure(this, owner, allowed, command.values[0])) 0 else 4)
+            }
+            if (command.op == 18) {
+                VideoStream.request?.takeIf { it.owner === owner }?.let {
+                    it.reset()
+                }
+                return@post result(0)
+            }
+            if (command.op == 17) {
+                val stream = VideoStream.request
+                if (locked() || stream == null || stream.owner !== owner || !VideoStream.available(this)) return@post result(4)
+                val frame = stream.poll()
+                return@post if (frame == null) result(6) else reply(5, frame)
             }
             if (command.op == 13 || command.op == 14) {
                 invalidate()
@@ -219,7 +251,10 @@ class ScreenAccessService : AccessibilityService() {
     }
 
     fun release(owner: Any) {
-        main.post { touch.release(owner) }
+        main.post {
+            touch.release(owner)
+            VideoStream.close(this, owner)
+        }
     }
 
     private fun capture(

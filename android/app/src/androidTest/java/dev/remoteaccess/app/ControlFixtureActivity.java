@@ -2,6 +2,9 @@ package dev.remoteaccess.app;
 
 import android.app.Activity;
 import android.graphics.Color;
+import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.view.MotionEvent;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -28,6 +31,9 @@ public final class ControlFixtureActivity extends Activity {
     private EditText field;
     private ScrollView scroll;
     private SeekBar slider;
+    private View multi;
+    private int maxPointers, multiMoves;
+    private double firstDistance, lastDistance, firstAngle, lastAngle;
 
     @Override public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -62,6 +68,27 @@ public final class ControlFixtureActivity extends Activity {
         content.addView(target, new LinearLayout.LayoutParams(-1, 160));
         content.addView(field, new LinearLayout.LayoutParams(-1, 160));
         content.addView(slider, new LinearLayout.LayoutParams(-1, 160));
+        multi = new View(this) {
+            final Paint paint = new Paint();
+            @Override protected void onDraw(Canvas canvas) {
+                paint.setColor(Color.BLUE);
+                canvas.drawCircle(getWidth() / 2f, getHeight() / 2f, 50, paint);
+            }
+            @Override public boolean onTouchEvent(MotionEvent event) {
+                getParent().requestDisallowInterceptTouchEvent(true);
+                maxPointers = Math.max(maxPointers, event.getPointerCount());
+                if (event.getPointerCount() == 2) {
+                    double dx = event.getX(1) - event.getX(0), dy = event.getY(1) - event.getY(0);
+                    lastDistance = Math.hypot(dx, dy); lastAngle = Math.atan2(dy, dx);
+                    if (event.getActionMasked() == MotionEvent.ACTION_POINTER_DOWN) {
+                        firstDistance = lastDistance; firstAngle = lastAngle;
+                    } else if (event.getActionMasked() == MotionEvent.ACTION_MOVE) multiMoves++;
+                }
+                witness();
+                return true;
+            }
+        };
+        content.addView(multi, new LinearLayout.LayoutParams(-1, 500));
         for (int i = 0; i < 40; i++) {
             TextView item = new TextView(this);
             item.setText("Scroll item " + i);
@@ -87,7 +114,9 @@ public final class ControlFixtureActivity extends Activity {
         try {
             JSONObject value = new JSONObject().put("taps", taps).put("text", entered).put("scroll", scroll.getScrollY())
                 .put("target", center(target)).put("field", center(field)).put("slider", center(slider))
-                .put("sliderProgress", sliderProgress).put("longPresses", longPresses).put("sliderHeld", sliderHeld);
+                .put("sliderProgress", sliderProgress).put("longPresses", longPresses).put("sliderHeld", sliderHeld)
+                .put("multi", center(multi)).put("maxPointers", maxPointers).put("multiMoves", multiMoves)
+                .put("distanceChange", lastDistance - firstDistance).put("angleChange", lastAngle - firstAngle);
             File next = new File(getFilesDir(), "control-witness.next");
             try (FileOutputStream output = new FileOutputStream(next)) { output.write(value.toString().getBytes(StandardCharsets.UTF_8)); }
             if (!next.renameTo(new File(getFilesDir(), "control-witness.json"))) throw new IllegalStateException("Witness replacement failed");

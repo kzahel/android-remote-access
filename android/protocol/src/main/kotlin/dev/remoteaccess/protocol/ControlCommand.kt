@@ -24,13 +24,17 @@ data class ControlCommand(
             var text = ""
             var touch: TouchBatch? = null
             when (op) {
-                1, 2, 3, 9, 10, 12, 14, 15 -> require(!input.hasRemaining())
+                1, 2, 3, 9, 10, 12, 14, 15, 17, 18 -> require(!input.hasRemaining())
                 4, 5 -> {
                     val count = if (op == 4) 3 else 6
                     require(input.remaining() == count * 4)
                     repeat(count) { values.add(input.int.also { require(it >= 0) }) }
                     require(values[0] > 0)
                     if (op == 5) require(values[5] in 40..2000)
+                }
+                16 -> {
+                    require(input.remaining() == 1)
+                    values.add(input.get().toInt().also { require(it in 0..3) })
                 }
                 6 -> {
                     require(input.remaining() == 1)
@@ -62,7 +66,7 @@ data class ControlCommand(
             kind: Int,
             payload: ByteArray,
         ): ByteArray {
-            require(id in 1..0xffffffffL && kind in 1..4 && payload.size <= 1048564)
+            require(id in 1..0xffffffffL && kind in 1..5 && payload.size <= 1048564)
             return ByteBuffer.allocate(12 + payload.size).putInt(0x41525031).put(kind.toByte())
                 .put(byteArrayOf(0, 0, 0)).putInt(id.toInt()).put(payload).array()
         }

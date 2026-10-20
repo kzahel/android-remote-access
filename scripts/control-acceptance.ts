@@ -83,6 +83,11 @@ export async function controlAcceptance(f: Fixture) {
       sliderProgress: number;
       sliderHeld: boolean;
       longPresses: number;
+      multi: { x: number; y: number };
+      maxPointers: number;
+      multiMoves: number;
+      distanceChange: number;
+      angleChange: number;
     };
   try {
     native = spawn(
@@ -266,6 +271,51 @@ export async function controlAcceptance(f: Fixture) {
       await until(() => !witness().sliderHeld, 3000);
       console.log("Held native slider and long press passed");
       await delay(1000);
+      const middle = witness().multi;
+      const cdp = await context.newCDPSession(page);
+      const points = async (spread: number, angle: number) => {
+        const a = await at({
+          x: middle.x - spread * Math.cos(angle),
+          y: middle.y - spread * Math.sin(angle),
+        });
+        const b = await at({
+          x: middle.x + spread * Math.cos(angle),
+          y: middle.y + spread * Math.sin(angle),
+        });
+        return [
+          { id: 1, ...a },
+          { id: 2, ...b },
+        ];
+      };
+      try {
+        await cdp.send("Input.dispatchTouchEvent", {
+          type: "touchStart",
+          touchPoints: await points(60, 0),
+        });
+        for (let n = 1; n <= 12; n++) {
+          await cdp.send("Input.dispatchTouchEvent", {
+            type: "touchMove",
+            touchPoints: await points(60 + n * 8, n * 0.05),
+          });
+          await delay(60);
+        }
+        await until(
+          () =>
+            witness().maxPointers === 2 &&
+            witness().multiMoves > 2 &&
+            witness().distanceChange > 100 &&
+            Math.abs(witness().angleChange) > 0.3,
+          5000,
+        );
+      } finally {
+        await cdp.send("Input.dispatchTouchEvent", {
+          type: "touchEnd",
+          touchPoints: [],
+        });
+        await cdp.detach();
+      }
+      console.log("Two-finger pinch and rotation reached native input");
+      await delay(1000);
     }
     const size = await canvas.evaluate((c) => ({
       width: (c as HTMLCanvasElement).width,
@@ -363,6 +413,16 @@ export async function controlAcceptance(f: Fixture) {
     );
     console.log("Hosted control effects passed");
   } finally {
+    if (native?.exitCode === null && syntheticLock) {
+      await command("inspect-lock").catch(() => {});
+      try {
+        await writeFile(
+          path.join(f.state, "lock-hierarchy.xml"),
+          adb("shell", "run-as", app, "cat", "files/lock-hierarchy.xml"),
+          { mode: 0o600 },
+        );
+      } catch {}
+    }
     await page
       .screenshot({ path: path.join(f.state, "last-browser.png") })
       .catch(() => {});

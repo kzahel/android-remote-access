@@ -7,6 +7,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import type { RemoteSession } from "./control-session.js";
 import { TouchInput } from "./touch-input.js";
+import { VideoRenderer } from "./video-renderer.js";
 
 /** Media and pointer coordinates stay in refs; React owns only status and controls. */
 export function RemoteScreen({
@@ -25,8 +26,10 @@ export function RemoteScreen({
   const touch = useRef<TouchInput | undefined>(undefined);
   const [state, setState] = useState(initial);
   const [message, setMessage] = useState("");
+  const [actionMessage, setActionMessage] = useState("");
   const [text, setText] = useState("");
   const [pin, setPin] = useState("");
+  const [quality, setQuality] = useState(0);
   const [apps, setApps] = useState<AppEntry[]>([]);
   useEffect(() => {
     let stopped = false;
@@ -35,17 +38,47 @@ export function RemoteScreen({
       ? new TouchInput(canvas.current, session, () => frame.current, setMessage)
       : undefined;
     touch.current = input;
+    let videoActive = false;
+    let lastStatus = 0;
+    let shownVideo = false;
+    const renderer = canvas.current
+      ? new VideoRenderer(canvas.current, (meta) => {
+          frame.current = meta;
+          shownVideo = true;
+          setMessage("Smooth view");
+        })
+      : undefined;
     async function capture() {
-      if (input?.active) {
+      if (input?.active && !videoActive) {
         timer = setTimeout(() => {
           void capture();
         }, 150);
         return;
       }
       try {
-        const reply = await session.command({ op: "capture" });
+        if (Date.now() - lastStatus > 1500) {
+          const status = await session.command({ op: "status" });
+          if (stopped) return;
+          if (status.kind === "state") {
+            videoActive = status.state.videoActive === true;
+            setState(status.state);
+            if (!videoActive && shownVideo) {
+              renderer?.close();
+              shownVideo = false;
+              setMessage("Smooth view ended. Still frames are available.");
+            }
+          }
+          lastStatus = Date.now();
+        }
+        const reply = await session.command({
+          op: videoActive ? "videoFrame" : "capture",
+        });
         if (stopped) return;
-        if (reply.kind === "image") {
+        if (reply.kind === "video") {
+          if (!renderer?.push(reply)) await session.command({ op: "videoKey" });
+        } else if (videoActive && reply.kind === "result" && reply.code === 6) {
+          // No frame is ready. The bounded encoder mailbox never queues an idle capture.
+        } else if (reply.kind === "image") {
           const image = await createImageBitmap(
             new Blob([reply.jpeg], { type: "image/jpeg" }),
           );
@@ -70,9 +103,12 @@ export function RemoteScreen({
           if (!stopped && status.kind === "state") setState(status.state);
         }
         if (!stopped)
-          timer = setTimeout(() => {
-            void capture();
-          }, 650);
+          timer = setTimeout(
+            () => {
+              void capture();
+            },
+            videoActive ? 16 : 650,
+          );
       } catch (error) {
         if (!stopped) {
           setMessage(
@@ -86,11 +122,13 @@ export function RemoteScreen({
     return () => {
       stopped = true;
       clearTimeout(timer);
+      renderer?.close();
       input?.close();
       touch.current = undefined;
     };
   }, [session]);
   async function act(command: Command) {
+    setActionMessage("");
     try {
       const reply = await session.command(command);
       if (["unlock", "unlockSaved", "wake", "sleep"].includes(command.op)) {
@@ -98,14 +136,16 @@ export function RemoteScreen({
         if (status.kind === "state") setState(status.state);
       }
       if (reply.kind === "result" && reply.code)
-        setMessage(resultMessage(reply.code));
+        setActionMessage(resultMessage(reply.code));
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Connection ended");
+      setActionMessage(
+        error instanceof Error ? error.message : "Connection ended",
+      );
     }
   }
   return (
     <section aria-label="Remote screen">
-      <p role="status">{message || "Connected securely"}</p>
+      <p role="status">{actionMessage || message || "Connected securely"}</p>
       {!state.accessibility && (
         <p>
           On the phone, open Feature setup → Screen access settings to enable
@@ -193,6 +233,41 @@ export function RemoteScreen({
           Disconnect
         </button>
       </div>
+      <details>
+        <summary>Viewing quality</summary>
+        <label>
+          Smooth view
+          <select
+            aria-label="Viewing quality"
+            value={quality}
+            disabled={!VideoRenderer.supported()}
+            onChange={(event) => {
+              const value = Number(event.target.value) as 0 | 1 | 2 | 3;
+              setQuality(value);
+              if (value)
+                setMessage(
+                  "Approve screen sharing on the phone to start smooth view.",
+                );
+              void act({ op: "video", quality: value });
+            }}
+          >
+            <option value={0}>Still frames</option>
+            <option value={1}>Save data</option>
+            <option value={2}>Balanced</option>
+            <option value={3}>Smooth</option>
+          </select>
+        </label>
+        {!VideoRenderer.supported() && (
+          <p>
+            This browser supports still frames. Use a browser with video
+            decoding for smooth view.
+          </p>
+        )}
+        <p>
+          Android asks for screen-sharing approval on the phone. After locking
+          or restarting, approve again.
+        </p>
+      </details>
       <details>
         <summary>Type or open an app</summary>
         <form

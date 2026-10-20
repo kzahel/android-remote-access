@@ -597,8 +597,9 @@ class MainActivity : ComponentActivity() {
             try {
                 work()
             } catch (
-                _: Exception,
+                error: Exception,
             ) {
+                if (BuildConfig.DEBUG) android.util.Log.w("RemoteAccess", "Action failed: ${error.javaClass.simpleName}")
                 runOnUiThread { notice = "Couldn’t complete the action. Check your connection and try again." }
             } finally {
                 runOnUiThread {

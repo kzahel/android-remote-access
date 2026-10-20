@@ -156,6 +156,9 @@ class HostedPairingTest {
                     waitFor { dev.remoteaccess.app.control.ScreenAccessService.current != null }
                     waitFor { ForegroundAccess.listening(id) }
                 }
+                "inspect-lock" -> {
+                    device.dumpWindowHierarchy(File(context.filesDir, "lock-hierarchy.xml"))
+                }
                 "save-fixture-pin" -> {
                     assertTrue(device.executeShellCommand("getprop ro.kernel.qemu").trim() == "1")
                     start()
@@ -163,8 +166,10 @@ class HostedPairingTest {
                     click("open_features")
                     click("save_pin")
                     // Disposable emulator credential; never used on a physical phone.
-                    device.findObject(By.res("${context.packageName}:id/save_pin_value")).text = "314159"
-                    device.findObject(By.res("${context.packageName}:id/save_pin_confirm")).text = "314159"
+                    val pinField = device.wait(Until.findObject(By.res("${context.packageName}:id/save_pin_value")), 10000)
+                    val confirmation = device.wait(Until.findObject(By.res("${context.packageName}:id/save_pin_confirm")), 10000)
+                    assertNotNull(pinField).text = "314159"
+                    assertNotNull(confirmation).text = "314159"
                     assertNotNull(device.findObject(By.res("android:id/button1"))).click()
                     waitFor { dev.remoteaccess.app.unlock.PinVault(context).saved() }
                 }
