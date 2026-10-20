@@ -5,6 +5,8 @@ import android.net.Uri
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
+import androidx.test.uiautomator.BySelector
+import androidx.test.uiautomator.StaleObjectException
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
 import org.json.JSONObject
@@ -26,15 +28,30 @@ class HostedPairingTest {
         test: () -> Boolean,
     ) {
         val deadline = System.nanoTime() + timeout * 1_000_000
-        while (!test() && System.nanoTime() < deadline) Thread.sleep(100)
-        assertTrue(test(), "Native state did not arrive")
+        while (System.nanoTime() < deadline) {
+            if (test()) return
+            Thread.sleep(100)
+        }
+        error("Native state did not arrive")
     }
 
-    private fun click(id: String) {
-        val view = device.wait(Until.findObject(By.res("${context.packageName}:id/$id")), 15000)
-        assertNotNull(view, "Control $id missing")
-        view.click()
+    private fun tap(selector: BySelector) {
+        waitFor {
+            try {
+                val view = device.findObject(selector)
+                if (view == null) {
+                    false
+                } else {
+                    view.click()
+                    true
+                }
+            } catch (_: StaleObjectException) {
+                false
+            }
+        }
     }
+
+    private fun click(id: String) = tap(By.res("${context.packageName}:id/$id"))
 
     private fun start(uri: String? = null) {
         val intent = Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
@@ -47,9 +64,7 @@ class HostedPairingTest {
     }
 
     private fun browser() {
-        val row = device.wait(Until.findObject(By.textStartsWith(store.snapshot.browsers.first { !it.revoked }.nickname + "\n")), 15000)
-        assertNotNull(row)
-        row.click()
+        tap(By.textStartsWith(store.snapshot.browsers.first { !it.revoked }.nickname + "\n"))
     }
 
     @Test
@@ -155,8 +170,7 @@ class HostedPairingTest {
                 }
                 else -> {
                     start()
-                    val row = device.wait(Until.findObject(By.textStartsWith(requireNotNull(store.browser(id)).nickname + "\n")), 15000)
-                    assertNotNull(row).click()
+                    tap(By.textStartsWith(requireNotNull(store.browser(id)).nickname + "\n"))
                     when (action) {
                         "details" -> Unit
                         "rename" -> {

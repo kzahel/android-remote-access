@@ -116,6 +116,7 @@ internal class HostStore private constructor(private val context: android.app.Ap
         }
         // The transaction is the migration marker. A crash before this cleanup cannot reimport.
         legacy.save { remove("grant").remove("revoked").remove("wakeEnabled") }
+        dao.prune(System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000)
         loaded = true
         publish()
         return this
@@ -145,7 +146,8 @@ internal class HostStore private constructor(private val context: android.app.Ap
         check(snapshot.browsers.size < 32) { "Remove an unused browser before adding another" }
         val id = grant.getString("id")
         check(browser(id) == null) { "Browser already paired" }
-        val browser = Browser(id, grant.toString(), "Browser ${snapshot.browsers.count { !it.revoked } + 1}", System.currentTimeMillis())
+        val number = generateSequence(1) { it + 1 }.first { n -> snapshot.browsers.none { it.nickname == "Browser $n" } }
+        val browser = Browser(id, grant.toString(), "Browser $number", System.currentTimeMillis())
         database.runInTransaction {
             dao.put(browser)
             append("Browser paired", browser)

@@ -5,6 +5,8 @@ import android.app.AlertDialog
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.view.View
 import android.view.WindowInsets
@@ -29,6 +31,7 @@ class MainActivity : ComponentActivity() {
     private var pending: Enrollment? = null
     private var notice: String? = null
     private var busy = false
+    private var changing = false
     private var loaded = false
     private val notificationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) {
@@ -40,7 +43,12 @@ class MainActivity : ComponentActivity() {
         }
     private var listening = false
     private var activityLimit = 200
-    private val listener: () -> Unit = { runOnUiThread { if (listening && loaded) render() } }
+    private val handler = Handler(Looper.getMainLooper())
+    private val refresh = Runnable { if (listening && loaded) render() }
+    private val listener: () -> Unit = {
+        handler.removeCallbacks(refresh)
+        handler.postDelayed(refresh, 150)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -74,6 +82,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         listening = false
+        handler.removeCallbacks(refresh)
         store.listeners.remove(listener)
         super.onStop()
     }
@@ -161,6 +170,7 @@ class MainActivity : ComponentActivity() {
                 live != null -> "${store.browser(live.browserId)?.nickname ?: "Browser"} · ${live.status}"
                 browsers.none { it.enabled } -> "No browsers allowed · Enable one below"
                 !state.settings.automatic -> "On · Automatic requests are off"
+                com.google.firebase.FirebaseApp.getApps(this).isEmpty() -> "Remote wake is not configured in this build"
                 !WakeSupport.notificationsAllowed(this) -> "Notification permission needed · Open Settings"
                 browsers.any { it.enabled && !it.wakeReady } -> "Wake setup incomplete · Open Settings"
                 else -> "Ready for connection requests"
@@ -235,6 +245,7 @@ class MainActivity : ComponentActivity() {
             notice = "Retrying browser settings and wake setup…"
             render()
         }
+        if (com.google.firebase.FirebaseApp.getApps(this).isEmpty()) text(layout, "Remote wake is not configured in this build.", 14f)
         store.snapshot.browsers.filter { !it.revoked }.forEach {
             text(
                 layout,
@@ -264,7 +275,7 @@ class MainActivity : ComponentActivity() {
             }
         text(layout, browser.nickname, 22f)
         text(layout, "Paired ${time(browser.pairedAt)}\n${lastConnected(browser)}", 14f)
-        text(layout, "Identity ${browser.id.takeLast(8)} · ${browser.authority().getString("origin")}", 14f)
+        text(layout, "Paired through ${browser.authority().getString("origin")}", 14f)
         if (browser.revoked) {
             text(layout, "Access is blocked on this phone. Relay removal is pending.")
             button(layout, "Retry removal", R.id.remove_browser) { change { } }
@@ -346,7 +357,7 @@ class MainActivity : ComponentActivity() {
             14f,
         )
         button(layout, getString(R.string.grant_browser), R.id.grant_browser) {
-            perform {
+            perform(network = true) {
                 val accepted = invitation.grant(KeystoreIdentity.loadOrCreate("phone-identity-v1"))
                 store.pair(accepted)
                 WakeSupport.enqueue(this, androidx.work.Data.EMPTY, registration = true)
@@ -361,24 +372,27 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun change(work: (HostStore) -> Unit) {
-        if (busy) return
-        busy = true
+        if (changing) return
+        changing = true
         notice = null
         render()
         HostRuntime.change(this, work, finished = { saved ->
             runOnUiThread {
-                busy = false
+                changing = false
                 if (!saved) notice = "Couldn’t save the change. Check the current access setting and try again."
                 render()
             }
         })
     }
 
-    private fun perform(work: () -> Unit) {
+    private fun perform(
+        network: Boolean = false,
+        work: () -> Unit,
+    ) {
         if (busy) return
         busy = true
         render()
-        HostRuntime.io.execute {
+        (if (network) HostRuntime.network else HostRuntime.io).execute {
             try {
                 work()
             } catch (
@@ -416,7 +430,7 @@ class MainActivity : ComponentActivity() {
             id = resource
             text = label
             isAllCaps = false
-            isEnabled = !busy
+            isEnabled = !busy || resource == R.id.navigate_back
             setOnClickListener { action() }
             layout.addView(this, LinearLayout.LayoutParams(if (layout.orientation == LinearLayout.VERTICAL) -1 else -2, -2))
         }
@@ -435,7 +449,7 @@ class MainActivity : ComponentActivity() {
                 textSize = 18f
                 minHeight = dp(56)
                 isChecked = checked
-                isEnabled = loaded && !busy
+                isEnabled = loaded && !changing && (!busy || resource == R.id.access_toggle)
                 setOnCheckedChangeListener { _, enabled -> action(enabled) }
             },
             LinearLayout.LayoutParams(-1, -2),

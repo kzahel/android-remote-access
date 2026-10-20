@@ -44,6 +44,7 @@ internal object HostSessions {
 
 internal object HostRuntime {
     val io = Executors.newSingleThreadExecutor()
+    val network = Executors.newFixedThreadPool(2)
 
     fun change(
         context: Context,
