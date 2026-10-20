@@ -35,7 +35,7 @@ and open questions are identified separately below.
 5. Aim for best-effort direct WebRTC, with PeerJS as a candidate for simplifying
    setup, and a low-tech hosted fallback when direct setup fails. The fallback
    must support manual control and still images over HTTPS/WebSocket; smooth
-   relayed video is optional. No TURN service is planned. Library choice,
+   relayed video is now in scope (owner follow-up; see [completion](control-completion.md)). No TURN service is planned. Library choice,
    Android interoperability and transport details still need validation.
 6. Include FCM for waking the app to establish a session on demand. An always-open
    application connection to our relay is not a product requirement. Validate
@@ -335,7 +335,8 @@ emulator screenshots.
 - Name and brand.
 - First audience: spare-phone owners, owners of remote Android workloads, or
   broader remote support.
-- Whether version 1 includes saved-PIN unlock and smooth video.
+- Saved-PIN unlock and smooth video are included by the owner’s completion request;
+  see [delivery and acceptance](control-completion.md).
 - Pricing and what a free tier includes.
 - Supported Android versions, OEMs and devices without Google Play services.
 - Play-only or also a direct APK.
