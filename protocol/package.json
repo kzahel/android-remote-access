@@ -18,6 +18,10 @@
     "./control": {
       "types": "./dist/control.d.ts",
       "import": "./dist/control.js"
+    },
+    "./framing": {
+      "types": "./dist/framing.d.ts",
+      "import": "./dist/framing.js"
     }
   },
   "scripts": {
