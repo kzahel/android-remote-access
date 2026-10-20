@@ -11,15 +11,27 @@ class RemoteMessagingService : FirebaseMessagingService() {
     override fun onRegistered(installationId: String) {
         if (!installationId.matches(Regex("[cdef][A-Za-z0-9_-]{21}"))) return
         WakeSupport.preferences(this).save { putString("fid", installationId) }
-        if (WakeSupport.allowed(this)) WakeSupport.enqueue(this, Data.EMPTY, registration = true)
+        HostRuntime.io.execute {
+            HostStore.get(this).load()
+            if (WakeSupport.allowed(this)) WakeSupport.enqueue(this, Data.EMPTY, registration = true)
+        }
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
         val hint = WakeHint.parse(message.data, System.currentTimeMillis()) ?: return
-        if (!WakeSupport.allowed(this)) return
-        // High priority wakes have a visible purpose; this grants no session authority.
-        WakeSupport.notify(this, "Your browser is contacting this phone")
-        WakeSupport.preferences(this).save { putLong("lastPushReceipt", System.currentTimeMillis()) }
-        WakeSupport.enqueue(this, Data.Builder().putString("requestId", hint.requestId).putLong("expires", hint.expires).build())
+        val id = hint.pairingId ?: return
+        val generation = hint.generation ?: return
+        HostRuntime.io.execute {
+            val store = HostStore.get(this).load()
+            if (!WakeSupport.allowed(this) || !store.allowed(id, generation, automatic = true)) return@execute
+            // A hint selects a locally pinned grant; it is never authority itself.
+            WakeSupport.notify(this, "Your paired browser is contacting this phone")
+            WakeSupport.preferences(this).save { putLong("lastPushReceipt", System.currentTimeMillis()) }
+            WakeSupport.enqueue(
+                this,
+                Data.Builder().putString("pairingId", id).putString("generation", generation)
+                    .putString("requestId", hint.requestId).putLong("expires", hint.expires).build(),
+            )
+        }
     }
 }

@@ -3,4 +3,15 @@
     <item name="connect_phone" type="id"/>
     <item name="remove_browser" type="id"/>
     <item name="enable_wake" type="id" />
+    <item name="navigate_back" type="id" />
+    <item name="access_toggle" type="id" />
+    <item name="host_status" type="id" />
+    <item name="pair_browser" type="id" />
+    <item name="open_activity" type="id" />
+    <item name="open_settings" type="id" />
+    <item name="notification_settings" type="id" />
+    <item name="retry_setup" type="id" />
+    <item name="browser_toggle" type="id" />
+    <item name="rename_browser" type="id" />
+    <item name="disconnect_browser" type="id" />
 </resources>

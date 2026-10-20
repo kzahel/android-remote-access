@@ -6,6 +6,10 @@ class RemoteApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         WakeSupport.channels(this)
-        WakeSupport.register(this)
+        HostRuntime.io.execute {
+            HostStore.get(this).load()
+            WakeSupport.register(this)
+            WakeSupport.enqueue(this, androidx.work.Data.EMPTY, registration = true)
+        }
     }
 }

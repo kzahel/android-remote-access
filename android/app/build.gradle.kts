@@ -34,6 +34,12 @@ dependencies {
     // Room 2.7 supports the pinned Kotlin 2.0 toolchain.
     //noinspection GradleDependency
     implementation("androidx.room:room-runtime:2.7.2")
+    // Predictive back support with the Kotlin 2.0 toolchain.
+    //noinspection GradleDependency
+    implementation("androidx.activity:activity:1.10.1")
+    // Upgrade scanner transitive Fragment to the ActivityResult-compatible API.
+    //noinspection GradleDependency
+    implementation("androidx.fragment:fragment:1.8.6")
     //noinspection GradleDependency
     ksp("androidx.room:room-compiler:2.7.2")
     // Pinned to the reviewed installation-registration API and Kotlin 2.0 toolchain.

@@ -1,236 +1,455 @@
 package dev.remoteaccess.app
 
-import android.app.Activity
+import android.Manifest
+import android.app.AlertDialog
+import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.view.View
+import android.view.WindowInsets
 import android.widget.Button
+import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.Switch
 import android.widget.TextView
+import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
-import org.json.JSONObject
-import java.util.concurrent.Executors
+import java.text.DateFormat
+import java.util.Date
 
-/** Development host: encrypted connection proof and opt-in remote wake. */
-class MainActivity : Activity() {
-    private lateinit var status: TextView
-    private lateinit var grantButton: Button
-    private lateinit var connectButton: Button
-    private lateinit var revokeButton: Button
-    private val worker = Executors.newSingleThreadExecutor()
-    private val preferences by lazy { getSharedPreferences("paired-browser-v1", MODE_PRIVATE) }
-    private val identity by lazy { KeystoreIdentity.loadOrCreate("phone-identity-v1") }
+/** Plain native management UI. Authority and sessions belong to the application, not this activity. */
+class MainActivity : ComponentActivity() {
+    private val store by lazy { HostStore.get(this) }
+    private var page = "home"
+    private var browserId: String? = null
     private var pending: Enrollment? = null
-    private var connection: RelayConnection? = null
+    private var notice: String? = null
     private var busy = false
-    private val wakeListener =
-        android.content.SharedPreferences.OnSharedPreferenceChangeListener { store, key ->
-            if (key == "wakeState") store.getString(key, null)?.let(::report)
+    private var loaded = false
+    private val notificationPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+            HostRuntime.io.execute {
+                WakeSupport.register(this)
+                WakeSupport.enqueue(this, androidx.work.Data.EMPTY, registration = true)
+            }
+            render()
         }
+    private var listening = false
+    private var activityLimit = 200
+    private val listener: () -> Unit = { runOnUiThread { if (listening && loaded) render() } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val layout =
-            LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(36, 64, 36, 36)
-            }
-        layout.addView(
-            TextView(this).apply {
-                setText(R.string.app_name)
-                textSize = 26f
-            },
-        )
-        layout.addView(
-            TextView(this).apply {
-                setText(R.string.development_description)
-            },
-        )
-        status =
-            TextView(this).apply {
-                textSize = 18f
-                setPadding(0, 32, 0, 32)
-            }
-        layout.addView(status)
-        layout.addView(
-            Button(this).apply {
-                setText(R.string.pair_browser)
-                setOnClickListener {
-                    if (!busy) {
-                        GmsBarcodeScanning.getClient(this@MainActivity).startScan().addOnSuccessListener {
-                                code ->
-                            showInvitation(code.rawValue ?: "")
-                        }.addOnFailureListener { report("Scanner unavailable. Try again when Play services is ready.") }
-                    }
+        onBackPressedDispatcher.addCallback(
+            this,
+            object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    if (page == "home") finish() else navigate("home")
                 }
             },
         )
-        grantButton =
-            Button(this).apply {
-                id = R.id.grant_browser
-                setText(R.string.grant_browser)
-                visibility = View.GONE
-                setOnClickListener { grant() }
+        page = savedInstanceState?.getString("page") ?: "home"
+        browserId = savedInstanceState?.getString("browserId")
+        if (page == "grant") page = "home" // Never persist QR secrets in activity state.
+        HostRuntime.io.execute {
+            store.load()
+            runOnUiThread {
+                loaded = true
+                intent.dataString?.let { showInvitation(it) } ?: render()
             }
-        connectButton =
-            Button(this).apply {
-                id = R.id.connect_phone
-                setText(R.string.connect_phone)
-                setOnClickListener { connect() }
-            }
-        revokeButton =
-            Button(this).apply {
-                id = R.id.remove_browser
-                setText(R.string.remove_browser)
-                setOnClickListener { revoke() }
-            }
-        layout.addView(
-            Button(this).apply {
-                id = R.id.enable_wake
-                setText(R.string.enable_wake)
-                setOnClickListener {
-                    if (saved() == null) {
-                        report("Pair a browser first")
-                    } else {
-                        connection?.close()
-                        connection = null
-                        if (android.os.Build.VERSION.SDK_INT >= 33 &&
-                            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
-                            android.content.pm.PackageManager.PERMISSION_GRANTED
-                        ) {
-                            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 10)
-                        } else {
-                            enableWake()
-                        }
-                    }
-                }
-            },
-        )
-        layout.addView(
-            Button(this).apply {
-                setText(R.string.disable_wake)
-                setOnClickListener {
-                    preferences.save { putBoolean("wakeEnabled", false) }
-                    androidx.work.WorkManager.getInstance(this@MainActivity).cancelUniqueWork("remote-wake")
-                    WakeSupport.enqueue(
-                        this@MainActivity,
-                        androidx.work.Data.Builder().putBoolean("removePush", true).build(),
-                        registration = true,
-                    )
-                    report("Remote wake disabled on this phone")
-                }
-            },
-        )
-        layout.addView(grantButton)
-        layout.addView(connectButton)
-        layout.addView(revokeButton)
-        setContentView(layout)
-        preferences.registerOnSharedPreferenceChangeListener(wakeListener)
-        report(if (saved() == null) "Pair this phone with your browser" else "Browser paired. Tap Connect.")
+        }
+        render()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        listening = true
+        store.listeners.add(listener)
+        if (loaded) render()
+    }
+
+    override fun onStop() {
+        listening = false
+        store.listeners.remove(listener)
+        super.onStop()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
         intent.dataString?.let { showInvitation(it) }
     }
 
-    private fun enableWake() {
-        if (!WakeSupport.notificationsAllowed(this)) return report("Allow remote connection notifications to enable wake")
-        preferences.save { putBoolean("wakeEnabled", true) }
-        report(if (WakeSupport.register(this)) "Setting up remote wake…" else "Firebase is not configured in this build")
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString("page", page)
+        outState.putString("browserId", browserId)
+        super.onSaveInstanceState(outState)
     }
 
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray,
+    private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
+
+    private fun navigate(
+        value: String,
+        id: String? = null,
     ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == 10) enableWake()
+        page = value
+        browserId = id
+        notice = null
+        if (value != "grant") pending = null
+        render()
     }
 
-    private fun saved(): JSONObject? = preferences.getString("grant", null)?.let { JSONObject(it) }
+    private fun render() {
+        if (isDestroyed || isFinishing) return
+        val layout =
+            LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(20), dp(12), dp(20), dp(24))
+            }
+        val scroll =
+            ScrollView(this).apply {
+                isFillViewport = true
+                addView(layout)
+                setOnApplyWindowInsetsListener { view, insets ->
+                    val bars = insets.getInsets(WindowInsets.Type.systemBars())
+                    view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+                    insets
+                }
+            }
+        setContentView(scroll)
+        if (page != "home") button(layout, "Back", R.id.navigate_back) { navigate("home") }
+        text(
+            layout,
+            when (page) {
+                "settings" -> "Settings"
+                "activity" -> "Activity"
+                "browser" -> "Browser"
+                "grant" -> "Pair browser"
+                else -> "Remote access"
+            },
+            26f,
+        )
+        if (!loaded) {
+            text(layout, "Loading…")
+            return
+        }
+        notice?.let { text(layout, it, 16f).apply { accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE } }
+        when (page) {
+            "settings" -> settings(layout)
+            "activity" -> activity(layout)
+            "browser" -> browser(layout)
+            "grant" -> invitation(layout)
+            else -> home(layout)
+        }
+    }
+
+    private fun home(layout: LinearLayout) {
+        val state = store.snapshot
+        toggle(layout, "Remote access", state.settings.armed, R.id.access_toggle) { enabled ->
+            change { it.settings(armed = enabled) }
+        }
+        val live = HostSessions.current.get()
+        val browsers = state.browsers.filter { !it.revoked }
+        val status =
+            when {
+                !state.settings.armed -> "Off · Paired browsers cannot connect"
+                browsers.isEmpty() -> "Pair a browser to get started"
+                live != null -> "${store.browser(live.browserId)?.nickname ?: "Browser"} · ${live.status}"
+                browsers.none { it.enabled } -> "No browsers allowed · Enable one below"
+                !state.settings.automatic -> "On · Automatic requests are off"
+                !WakeSupport.notificationsAllowed(this) -> "Notification permission needed · Open Settings"
+                browsers.any { it.enabled && !it.wakeReady } -> "Wake setup incomplete · Open Settings"
+                else -> "Ready for connection requests"
+            }
+        text(layout, status, 18f).apply {
+            id = R.id.host_status
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+        }
+        text(layout, getString(R.string.development_description), 14f)
+        text(layout, "Paired browsers", 20f)
+        if (state.browsers.isEmpty()) text(layout, "No paired browsers yet.")
+        state.browsers.forEach { browser ->
+            val summary =
+                when {
+                    browser.revoked -> "Removed locally · Cleanup pending"
+                    !browser.enabled -> "Disabled"
+                    !state.settings.armed -> "Allowed · Remote access is off"
+                    live?.browserId == browser.id -> "Connected or connecting"
+                    else -> "Allowed · ${lastConnected(browser)}"
+                }
+            button(layout, "${browser.nickname}\n$summary") { navigate("browser", browser.id) }
+        }
+        button(layout, getString(R.string.pair_browser), R.id.pair_browser) {
+            GmsBarcodeScanning.getClient(this).startScan().addOnSuccessListener { code ->
+                showInvitation(code.rawValue ?: "")
+            }.addOnFailureListener {
+                notice = "Scanner unavailable. Try again when Play services is ready."
+                render()
+            }
+        }
+        val row = LinearLayout(this)
+        layout.addView(row)
+        button(row, "Activity", R.id.open_activity) { navigate("activity") }
+        button(row, "Settings", R.id.open_settings) { navigate("settings") }
+    }
+
+    private fun settings(layout: LinearLayout) {
+        toggle(layout, "Connect when requested", store.snapshot.settings.automatic, R.id.enable_wake) { enabled ->
+            if (enabled && Build.VERSION.SDK_INT >= 33 &&
+                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                change { it.settings(automatic = true) }
+            } else {
+                change { it.settings(automatic = enabled) }
+            }
+        }
+        text(
+            layout,
+            "Let paired browsers contact this phone while the app is closed. Delivery depends on Android and network availability.",
+            14f,
+        )
+        text(
+            layout,
+            if (WakeSupport.notificationsAllowed(
+                    this,
+                )
+            ) {
+                "Connection notifications allowed"
+            } else {
+                "Allow connection notifications to receive requests"
+            },
+        )
+        button(layout, "Notification settings", R.id.notification_settings) {
+            startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName))
+        }
+        button(layout, "Retry setup", R.id.retry_setup) {
+            HostRuntime.io.execute {
+                WakeSupport.register(this)
+                WakeSupport.enqueue(this, androidx.work.Data.EMPTY, registration = true)
+            }
+            notice = "Retrying browser settings and wake setup…"
+            render()
+        }
+        store.snapshot.browsers.filter { !it.revoked }.forEach {
+            text(
+                layout,
+                "${it.nickname}: ${if (!it.synced) {
+                    "Settings not synchronized"
+                } else if (it.wakeReady) {
+                    "Automatic requests ready"
+                } else {
+                    "Automatic requests unavailable or off"
+                }}",
+                14f,
+            )
+        }
+        text(layout, "Android Remote Access ${BuildConfig.VERSION_NAME}", 14f)
+        text(
+            layout,
+            "After a restart, unlock the phone locally once. Activity is stored only on this phone for up to 30 days or 10,000 entries.",
+            14f,
+        )
+    }
+
+    private fun browser(layout: LinearLayout) {
+        val browser =
+            browserId?.let(store::browser) ?: run {
+                text(layout, "Browser removed")
+                return
+            }
+        text(layout, browser.nickname, 22f)
+        text(layout, "Paired ${time(browser.pairedAt)}\n${lastConnected(browser)}", 14f)
+        text(layout, "Identity ${browser.id.takeLast(8)} · ${browser.authority().getString("origin")}", 14f)
+        if (browser.revoked) {
+            text(layout, "Access is blocked on this phone. Relay removal is pending.")
+            button(layout, "Retry removal", R.id.remove_browser) { change { } }
+            return
+        }
+        toggle(layout, "Allow this browser", browser.enabled, R.id.browser_toggle) { enabled -> change { it.enable(browser.id, enabled) } }
+        button(layout, "Rename", R.id.rename_browser) {
+            val input =
+                EditText(this).apply {
+                    setText(browser.nickname)
+                    isSingleLine = true
+                    filters = arrayOf(android.text.InputFilter.LengthFilter(60))
+                }
+            AlertDialog.Builder(this).setTitle("Browser nickname").setView(input).setNegativeButton("Cancel", null)
+                .setPositiveButton("Save") { _, _ -> perform { store.rename(browser.id, input.text.toString()) } }.show()
+        }
+        val live = HostSessions.current.get()
+        text(layout, if (live?.browserId == browser.id) live.status else "No active session")
+        val disconnect = button(layout, "Disconnect", R.id.disconnect_browser) { HostRuntime.disconnect(this, browser.id) }
+        disconnect.isEnabled = live?.browserId == browser.id
+        button(layout, getString(R.string.connect_phone), R.id.connect_phone) {
+            HostRuntime.connect(this, browser.id)
+        }.isEnabled = store.allowed(browser.id, browser.generation) && live == null
+        text(layout, "Development fallback: opens a connection for up to one minute so this browser can run a check.", 14f)
+        button(layout, getString(R.string.remove_browser), R.id.remove_browser) {
+            AlertDialog.Builder(
+                this,
+            ).setTitle("Remove ${browser.nickname}?").setMessage("Its access will be revoked. To connect again, pair this browser again.")
+                .setNegativeButton("Cancel", null).setPositiveButton("Remove") { _, _ -> change { it.revoke(browser.id) } }.show()
+        }
+    }
+
+    private fun activity(layout: LinearLayout) {
+        text(layout, "Recent activity · Stored on this phone", 14f)
+        val container = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        layout.addView(container)
+        HostRuntime.io.execute {
+            val events = store.events(activityLimit)
+            runOnUiThread {
+                if (isDestroyed || page != "activity" || !container.isAttachedToWindow) return@runOnUiThread
+                if (events.isEmpty()) text(container, "No activity yet.")
+                events.forEach { event ->
+                    text(container, event.kind, 16f)
+                    text(container, "${time(event.at)}${event.browserName?.let { " · $it" } ?: ""}", 14f)
+                }
+                if (events.size == activityLimit && activityLimit < 10000) {
+                    button(container, "Show older activity") {
+                        activityLimit = (activityLimit + 200).coerceAtMost(10000)
+                        render()
+                    }
+                }
+            }
+        }
+    }
 
     private fun showInvitation(uri: String) {
         try {
             check(!busy)
-            check(saved() == null) { "Remove the existing browser before pairing another" }
             pending = Enrollment(uri)
-            grantButton.visibility = View.VISIBLE
-            report("Grant this browser access through ${pending?.origin}? Only scan a code from your own browser.")
-        } catch (e: Exception) {
-            pending = null
-            grantButton.visibility = View.GONE
-            report(e.message ?: "Invalid pairing code")
+            page = "grant"
+            notice = null
+            render()
+        } catch (_: Exception) {
+            notice = "Invalid or expired pairing code. Create a new code in your browser."
+            render()
         }
     }
 
-    private fun grant() {
-        val invitation = pending ?: return
-        if (busy) return
-        busy = true
-        grantButton.isEnabled = false
-        report("Waiting for browser confirmation…")
-        worker.execute {
-            try {
-                val accepted = invitation.grant(identity)
-                preferences.save { putString("grant", accepted.toString()) }
+    private fun invitation(layout: LinearLayout) {
+        val invitation =
+            pending ?: run {
+                navigate("home")
+                return
+            }
+        text(layout, "Grant this browser access through ${invitation.origin}?")
+        text(
+            layout,
+            "Only continue if you opened this pairing code yourself. You can rename, disable or remove this browser afterward.",
+            14f,
+        )
+        button(layout, getString(R.string.grant_browser), R.id.grant_browser) {
+            perform {
+                val accepted = invitation.grant(KeystoreIdentity.loadOrCreate("phone-identity-v1"))
+                store.pair(accepted)
+                WakeSupport.enqueue(this, androidx.work.Data.EMPTY, registration = true)
                 runOnUiThread {
                     pending = null
-                    grantButton.visibility = View.GONE
-                    report("Browser paired. Tap Connect.")
-                }
-            } catch (
-                e: Exception,
-            ) {
-                report(e.message ?: "Pairing failed")
-            } finally {
-                runOnUiThread {
-                    busy = false
-                    grantButton.isEnabled = true
+                    page = "home"
+                    notice = "Browser paired"
                 }
             }
         }
+        button(layout, "Cancel") { navigate("home") }
     }
 
-    private fun connect() {
-        val grant = saved() ?: return report("Pair a browser first")
-        if (busy || preferences.getBoolean("revoked", false)) return report("Finish removing this browser before reconnecting")
-        connection?.close()
-        connection = RelayConnection(identity, grant, ::report).also { it.connect() }
-        report("Connecting…")
-    }
-
-    private fun revoke() {
+    private fun change(work: (HostStore) -> Unit) {
         if (busy) return
-        val grant = saved() ?: return report("No paired browser")
-        connection?.close()
-        connection = null
-        preferences.save { putBoolean("revoked", true) }
         busy = true
-        revokeButton.isEnabled = false
-        worker.execute {
+        notice = null
+        render()
+        HostRuntime.change(this, work, finished = { saved ->
+            runOnUiThread {
+                busy = false
+                if (!saved) notice = "Couldn’t save the change. Check the current access setting and try again."
+                render()
+            }
+        })
+    }
+
+    private fun perform(work: () -> Unit) {
+        if (busy) return
+        busy = true
+        render()
+        HostRuntime.io.execute {
             try {
-                val signature = identity.sign(fields("ara/pair/revoke/v1", grant.getString("origin"), grant.getString("id")))
-                request(grant.getString("origin"), grant.getString("id"), "revoke", JSONObject().put("signature", encoded(signature)))
-                preferences.save { remove("grant").remove("revoked").putBoolean("wakeEnabled", false) }
-                report("Browser removed")
+                work()
             } catch (
                 _: Exception,
             ) {
-                report("Browser blocked locally while disconnected. Tap Remove browser again to finish revocation.")
+                runOnUiThread { notice = "Couldn’t complete the action. Check your connection and try again." }
             } finally {
                 runOnUiThread {
                     busy = false
-                    revokeButton.isEnabled = true
+                    render()
                 }
             }
         }
     }
 
-    private fun report(message: String) {
-        runOnUiThread { if (!isDestroyed) status.text = message }
+    private fun text(
+        layout: LinearLayout,
+        value: String,
+        size: Float = 16f,
+    ): TextView =
+        TextView(this).apply {
+            text = value
+            textSize = size
+            setPadding(0, dp(7), 0, dp(7))
+            layout.addView(this)
+        }
+
+    private fun button(
+        layout: LinearLayout,
+        label: String,
+        resource: Int = View.NO_ID,
+        action: () -> Unit,
+    ): Button =
+        Button(this).apply {
+            id = resource
+            text = label
+            isAllCaps = false
+            isEnabled = !busy
+            setOnClickListener { action() }
+            layout.addView(this, LinearLayout.LayoutParams(if (layout.orientation == LinearLayout.VERTICAL) -1 else -2, -2))
+        }
+
+    private fun toggle(
+        layout: LinearLayout,
+        label: String,
+        checked: Boolean,
+        resource: Int,
+        action: (Boolean) -> Unit,
+    ) {
+        layout.addView(
+            Switch(this).apply {
+                id = resource
+                text = label
+                textSize = 18f
+                minHeight = dp(56)
+                isChecked = checked
+                isEnabled = loaded && !busy
+                setOnCheckedChangeListener { _, enabled -> action(enabled) }
+            },
+            LinearLayout.LayoutParams(-1, -2),
+        )
     }
 
-    override fun onDestroy() {
-        preferences.unregisterOnSharedPreferenceChangeListener(wakeListener)
-        connection?.close()
-        worker.shutdownNow()
-        super.onDestroy()
-    }
+    private fun time(value: Long) = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(value))
+
+    private fun lastConnected(browser: Browser) =
+        if (browser.lastConnected == 0L) {
+            "Never connected"
+        } else {
+            "Last connected ${time(
+                browser.lastConnected,
+            )}"
+        }
 }

@@ -25,4 +25,14 @@ class WakeHintTest {
         assertNull(WakeHint.parse(valid + ("intent" to "unlock"), now))
         assertNull(WakeHint.parse(emptyMap(), now))
     }
+
+    @Test
+    fun selectsOnlyAWellFormedPairAndGeneration() {
+        val scoped = valid + mapOf("pairingId" to "12".repeat(16), "generation" to "34".repeat(16))
+        assertEquals("12".repeat(16), WakeHint.parse(scoped, now)?.pairingId)
+        assertEquals("34".repeat(16), WakeHint.parse(scoped, now)?.generation)
+        assertNull(WakeHint.parse(scoped + ("generation" to "bad"), now))
+        assertNull(WakeHint.parse(scoped - "pairingId", now))
+        assertNull(WakeHint.parse(scoped - "generation", now))
+    }
 }

@@ -29,10 +29,11 @@ internal object WakeSupport {
         )
     }
 
-    fun allowed(context: Context): Boolean =
-        preferences(context).getBoolean("wakeEnabled", false) &&
-            !preferences(context).getBoolean("revoked", false) &&
-            preferences(context).contains("grant") && notificationsAllowed(context)
+    fun allowed(context: Context): Boolean {
+        val store = HostStore.get(context)
+        return store.snapshot.settings.armed && store.snapshot.settings.automatic &&
+            store.snapshot.browsers.any { store.allowed(it.id, it.generation, automatic = true) } && notificationsAllowed(context)
+    }
 
     fun notificationsAllowed(context: Context): Boolean =
         (
@@ -46,10 +47,9 @@ internal object WakeSupport {
     fun register(context: Context): Boolean {
         if (!allowed(context) || FirebaseApp.getApps(context).isEmpty()) return false
         FirebaseMessaging.getInstance().register().addOnFailureListener {
-            preferences(context).save { putString("wakeState", "Wake registration unavailable. Open the app to retry.") }
+            preferences(context).save { putString("wakeState", "Wake registration unavailable. Retry in Settings.") }
         }
-        // A previously registered installation still needs to refresh the relay after restore.
-        preferences(context).getString("fid", null)?.let { enqueue(context, Data.EMPTY, registration = true) }
+        enqueue(context, Data.EMPTY, registration = true)
         return true
     }
 
@@ -63,9 +63,10 @@ internal object WakeSupport {
                 Data.Builder().putAll(data).putBoolean("registration", registration).build(),
             )
         if (!registration && Build.VERSION.SDK_INT >= 31) work.setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+        if (!registration) work.addTag("remote-session")
         WorkManager.getInstance(context).enqueueUniqueWork(
-            if (registration) "register-push" else "remote-wake",
-            if (registration) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP,
+            if (registration) "register-push" else "remote-wake-${data.getString("pairingId")}",
+            if (registration) ExistingWorkPolicy.APPEND_OR_REPLACE else ExistingWorkPolicy.KEEP,
             work.build(),
         )
     }

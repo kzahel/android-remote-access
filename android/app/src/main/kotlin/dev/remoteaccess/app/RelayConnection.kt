@@ -21,6 +21,8 @@ internal class RelayConnection(
     private val requestId: String? = null,
     private val registrationOnly: Boolean = false,
     private val removePush: Boolean = false,
+    private val accessGeneration: String? = null,
+    private val accessEnabled: Boolean = true,
     private val current: () -> Boolean = { true },
 ) : WebSocketListener() {
     private val active = AtomicBoolean(true)
@@ -64,17 +66,28 @@ internal class RelayConnection(
                             "phone",
                         ).put("signature", encoded(identity.sign(data))).apply {
                             requestId?.let { put("requestId", it) }
+                            if (!registrationOnly) accessGeneration?.let { put("generation", it) }
                             if (registrationOnly) put("mode", "registration")
                         }.toString(),
                     )
                 }
                 "authenticated" -> {
+                    if (registrationOnly && accessGeneration != null) {
+                        webSocket.send(
+                            JSONObject().put("type", "setAccess").put("enabled", accessEnabled)
+                                .put("generation", accessGeneration).toString(),
+                        )
+                    } else {
+                        sendRegistration(webSocket)
+                    }
+                    report("Waiting for your browser")
+                }
+                "accessUpdated" -> {
                     if (removePush) {
                         webSocket.send(JSONObject().put("type", "unregisterPush").toString())
                     } else if (fid != null) {
                         webSocket.send(JSONObject().put("type", "registerPush").put("fid", fid).toString())
                     }
-                    report("Waiting for your browser")
                 }
                 "pushRegistered" -> report("Remote wake ready")
                 "pushRemoved" -> report("Remote wake disabled")
@@ -116,11 +129,20 @@ internal class RelayConnection(
                     val result = pending.finish(input)
                     channel = result.second
                     webSocket.send(result.first.toByteString())
+                    report("Encrypted session established")
                 }
             }
         } catch (_: Exception) {
             close()
             report("Encrypted session rejected")
+        }
+    }
+
+    private fun sendRegistration(webSocket: WebSocket) {
+        if (removePush) {
+            webSocket.send(JSONObject().put("type", "unregisterPush").toString())
+        } else if (fid != null) {
+            webSocket.send(JSONObject().put("type", "registerPush").put("fid", fid).toString())
         }
     }
 

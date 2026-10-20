@@ -83,7 +83,7 @@ internal abstract class HostDatabase : RoomDatabase() {
 internal data class HostSnapshot(val settings: HostSettings = HostSettings(armed = false), val browsers: List<Browser> = emptyList())
 
 /** All disk operations run off the UI thread; record authority reads use an immutable snapshot. */
-internal class HostStore private constructor(private val context: Context, internal val database: HostDatabase) {
+internal class HostStore private constructor(private val context: android.app.Application, internal val database: HostDatabase) {
     private val dao = database.dao()
 
     @Volatile private var loaded = false
@@ -115,7 +115,7 @@ internal class HostStore private constructor(private val context: Context, inter
             }
         }
         // The transaction is the migration marker. A crash before this cleanup cannot reimport.
-        legacy.edit().remove("grant").remove("revoked").remove("wakeEnabled").apply()
+        legacy.save { remove("grant").remove("revoked").remove("wakeEnabled") }
         loaded = true
         publish()
         return this
@@ -287,7 +287,7 @@ internal class HostStore private constructor(private val context: Context, inter
         fun get(context: Context): HostStore =
             instance ?: synchronized(this) {
                 instance ?: HostStore(
-                    context.applicationContext,
+                    context.applicationContext as android.app.Application,
                     Room.databaseBuilder(context.applicationContext, HostDatabase::class.java, "remote-access.db").build(),
                 ).also {
                     instance = it
@@ -297,6 +297,6 @@ internal class HostStore private constructor(private val context: Context, inter
         fun fixture(
             context: Context,
             database: HostDatabase,
-        ) = HostStore(context, database)
+        ) = HostStore(context.applicationContext as android.app.Application, database)
     }
 }

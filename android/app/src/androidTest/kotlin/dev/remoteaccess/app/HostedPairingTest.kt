@@ -1,8 +1,6 @@
 package dev.remoteaccess.app
 
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -16,81 +14,213 @@ import java.io.File
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-/** Injects decoded QR content through the normal deep link, then exercises Grant. */
+/** Normal pairing/deep link and native controls, coordinated with isolated real browsers. */
 @RunWith(AndroidJUnit4::class)
 class HostedPairingTest {
-    @Test
-    fun pairOrReconnectAndRevoke() {
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        val context = instrumentation.targetContext
-        val device = UiDevice.getInstance(instrumentation)
-        val stage = File(context.filesDir, "hosted-stage")
-        val command = File(context.filesDir, "hosted-command")
-        val uriFile = File(context.filesDir, "hosted-pair-uri")
-        val pairing = uriFile.exists()
-        stage.delete()
-        command.delete()
+    private val context = InstrumentationRegistry.getInstrumentation().targetContext
+    private val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+    private val store get() = HostStore.get(context).load()
+
+    private fun waitFor(
+        timeout: Long = 30000,
+        test: () -> Boolean,
+    ) {
+        val deadline = System.nanoTime() + timeout * 1_000_000
+        while (!test() && System.nanoTime() < deadline) Thread.sleep(100)
+        assertTrue(test(), "Native state did not arrive")
+    }
+
+    private fun click(id: String) {
+        val view = device.wait(Until.findObject(By.res("${context.packageName}:id/$id")), 15000)
+        assertNotNull(view, "Control $id missing")
+        view.click()
+    }
+
+    private fun start(uri: String? = null) {
         val intent = Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-        if (pairing) {
+        if (uri != null) {
             intent.action = Intent.ACTION_VIEW
-            intent.data = Uri.parse(uriFile.readText())
-            uriFile.delete()
+            intent.data = Uri.parse(uri)
         }
         context.startActivity(intent)
+        assertTrue(device.wait(Until.hasObject(By.res("${context.packageName}:id/host_status")), 15000) || uri != null)
+    }
+
+    private fun browser() {
+        val row = device.wait(Until.findObject(By.textStartsWith(store.snapshot.browsers.first { !it.revoked }.nickname + "\n")), 15000)
+        assertNotNull(row)
+        row.click()
+    }
+
+    @Test
+    fun pairOrReconnectAndRevoke() {
+        val stage = File(context.filesDir, "hosted-stage")
+        val command = File(context.filesDir, "hosted-command")
+        val uri = File(context.filesDir, "hosted-pair-uri")
+        stage.delete()
+        command.delete()
+        val pairing = uri.exists()
+        start(if (pairing) uri.readText().also { uri.delete() } else null)
         if (pairing) {
-            val grant = device.wait(Until.findObject(By.res("${context.packageName}:id/grant_browser")), 15000)
-            assertNotNull(grant, "Normal grant screen missing")
-            grant.click()
-        }
-        if (pairing) {
-            assertTrue(device.wait(Until.hasObject(By.text("Browser paired. Tap Connect.")), 90000))
-        } else {
-            assertTrue(context.getSharedPreferences("paired-browser-v1", 0).contains("grant"))
-            assertTrue(device.wait(Until.hasObject(By.res("${context.packageName}:id/connect_phone")), 15000))
+            click("grant_browser")
+            waitFor(90000) { store.snapshot.browsers.any { !it.revoked } }
         }
         val before = KeystoreIdentity.loadOrCreate("phone-identity-v1").publicKey
         assertTrue(before.contentEquals(KeystoreIdentity.loadOrCreate("phone-identity-v1").publicKey))
-        device.findObject(By.res("${context.packageName}:id/connect_phone")).click()
-        assertTrue(device.wait(Until.hasObject(By.text("Waiting for your browser")), 20000))
+        browser()
+        waitFor { store.snapshot.browsers.first().synced }
+        click("connect_phone")
+        waitFor { HostSessions.current.get()?.status == "Waiting for your browser" }
         stage.writeText("connected")
-        val deadline = System.nanoTime() + 120_000_000_000L
-        while (!command.exists() && System.nanoTime() < deadline) Thread.sleep(200)
-        assertTrue(command.exists(), "Browser runner did not finish")
-        if (command.readText() == "wake") {
-            device.findObject(By.res("${context.packageName}:id/enable_wake")).click()
-            if (android.os.Build.VERSION.SDK_INT >= 33 &&
-                context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-            ) {
-                val allow = device.wait(Until.findObject(By.res("com.android.permissioncontroller:id/permission_allow_button")), 10000)
-                assertNotNull(allow, "Notification permission prompt missing")
-                allow.click()
+        waitFor(120000) { command.exists() }
+        when (command.readText()) {
+            "wake" -> {
+                click("navigate_back")
+                click("open_settings")
+                click("enable_wake")
+                val allow = device.wait(Until.findObject(By.res("com.android.permissioncontroller:id/permission_allow_button")), 2000)
+                allow?.click()
+                waitFor(60000) { store.snapshot.browsers.all { it.wakeReady } }
+                device.pressHome()
+                stage.writeText("wake-ready")
             }
-            assertTrue(device.wait(Until.hasObject(By.text("Remote wake ready")), 60000), "Firebase registration did not reach relay")
-            device.pressHome()
-            stage.writeText("wake-ready")
-        }
-        if (command.readText() == "revoke") {
-            device.findObject(By.res("${context.packageName}:id/remove_browser")).click()
-            assertTrue(device.wait(Until.hasObject(By.text("Browser removed")), 20000))
-            stage.writeText("revoked")
+            "revoke" -> {
+                click("remove_browser")
+                assertNotNull(device.wait(Until.findObject(By.res("android:id/button1")), 10000)).click()
+                waitFor { store.snapshot.browsers.isEmpty() }
+                stage.writeText("revoked")
+            }
         }
         command.delete()
     }
 
-    /** Owned test fixture cleanup also works behind a secure keyguard, without credential entry. */
+    /** Command file is private test coordination; every management mutation uses the real UI. */
+    @Test
+    fun manageMultipleBrowsers() {
+        val stage = File(context.filesDir, "hosted-stage")
+        val command = File(context.filesDir, "hosted-command")
+        val uriFile = File(context.filesDir, "hosted-pair-uri")
+        start()
+        stage.writeText("ready")
+        val deadline = System.nanoTime() + 900_000_000_000L
+        while (System.nanoTime() < deadline) {
+            if (!command.exists()) {
+                Thread.sleep(100)
+                continue
+            }
+            val task = JSONObject(command.readText())
+            command.delete()
+            val action = task.getString("action")
+            val id = task.optString("id")
+            when (action) {
+                "stop" -> {
+                    stage.writeText("stopped")
+                    return
+                }
+                "pair" -> {
+                    val before = store.snapshot.browsers.size
+                    val uri = uriFile.readText()
+                    uriFile.delete()
+                    start(uri)
+                    click("grant_browser")
+                    waitFor(90000) { store.snapshot.browsers.size == before + 1 }
+                    waitFor { store.snapshot.browsers.all { it.synced } }
+                }
+                "home" -> start()
+                "activity" -> {
+                    start()
+                    click("open_activity")
+                }
+                "settings" -> {
+                    start()
+                    click("open_settings")
+                }
+                "global" -> {
+                    start()
+                    if (store.snapshot.settings.armed != task.getBoolean("enabled")) click("access_toggle")
+                    waitFor { store.snapshot.settings.armed == task.getBoolean("enabled") }
+                    waitFor { store.snapshot.browsers.all { it.synced } }
+                }
+                "automatic" -> {
+                    start()
+                    click("open_settings")
+                    if (store.snapshot.settings.automatic != task.getBoolean("enabled")) click("enable_wake")
+                    device.wait(Until.findObject(By.res("com.android.permissioncontroller:id/permission_allow_button")), 2000)?.click()
+                    waitFor(60000) {
+                        store.snapshot.settings.automatic == task.getBoolean("enabled") &&
+                            store.snapshot.browsers.all {
+                                it.wakeReady == task.getBoolean("enabled")
+                            }
+                    }
+                }
+                else -> {
+                    start()
+                    val row = device.wait(Until.findObject(By.textStartsWith(requireNotNull(store.browser(id)).nickname + "\n")), 15000)
+                    assertNotNull(row).click()
+                    when (action) {
+                        "details" -> Unit
+                        "rename" -> {
+                            click("rename_browser")
+                            val nameField = assertNotNull(device.wait(Until.findObject(By.clazz("android.widget.EditText")), 10000))
+                            nameField.text = task.getString("name")
+                            assertNotNull(device.findObject(By.res("android:id/button1"))).click()
+                            waitFor { store.browser(id)?.nickname == task.getString("name") }
+                        }
+                        "enable" -> {
+                            if (store.browser(id)?.enabled != task.getBoolean("enabled")) click("browser_toggle")
+                            waitFor { store.browser(id)?.enabled == task.getBoolean("enabled") && store.browser(id)?.synced == true }
+                        }
+                        "connect" -> {
+                            click("connect_phone")
+                            waitFor {
+                                HostSessions.current.get()?.let { it.browserId == id && it.status == "Waiting for your browser" } == true
+                            }
+                        }
+                        "disconnect" -> {
+                            click("disconnect_browser")
+                            waitFor { HostSessions.current.get() == null }
+                        }
+                        "remove" -> {
+                            click("remove_browser")
+                            assertNotNull(device.wait(Until.findObject(By.res("android:id/button1")), 10000)).click()
+                            waitFor { store.browser(id) == null }
+                        }
+                        else -> error("Unknown fixture action")
+                    }
+                }
+            }
+            val result =
+                JSONObject().put("action", action).put(
+                    "browsers",
+                    org.json.JSONArray(
+                        store.snapshot.browsers.map {
+                            JSONObject().put(
+                                "id",
+                                it.id,
+                            ).put("nickname", it.nickname).put("enabled", it.enabled).put("generation", it.generation)
+                                .put("lastConnected", it.lastConnected).put("wakeReady", it.wakeReady)
+                        },
+                    ),
+                ).put("armed", store.snapshot.settings.armed).put("active", HostSessions.current.get()?.browserId)
+            stage.writeText(result.toString())
+        }
+        error("Management fixture timed out")
+    }
+
     @Test
     fun revokeFixture() {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
         assertTrue(File(context.filesDir, "hosted-stage").exists(), "Not an enrolled acceptance fixture")
-        val preferences = WakeSupport.preferences(context)
-        val grant = JSONObject(assertNotNull(preferences.getString("grant", null)))
-        preferences.save { putBoolean("revoked", true) }
+        HostSessions.stop()
         androidx.work.WorkManager.getInstance(context).cancelAllWork()
-        val signature =
-            KeystoreIdentity.loadOrCreate(
-                "phone-identity-v1",
-            ).sign(fields("ara/pair/revoke/v1", grant.getString("origin"), grant.getString("id")))
-        request(grant.getString("origin"), grant.getString("id"), "revoke", JSONObject().put("signature", encoded(signature)))
-        preferences.save { remove("grant").remove("revoked").putBoolean("wakeEnabled", false) }
+        for (browser in store.snapshot.browsers) {
+            store.revoke(browser.id)
+            val grant = browser.authority()
+            val signature =
+                KeystoreIdentity.loadOrCreate(
+                    "phone-identity-v1",
+                ).sign(fields("ara/pair/revoke/v1", grant.getString("origin"), browser.id))
+            request(grant.getString("origin"), browser.id, "revoke", JSONObject().put("signature", encoded(signature)))
+            store.removed(browser.id)
+        }
     }
 }
