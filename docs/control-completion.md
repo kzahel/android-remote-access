@@ -62,7 +62,13 @@ No production test activities or ADB control paths belong in the shipped APK.
   physical Pixel 7a. The physical ordinary-control/video/gesture suite passes,
   including mid-drag peer loss, no replay and cleanup. See
   [direct transport](direct-transport.md) for measurements and dependency notices.
-- Owned-emulator kernel reboot, required local first unlock, actual boot receiver
-  delivery, persisted restart opt-in and encrypted PIN persistence pass. Combined
-  idle/FCM/unlock and display-rotation acceptance are being qualified. Natural
-  overnight evidence remains separate from forced Doze.
+- The complete owned-emulator run passes kernel reboot, required local first
+  unlock, actual boot receiver delivery, persisted opt-in/encrypted PIN, screen-off
+  forced-Doze FCM with no application relay socket, saved/manual unlock, all three
+  video modes, gestures, display rotation while held and full teardown. The
+  receiver and FCM execute with instrumentation detached; no-restart attachment
+  preserves the live host/session.
+- The requested development features are implemented. Natural unplugged overnight
+  idle, broader OEM/NAT/network-change qualification, independent security review
+  and Play-policy/distribution work remain release qualification. Forced Doze is
+  not overnight evidence; no physical PIN/reboot qualification is claimed.

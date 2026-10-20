@@ -188,6 +188,7 @@ class HostedPairingTest {
                     assertTrue(device.executeShellCommand("getprop ro.kernel.qemu").trim() == "1")
                     assertTrue(RestartRecovery.enabled(context))
                     waitFor(60000) { store.events().any { it.kind == "Setup restored after restart" } }
+                    waitFor { dev.remoteaccess.app.control.ScreenAccessService.current != null }
                     val value = dev.remoteaccess.app.unlock.PinVault(context).read()
                     assertTrue(value.contentEquals("314159".toCharArray()))
                     value.fill('\u0000')

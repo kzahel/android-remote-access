@@ -79,12 +79,41 @@ preserves existing applications and uses visible consent, not secure-setting
 mutations. Success removes only its owned packages; failure preserves their keys
 for authenticated cleanup. Receipts are in ignored `.local/physical-control-proof/`.
 
+## Combined reboot, idle wake and control
+
+The final Android 0.6.0 owned-emulator run passed kernel reboot, observed
+credential-locked storage, one required local first unlock of the synthetic
+fixture, actual boot-receiver delivery, persisted restart opt-in and encrypted
+saved-PIN availability. It then detached instrumentation, closed foreground
+listeners, slept the display and independently observed forced deep `IDLE`.
+The browser request produced a fresh real Firebase receipt (the relay only sends
+FCM when its phone route is absent). Saved-PIN unlock succeeded, and the same
+session completed all ordinary/continuous input checks, all three H.264 quality
+modes, display rotation while dragging, watchdog release, wrong-PIN guard/local
+forgetting and disarm/revocation cleanup. There were no browser errors.
+
+The final Save data sample decoded 50 frames in 5 seconds and received 252,239
+encrypted WebSocket bytes (about 0.40 Mbps). This is fixture traffic, not a
+capacity guarantee. Accessibility can keep an Android process resident, so this
+run proves socket-absent FCM wake/control, not an absent host process. The separate
+FCM canary tests prove process-absent delivery with screen access disabled.
+
+Add `HOSTED_CONTROL_WAKE=1 HOSTED_BOOT=1 HOSTED_ROTATION=1` to the emulator
+invocation above to reproduce. Tests attach with `am instrument --no-restart`:
+default instrumentation finish force-stops the target and would invalidate the
+service/session lifecycle being measured. Real boot delivery is observed before
+reattachment. Battery/idle overrides and synthetic credentials are restored on
+exit; owned browser/emulator processes are reaped. Manual CI dispatch can also
+opt into the relay/video/gesture/synthetic-unlock/rotation suite using the
+`control_acceptance` input. CI does not select a physical phone.
+
 ## Limits
 
 This does not establish behavior before first local unlock, natural overnight
 availability, current-API/OEM-wide unlock support, or Play approval.
 Projection consent is not saved/reused, and no
 production accessibility code auto-approves it. Android can stop projection on
-lock and secure content can be blank or refused. Actual reboot recovery,
-rotation/socket-loss qualification are tracked in the completion plan. Separate
-physical FCM evidence is a wake test, not proof of physical remote unlock.
+lock and secure content can be blank or refused. Arbitrary network transitions
+and OEMs remain separate qualification; direct-path loss and relay recovery have
+measured acceptance. Physical FCM evidence is a wake test, not proof of physical
+remote unlock.

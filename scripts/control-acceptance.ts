@@ -158,6 +158,16 @@ export async function controlAcceptance(f: Fixture) {
       angleChange: number;
     };
   async function startNative() {
+    // --no-restart attaches to a running target (API 35 otherwise dereferences
+    // a missing process). This ordinary launch never replaces an active owner.
+    adb(
+      "shell",
+      "am",
+      "start",
+      "-W",
+      "-n",
+      `${app}/dev.remoteaccess.app.MainActivity`,
+    );
     native = spawn(
       f.adbPath,
       [
@@ -166,6 +176,9 @@ export async function controlAcceptance(f: Fixture) {
         "shell",
         "am",
         "instrument",
+        // Default instrumentation finish force-stops its target, disabling live
+        // accessibility/control. Detach/rejoin without changing the tested lifecycle.
+        "--no-restart",
         "-w",
         "-e",
         "physicalControl",
@@ -329,6 +342,22 @@ export async function controlAcceptance(f: Fixture) {
       console.log(
         `H264 frames decoded over encrypted ${process.env.HOSTED_DIRECT === "1" ? "WebRTC" : "relay"}`,
       );
+      const smoothBefore = await page.evaluate(
+        () => (window as unknown as { __videoFrames: number }).__videoFrames,
+      );
+      await page
+        .getByLabel("Viewing quality", { exact: true })
+        .selectOption("3");
+      await until(
+        async () =>
+          (await page.evaluate(
+            () =>
+              (window as unknown as { __videoFrames: number }).__videoFrames,
+          )) >
+          smoothBefore + 10,
+        20000,
+      );
+      console.log("Smooth quality mode decoded successfully");
       await page
         .getByLabel("Viewing quality", { exact: true })
         .selectOption("1");
@@ -392,8 +421,20 @@ export async function controlAcceptance(f: Fixture) {
       .fill("Relay 🌞 verified");
     await page.getByRole("button", { name: "Send text" }).click();
     await until(() => witness().text === "Relay 🌞 verified");
-    if (witness().keyboardShown)
+    // IME visibility may arrive after the editable field's layout witness.
+    // Cross-check Android's input-method state before sending a navigation key.
+    await delay(1000);
+    if (
+      witness().keyboardShown ||
+      /mInputShown=true\b/.test(adb("shell", "dumpsys", "input_method"))
+    ) {
       await page.getByRole("button", { name: "Back", exact: true }).click();
+      await until(
+        () =>
+          !/mInputShown=true\b/.test(adb("shell", "dumpsys", "input_method")),
+        5000,
+      );
+    }
     await delay(1000);
     assert.match(
       adb("shell", "dumpsys", "activity", "activities"),

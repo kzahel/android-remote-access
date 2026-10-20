@@ -30,6 +30,7 @@ export function RemoteScreen({
   const [text, setText] = useState("");
   const [pin, setPin] = useState("");
   const [quality, setQuality] = useState(0);
+  const [videoUnavailable, setVideoUnavailable] = useState(false);
   const [connectionPath, setConnectionPath] = useState(session.path);
   const [apps, setApps] = useState<AppEntry[]>([]);
   useEffect(() => {
@@ -118,6 +119,7 @@ export function RemoteScreen({
             shownVideo = false;
             renderer?.close();
             setQuality(0);
+            setVideoUnavailable(true);
             setActionMessage(error.message);
             await session.command({ op: "video", quality: 0 }).catch(() => {});
           } else setActionMessage("");
@@ -257,7 +259,7 @@ export function RemoteScreen({
           <select
             aria-label="Viewing quality"
             value={quality}
-            disabled={!VideoRenderer.supported()}
+            disabled={!VideoRenderer.supported() || videoUnavailable}
             onChange={(event) => {
               const value = Number(event.target.value) as 0 | 1 | 2 | 3;
               setQuality(value);
@@ -274,7 +276,7 @@ export function RemoteScreen({
             <option value={3}>Smooth</option>
           </select>
         </label>
-        {quality > 0 && !state.videoActive && (
+        {quality > 0 && !state.videoActive && !videoUnavailable && (
           <button
             type="button"
             onClick={() =>
@@ -284,7 +286,7 @@ export function RemoteScreen({
             Start smooth view
           </button>
         )}
-        {!VideoRenderer.supported() && (
+        {(!VideoRenderer.supported() || videoUnavailable) && (
           <p>
             This browser supports still frames. Use a browser with video
             decoding for smooth view.

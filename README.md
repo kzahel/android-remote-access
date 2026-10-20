@@ -17,8 +17,10 @@ lost-packet input release and revocation. See [control acceptance](docs/control-
 The [FCM wake slice](docs/fcm-wake-v1.md) has separate emulator and physical
 Pixel 7a evidence, including process-absent, screen-off forced Doze. Combined
 Pixel 7a control/video and native direct WebRTC acceptance also pass, including
-mid-drag direct loss and encrypted relay recovery without input replay. Restart
-recovery and combined idle/wake qualification are tracked in the
+mid-drag direct loss and encrypted relay recovery without input replay. The
+combined emulator run also covers reboot/first local unlock, forced-Doze FCM,
+saved-PIN unlock, video, display rotation and teardown. Natural overnight and
+broader OEM/network qualification remain; see the
 [completion plan](docs/control-completion.md).
 Android manages browser nicknames, per-browser/global access and SQLite activity
 history; see [mobile management](docs/mobile-management.md).

@@ -379,4 +379,6 @@ introducing a new visual system or Compose solely for these screens.
 See [mobile management](mobile-management.md) for the authorized plan: Room,
 multiple browser grants and local nicknames, one active session, global and
 per-browser pause, removal, Settings and bounded local Activity. These screens
-manage pairing and encrypted checks; capture/input remain a later slice.
+manage pairing, feature permissions, unlock opt-in and encrypted control. The
+subsequent full-control implementation and measured limits are recorded in
+[control acceptance](control-acceptance.md).

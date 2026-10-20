@@ -29,6 +29,7 @@ public final class ControlFixtureActivity extends Activity {
     private int taps, longPresses, sliderProgress;
     private String entered = "";
     private boolean sliderHeld;
+    private boolean keyboardShown;
     private Button target;
     private EditText field;
     private ScrollView scroll;
@@ -109,6 +110,11 @@ public final class ControlFixtureActivity extends Activity {
         scroll.addView(content);
         scroll.setOnScrollChangeListener((v, x, y, oldX, oldY) -> witness());
         scroll.getViewTreeObserver().addOnGlobalLayoutListener(this::witness);
+        scroll.setOnApplyWindowInsetsListener((view, insets) -> {
+            keyboardShown = insets.isVisible(WindowInsets.Type.ime());
+            scroll.post(this::witness);
+            return insets;
+        });
         setContentView(scroll);
         scroll.post(this::witness);
     }
@@ -123,7 +129,7 @@ public final class ControlFixtureActivity extends Activity {
         if (scroll == null) return;
         try {
             JSONObject value = new JSONObject().put("taps", taps).put("text", entered).put("scroll", scroll.getScrollY())
-                .put("keyboardShown", scroll.getRootWindowInsets() != null && scroll.getRootWindowInsets().isVisible(WindowInsets.Type.ime()))
+                .put("keyboardShown", keyboardShown)
                 .put("target", center(target)).put("field", center(field)).put("slider", center(slider))
                 .put("sliderProgress", sliderProgress).put("longPresses", longPresses).put("sliderHeld", sliderHeld)
                 .put("multi", center(multi)).put("maxPointers", maxPointers).put("multiMoves", multiMoves)
