@@ -5,6 +5,7 @@ import {
   resultMessage,
 } from "@remote/protocol/control";
 import { useEffect, useRef, useState } from "react";
+import { ControlIcon } from "./control-icon.js";
 import type { RemoteSession } from "./control-session.js";
 import { TouchInput } from "./touch-input.js";
 import { VideoDecodeError, VideoRenderer } from "./video-renderer.js";
@@ -227,26 +228,50 @@ export function RemoteScreen({
           )}
         </div>
       )}
-      <canvas ref={canvas} aria-label="Phone screen" className="phone-screen" />
-      <div className="controls">
-        {(["back", "home", "recents"] as const).map((action) => (
-          <button
-            key={action}
-            type="button"
-            onClick={() => void act({ op: "navigation", action })}
-          >
-            {action[0]?.toUpperCase()}
-            {action.slice(1)}
-          </button>
-        ))}
+      <div className="screen-view">
+        <canvas
+          ref={canvas}
+          aria-label="Phone screen"
+          className="phone-screen"
+        />
+        <nav className="phone-nav" aria-label="Android navigation">
+          {(["back", "home", "recents"] as const).map((action) => (
+            <button
+              key={action}
+              type="button"
+              aria-label={
+                action === "back"
+                  ? "Back"
+                  : action === "home"
+                    ? "Home"
+                    : "Recents"
+              }
+              title={
+                action === "back"
+                  ? "Back"
+                  : action === "home"
+                    ? "Home"
+                    : "Recent apps"
+              }
+              onClick={() => void act({ op: "navigation", action })}
+            >
+              <ControlIcon name={action} />
+            </button>
+          ))}
+        </nav>
+      </div>
+      <div className="screen-controls">
         <button type="button" onClick={() => void act({ op: "wake" })}>
-          Wake screen
+          <ControlIcon name="wake" />
+          <span>Wake screen</span>
         </button>
         <button type="button" onClick={() => void act({ op: "sleep" })}>
-          Lock phone
+          <ControlIcon name="lock" />
+          <span>Lock phone</span>
         </button>
         <button type="button" onClick={disconnect}>
-          Disconnect
+          <ControlIcon name="disconnect" />
+          <span>Disconnect</span>
         </button>
       </div>
       <details>

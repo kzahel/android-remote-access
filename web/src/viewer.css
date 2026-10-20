@@ -36,6 +36,10 @@ button:disabled {
   opacity: 0.55;
   cursor: default;
 }
+button:focus-visible {
+  outline: 3px solid #7da99a;
+  outline-offset: 3px;
+}
 button.secondary {
   background: #dce8e0;
   color: #16322f;
@@ -82,10 +86,64 @@ dd {
   touch-action: none;
   border-radius: 8px;
 }
-.controls {
+.screen-view {
+  display: grid;
+  justify-items: center;
+  width: fit-content;
+  max-width: 100%;
+}
+.control-icon {
+  display: block;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+}
+.phone-nav {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  width: 100%;
+  padding-top: 8px;
+}
+.phone-nav button {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 44px;
+  padding: 0;
+  margin: 0;
+  color: #536c60;
+  background: transparent;
+}
+.phone-nav .control-icon {
+  width: 24px;
+  height: 24px;
+}
+.phone-nav button:hover,
+.screen-controls button:hover {
+  background: #e0eae1;
+  color: #16322f;
+}
+.phone-nav button:active,
+.screen-controls button:active {
+  background: #d1e0d4;
+}
+.screen-controls {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  margin-top: 16px;
+}
+.screen-controls button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  margin: 0;
+  border: 1px solid #d2dfd4;
+  background: transparent;
+  color: #345344;
+  font-size: 0.875rem;
 }
 input {
   display: block;
