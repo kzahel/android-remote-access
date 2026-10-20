@@ -7,7 +7,12 @@ import {
 } from "firebase-admin/app";
 import { getMessaging, type Message } from "firebase-admin/messaging";
 
-export type Wake = { requestId: string; expires: number };
+export type Wake = {
+  requestId: string;
+  expires: number;
+  pairingId?: string;
+  generation?: string;
+};
 export type Delivery = "accepted" | "invalid_target" | "unavailable";
 export type Sender = (fid: string, wake: Wake) => Promise<Delivery>;
 export function validFid(value: unknown): value is string {
@@ -20,6 +25,8 @@ export function wakeMessage(fid: string, wake: Wake): Message {
       intent: "connect-v1",
       requestId: wake.requestId,
       expires: String(wake.expires),
+      ...(wake.pairingId ? { pairingId: wake.pairingId } : {}),
+      ...(wake.generation ? { generation: wake.generation } : {}),
     },
     android: { priority: "high", ttl: 60000, collapseKey: "connect-v1" },
   };
@@ -56,7 +63,8 @@ export function firebaseDelivery(
 
 /** Delivery addresses are private metadata, never part of public pairing replies. */
 export class PushRegistry {
-  private targets: Record<string, string> = Object.create(null);
+  private targets: Record<string, { fid: string; generation?: string }> =
+    Object.create(null);
   private readonly cooldown = new Map<string, number>();
   private readonly file: string;
   private window = 0;
@@ -70,7 +78,7 @@ export class PushRegistry {
     if (existsSync(this.file)) {
       const saved = JSON.parse(readFileSync(this.file, "utf8")) as {
         version: number;
-        targets: Record<string, string>;
+        targets: Record<string, string | { fid: string; generation?: string }>;
       };
       if (
         saved.version !== 1 ||
@@ -78,17 +86,30 @@ export class PushRegistry {
         Object.keys(saved.targets).length > 10000
       )
         throw new Error("Invalid push state");
-      for (const [id, fid] of Object.entries(saved.targets)) {
+      for (const [id, value] of Object.entries(saved.targets)) {
+        const target = typeof value === "string" ? { fid: value } : value;
+        const fid = target.fid;
+        if (
+          target.generation !== undefined &&
+          !/^[0-9a-f]{32}$/.test(target.generation)
+        )
+          throw new Error("Invalid push generation");
         if (!/^[0-9a-f]{32}$/.test(id) || !validFid(fid))
           throw new Error("Invalid push state");
-        this.targets[id] = fid;
+        this.targets[id] = target;
       }
     }
   }
-  register(id: string, fid: string) {
+  register(id: string, fid: string, generation?: string) {
     if (!validFid(fid)) throw new Error("Invalid registration");
-    if (this.targets[id] === fid) return;
-    this.targets[id] = fid;
+    if (generation !== undefined && !/^[0-9a-f]{32}$/.test(generation))
+      throw new Error("Invalid generation");
+    if (
+      this.targets[id]?.fid === fid &&
+      this.targets[id]?.generation === generation
+    )
+      return;
+    this.targets[id] = { fid, ...(generation ? { generation } : {}) };
     this.persist();
   }
   remove(id: string) {
@@ -107,7 +128,8 @@ export class PushRegistry {
     id: string,
     request: Wake,
   ): Promise<Delivery | "coalesced" | "unregistered"> {
-    const fid = this.targets[id];
+    const target = this.targets[id];
+    const fid = target?.fid;
     if (!fid || !this.send) return "unregistered";
     const now = this.now();
     if (request.expires * 1000 <= now) return "unavailable";
@@ -123,12 +145,17 @@ export class PushRegistry {
       if (until <= now) this.cooldown.delete(key);
     let result: Delivery;
     try {
-      result = await this.send(fid, request);
+      result = await this.send(fid, {
+        ...request,
+        ...(target?.generation
+          ? { pairingId: id, generation: target.generation }
+          : {}),
+      });
     } catch {
       result = "unavailable";
     }
     // A concurrent registration refresh must survive an old-target failure.
-    if (result === "invalid_target" && this.targets[id] === fid)
+    if (result === "invalid_target" && this.targets[id] === target)
       this.remove(id);
     return result;
   }

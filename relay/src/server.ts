@@ -25,7 +25,12 @@ import {
 import { WebSocket, WebSocketServer } from "ws";
 import { PushRegistry, type Sender, type Wake } from "./push.js";
 
-type Stored = Grant & { viewerSignature: string; revoked: boolean };
+type Stored = Grant & {
+  viewerSignature: string;
+  revoked: boolean;
+  accessEnabled?: boolean;
+  accessGeneration?: string;
+};
 type Pending = { id: string; viewer: string; expires: number; offer?: Grant };
 export interface Options {
   origin: string;
@@ -309,6 +314,7 @@ export function createRelay(options: Options) {
     let working = false;
     let authenticated = false;
     let pushUpdated = false;
+    let policyUpdated = false;
     let managementOnly = false;
     let alive = true;
     const timeout = setTimeout(
@@ -354,6 +360,7 @@ export function createRelay(options: Options) {
             signature: string;
             requestId?: string;
             mode?: string;
+            generation?: string;
           };
           fromHex(message.id, 16);
           if (message.role !== "phone" && message.role !== "viewer")
@@ -382,6 +389,13 @@ export function createRelay(options: Options) {
             ws.send(JSON.stringify({ type: "authenticated" }));
             return;
           }
+          if (
+            pair.accessEnabled === false ||
+            (message.role === "phone" &&
+              pair.accessGeneration !== undefined &&
+              message.generation !== pair.accessGeneration)
+          )
+            throw new Error("Access disabled or superseded");
           const route = routes.get(message.id) ?? {};
           if (message.requestId !== undefined) {
             const pendingRequest = requests.get(message.id);
@@ -441,10 +455,35 @@ export function createRelay(options: Options) {
             const registration = JSON.parse(data.toString()) as {
               type: string;
               fid: string;
+              enabled?: boolean;
+              generation?: string;
             };
+            if (registration.type === "setAccess") {
+              if (
+                !managementOnly ||
+                policyUpdated ||
+                typeof registration.enabled !== "boolean" ||
+                typeof registration.generation !== "string"
+              )
+                throw new Error("Invalid policy");
+              fromHex(registration.generation, 16);
+              if (
+                pair.accessGeneration !== registration.generation ||
+                pair.accessEnabled !== registration.enabled
+              ) {
+                pair.accessGeneration = registration.generation;
+                pair.accessEnabled = registration.enabled;
+                durable();
+                disconnect(pair.id);
+                push.remove(pair.id);
+              }
+              policyUpdated = true;
+              ws.send(JSON.stringify({ type: "accessUpdated" }));
+              return;
+            }
             if (pushUpdated) throw new Error("Metadata already set");
             if (registration.type === "registerPush")
-              push.register(pair.id, registration.fid);
+              push.register(pair.id, registration.fid, pair.accessGeneration);
             else if (registration.type === "unregisterPush")
               push.remove(pair.id);
             else throw new Error("Invalid metadata");

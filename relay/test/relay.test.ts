@@ -481,3 +481,70 @@ it("registration-only connections cannot inject records into a live route", asyn
   expect(v.socket.readyState).toBe(WebSocket.OPEN);
   expect(p.socket.readyState).toBe(WebSocket.OPEN);
 });
+
+async function setAccess(enabled: boolean, generation: string) {
+  const manager = client();
+  await manager.login(phone, "phone", { mode: "registration" });
+  manager.socket.send(
+    JSON.stringify({ type: "setAccess", enabled, generation }),
+  );
+  expect((await manager.json()).type).toBe("accessUpdated");
+  manager.socket.close();
+}
+it("phone policy cancels pending sessions, persists pause and rejects old generations after re-enable", async () => {
+  await enroll();
+  const v = client();
+  await v.login(viewer, "viewer");
+  const closed = once(v.socket, "close");
+  await setAccess(false, "11".repeat(16));
+  await closed;
+  const disabled = client();
+  await expect(disabled.login(viewer, "viewer")).rejects.toThrow();
+  await relay.close();
+  await start();
+  const persisted = client();
+  await expect(persisted.login(phone, "phone")).rejects.toThrow();
+  await setAccess(true, "22".repeat(16));
+  const stale = client();
+  await expect(
+    stale.login(phone, "phone", { generation: "11".repeat(16) }),
+  ).rejects.toThrow();
+  const current = client();
+  expect(
+    (await current.login(phone, "phone", { generation: "22".repeat(16) })).type,
+  ).toBe("authenticated");
+});
+it("viewers cannot change phone policy", async () => {
+  await enroll();
+  const v = client();
+  await v.login(viewer, "viewer");
+  v.socket.send(
+    JSON.stringify({
+      type: "setAccess",
+      enabled: false,
+      generation: "11".repeat(16),
+    }),
+  );
+  await expect(v.next()).rejects.toThrow();
+  const p = client();
+  expect((await p.login(phone, "phone")).type).toBe("authenticated");
+});
+it("push hints select the exact browser generation without carrying authority", async () => {
+  let sent: import("../src/push.js").Wake | undefined;
+  await relay.close();
+  await start({
+    sender: async (_target, hint) => {
+      sent = hint;
+      return "accepted";
+    },
+  });
+  await enroll();
+  const generation = "33".repeat(16);
+  await setAccess(true, generation);
+  await registerPush();
+  const v = client();
+  await v.login(viewer, "viewer");
+  await v.json();
+  expect(sent?.pairingId).toBe(invitation.id);
+  expect(sent?.generation).toBe(generation);
+});
