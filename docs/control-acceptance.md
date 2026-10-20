@@ -116,6 +116,22 @@ encrypted exchange, Android/browser restart persistence and revocation. Its
 observed request-to-receipt/exchange times were 415/615 ms, with estimated clock
 uncertainty of 8 ms; these are measurements, not an availability promise.
 
+## Stable viewer layout
+
+The connected viewer uses the authenticated phone model as its heading and one
+fixed-height status area. The screen occupies a fixed viewport-relative stage;
+unlock and permission guidance appear inside it. Navigation, wake, lock and
+disconnect share a compact icon dock. Quality and typing/app controls open in
+dialogs without moving the screen or dock.
+
+`pnpm test:viewer-layout` runs the actual React screen with a synthetic session
+in isolated Chromium at 1280×1000, 390×844, 320×680 and 844×390. All four pass
+exact geometry and page-scroll comparisons through saved/manual unlock, lock,
+navigation, long errors, unlock-attempt guards, permission loss, decoded frames,
+rotation and both dialogs. It also verifies one heading/status, preserved touch
+aspect ratio and no browser errors. This fixture does not exercise Android or
+submit a credential to a physical phone; native control acceptance is separate.
+
 ## Limits
 
 This does not establish behavior before first local unlock, natural overnight

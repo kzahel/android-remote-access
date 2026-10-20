@@ -125,4 +125,38 @@ describe("control boundary", () => {
     }
     expect(() => decodeReply(new Uint8Array(1048577))).toThrow();
   });
+  it("accepts optional phone names only as bounded display text", () => {
+    function record(phoneName: unknown) {
+      const payload = new TextEncoder().encode(
+        JSON.stringify({
+          type: "state",
+          v: 1,
+          accessibility: true,
+          locked: false,
+          width: 1080,
+          height: 2400,
+          scene: 1,
+          phoneName,
+        }),
+      );
+      const bytes = new Uint8Array(12 + payload.length);
+      bytes.set([65, 82, 80, 49, 1, 0, 0, 0]);
+      new DataView(bytes.buffer).setUint32(8, 1);
+      bytes.set(payload, 12);
+      return bytes;
+    }
+    expect(decodeReply(record("Pixel 9"))).toMatchObject({
+      state: { phoneName: "Pixel 9" },
+    });
+    expect(decodeReply(record(undefined))).toMatchObject({ kind: "state" });
+    for (const name of [
+      "",
+      "x".repeat(81),
+      "Phone\nname",
+      "Phone\u007f",
+      9,
+      null,
+    ])
+      expect(() => decodeReply(record(name))).toThrow("Invalid phone name");
+  });
 });

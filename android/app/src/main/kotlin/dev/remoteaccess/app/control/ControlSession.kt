@@ -65,7 +65,7 @@ internal class ControlSession(
                     .put("accessibility", false).put("locked", context.getSystemService(KeyguardManager::class.java).isKeyguardLocked)
                     .put("width", 0).put("height", 0).put("scene", 0)
             val vault = PinVault(context)
-            state.put(
+            state.put("phoneName", android.os.Build.MODEL.take(80)).put(
                 "unlockSupported",
                 true,
             ).put("unlockAllowed", HostStore.get(context).browser(browserId)?.unlockAllowed == true)

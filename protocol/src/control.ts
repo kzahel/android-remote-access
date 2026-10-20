@@ -140,6 +140,7 @@ export type ControlState = {
   width: number;
   height: number;
   scene: number;
+  phoneName?: string;
   videoActive?: boolean;
   unlockSupported?: boolean;
   unlockAllowed?: boolean;
@@ -203,6 +204,16 @@ export function decodeReply(data: Uint8Array<ArrayBuffer>): Reply {
         state.height > 16384
       )
         throw new Error("Invalid state");
+      if (
+        state.phoneName !== undefined &&
+        (typeof state.phoneName !== "string" ||
+          state.phoneName.length < 1 ||
+          state.phoneName.length > 80 ||
+          Array.from(state.phoneName).some(
+            (c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127,
+          ))
+      )
+        throw new Error("Invalid phone name");
       for (const field of [
         "videoActive",
         "unlockSupported",

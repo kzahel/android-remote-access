@@ -323,7 +323,9 @@ export async function controlAcceptance(f: Fixture) {
     await command("control-fixture");
     await until(() => witness().taps === 0);
     if (process.env.HOSTED_VIDEO === "1") {
-      await page.getByText("Viewing quality", { exact: true }).click();
+      await page
+        .getByRole("button", { name: "Viewing quality", exact: true })
+        .click();
       await page
         .getByLabel("Viewing quality", { exact: true })
         .selectOption("2");
@@ -394,6 +396,7 @@ export async function controlAcceptance(f: Fixture) {
         "Video must continue decoding during the measurement",
       );
       console.log(`Measured video: ${JSON.stringify(videoMeasurement)}`);
+      await page.getByRole("button", { name: "Close viewing quality" }).click();
     }
     await delay(1500);
     async function at(p: { x: number; y: number }) {
@@ -415,12 +418,15 @@ export async function controlAcceptance(f: Fixture) {
     const field = await at(witness().field);
     await delay(800);
     await page.mouse.click(field.x, field.y);
-    await page.getByText("Type or open an app", { exact: true }).click();
+    await page
+      .getByRole("button", { name: "Type or open an app", exact: true })
+      .click();
     await page
       .getByLabel("Text for the focused field")
       .fill("Relay 🌞 verified");
     await page.getByRole("button", { name: "Send text" }).click();
     await until(() => witness().text === "Relay 🌞 verified");
+    await page.getByRole("button", { name: "Close typing controls" }).click();
     // IME visibility may arrive after the editable field's layout witness.
     // Cross-check Android's input-method state before sending a navigation key.
     await delay(1000);
@@ -537,10 +543,14 @@ export async function controlAcceptance(f: Fixture) {
           /topResumedActivity=.*ControlFixtureActivity/,
         ),
     );
+    await page
+      .getByRole("button", { name: "Type or open an app", exact: true })
+      .click();
     await page.getByRole("button", { name: "Choose an app" }).click();
     await page
       .getByRole("combobox", { name: "Open app" })
       .selectOption("com.android.settings");
+    await page.getByRole("button", { name: "Close typing controls" }).click();
     await until(() =>
       adb("shell", "dumpsys", "activity", "activities").match(
         /topResumedActivity=.*com.android.settings/,

@@ -91,6 +91,12 @@ HOSTED_ORIGIN=https://YOUR_DEVELOPMENT_ORIGIN pnpm test:mobile
 This owns an emulator and isolated Chromium; it never selects a physical phone.
 Private screenshots/results stay in `.local/mobile-proof/`.
 
+`pnpm test:viewer-layout` exercises the actual React viewer in isolated Chromium
+against a synthetic session. It checks screen/control geometry and page scroll
+through lock/unlock, messages, permission loss, rotation and dialogs at desktop,
+mobile and landscape sizes. It needs Playwright Chromium, no Android device or
+relay. Private screenshots/results stay in `.local/viewer-layout-proof/`.
+
 On the phone, **Set up sharing** opens the website link, Copy/Share, an optional
 website QR and **Scan pairing code**. Paired phones keep this under **Add browser**
 and **How to connect**. Approval works before Android permissions; **Enable
