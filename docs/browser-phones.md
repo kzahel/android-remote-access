@@ -189,3 +189,20 @@ history, no recheck on metadata changes or disconnect, pending-check cancellatio
 and replacement, the persisted-pageshow lifecycle, session loss/reconnect and
 identical preview/live/disconnected geometry at four viewport sizes. The existing
 five-viewport live-viewer regression and all 92 TypeScript tests also pass.
+
+Revision `126603e` is deployed. Its hosted owned-emulator control regression
+passes real screen/input/navigation/app launch, held/multitouch input, synthetic
+manual/saved-PIN unlock, H.264 quality changes, rotation, failed-PIN guard,
+global disarm, revocation and cleanup, with no browser errors. The Save data
+sample decoded 50 frames over 5.001 seconds with 266,810 encrypted relay bytes.
+This run does not resolve the previously recorded intermittent native unlock
+failure. No physical phone was selected or updated.
+
+The hosted two-browser management regression also passes against this revision:
+independent pairing/checks, permission revoke/restore, process-absent FCM for both,
+persisted nicknames/access after restart, global and per-browser pause,
+stale-generation rejection, disconnect and isolated revocation. Fresh Firebase
+receipt-to-exchange intervals were 193 and 189 ms; these are fixture measurements.
+This run used a clean archive of the committed Android sources, separate from
+concurrent mobile UI edits. Both fixture grants were removed, and the runners
+reaped their emulators and isolated Chromium processes.
