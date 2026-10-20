@@ -165,8 +165,12 @@ internal class PinUnlock(private val service: AccessibilityService, private val 
                 main.postDelayed({ prepare() }, 150)
                 return
             }
-            if (!entry.isPassword || !entry.text.isNullOrEmpty()) {
+            if (!entry.text.isNullOrEmpty()) {
                 finish(4)
+                return
+            }
+            if (!entry.isPassword) {
+                if (SystemClock.elapsedRealtime() < deadline) main.postDelayed({ prepare() }, 150) else finish(4)
                 return
             }
             val digits =
@@ -176,7 +180,8 @@ internal class PinUnlock(private val service: AccessibilityService, private val 
                 }
             val enter = key("key_enter")
             if (digits.any { it == null } || (enter == null && pin.size < 6) || (enter != null && !enter.isClickable)) {
-                finish(4)
+                if (dev.remoteaccess.app.BuildConfig.DEBUG) android.util.Log.d("RemoteUnlock", "Waiting for keypad readiness")
+                if (SystemClock.elapsedRealtime() < deadline) main.postDelayed({ prepare() }, 150) else finish(4)
                 return
             }
             try {

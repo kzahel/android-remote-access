@@ -72,7 +72,9 @@ public final class ControlFixtureActivity extends Activity {
             final Paint paint = new Paint();
             @Override protected void onDraw(Canvas canvas) {
                 paint.setColor(Color.BLUE);
-                canvas.drawCircle(getWidth() / 2f, getHeight() / 2f, 50, paint);
+                float x = 80 + (android.os.SystemClock.uptimeMillis() % 1800) / 1800f * (getWidth() - 160);
+                canvas.drawCircle(x, getHeight() / 2f, 50, paint);
+                postInvalidateOnAnimation();
             }
             @Override public boolean onTouchEvent(MotionEvent event) {
                 getParent().requestDisallowInterceptTouchEvent(true);

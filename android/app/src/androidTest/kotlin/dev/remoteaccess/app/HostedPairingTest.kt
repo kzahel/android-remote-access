@@ -156,8 +156,36 @@ class HostedPairingTest {
                     waitFor { dev.remoteaccess.app.control.ScreenAccessService.current != null }
                     waitFor { ForegroundAccess.listening(id) }
                 }
+                "assert-unlock-blocked" -> {
+                    assertTrue(device.executeShellCommand("getprop ro.kernel.qemu").trim() == "1")
+                    assertTrue(dev.remoteaccess.app.unlock.PinVault(context).guard.blocked())
+                    assertTrue(!dev.remoteaccess.app.unlock.PinVault(context).saved())
+                    kotlin.test.assertEquals(3, store.events().count { it.kind == "Unlock requested" })
+                    kotlin.test.assertEquals(2, store.events().count { it.kind == "Phone unlocked" })
+                    // A new vault instance cannot admit a repeat after transport/session replacement.
+                    kotlin.test.assertFails { dev.remoteaccess.app.unlock.PinVault(context).guard.begin() }
+                }
+                "approve-video" -> {
+                    assertTrue(device.executeShellCommand("getprop ro.kernel.qemu").trim() == "1")
+                    tap(By.text(java.util.regex.Pattern.compile("Start now|Start|Share screen")))
+                    waitFor(20000) { dev.remoteaccess.app.control.VideoStream.available(context) }
+                }
                 "inspect-lock" -> {
                     device.dumpWindowHierarchy(File(context.filesDir, "lock-hierarchy.xml"))
+                    val rows = mutableListOf<String>()
+
+                    fun visit(
+                        node: android.view.accessibility.AccessibilityNodeInfo?,
+                        depth: Int,
+                    ) {
+                        if (node == null || depth > 30 || rows.size > 600) return
+                        rows.add(
+                            "${node.viewIdResourceName} visible=${node.isVisibleToUser} enabled=${node.isEnabled} window=${node.windowId}",
+                        )
+                        repeat(node.childCount) { visit(node.getChild(it), depth + 1) }
+                    }
+                    dev.remoteaccess.app.control.ScreenAccessService.current?.windows?.forEach { visit(it.root, 0) }
+                    File(context.filesDir, "service-nodes.txt").writeText(rows.joinToString("\n"))
                 }
                 "save-fixture-pin" -> {
                     assertTrue(device.executeShellCommand("getprop ro.kernel.qemu").trim() == "1")

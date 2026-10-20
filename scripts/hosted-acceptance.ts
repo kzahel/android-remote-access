@@ -60,7 +60,7 @@ const env = {
 const adb = (...args: string[]) =>
   execFileSync(adbPath, ["-s", serial, ...args], {
     encoding: "utf8",
-    timeout: 20000,
+    timeout: args.includes("instrument") ? 120000 : 20000,
     stdio: ["ignore", "pipe", "pipe"],
   }).trim();
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -171,6 +171,8 @@ if (!physical) {
       "-no-snapshot",
       "-gpu",
       "swiftshader",
+      "-dns-server",
+      "1.1.1.1,8.8.8.8",
       "-no-boot-anim",
     ],
     { env, stdio: ["ignore", log.fd, log.fd] },
@@ -260,13 +262,13 @@ try {
       "-w",
       "-e",
       "class",
-      "dev.remoteaccess.app.HostStoreTest,dev.remoteaccess.app.UnlockStorageTest",
+      "dev.remoteaccess.app.HostStoreTest,dev.remoteaccess.app.UnlockStorageTest,dev.remoteaccess.app.HostedNetworkTest",
       `${appId}.test/androidx.test.runner.AndroidJUnitRunner`,
     );
     await writeFile(path.join(state, "storage-tests.log"), storageTests, {
       mode: 0o600,
     });
-    if (!storageTests.includes("OK (5 tests)"))
+    if (!storageTests.includes("OK (6 tests)"))
       throw new Error("Native storage/migration tests failed; see private log");
     await controlAcceptance({
       browser,

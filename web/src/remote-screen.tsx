@@ -111,6 +111,7 @@ export function RemoteScreen({
           );
       } catch (error) {
         if (!stopped) {
+          setActionMessage("");
           setMessage(
             error instanceof Error ? error.message : "Connection ended",
           );
@@ -257,6 +258,16 @@ export function RemoteScreen({
             <option value={3}>Smooth</option>
           </select>
         </label>
+        {quality > 0 && !state.videoActive && (
+          <button
+            type="button"
+            onClick={() =>
+              void act({ op: "video", quality: quality as 1 | 2 | 3 })
+            }
+          >
+            Start smooth view
+          </button>
+        )}
         {!VideoRenderer.supported() && (
           <p>
             This browser supports still frames. Use a browser with video

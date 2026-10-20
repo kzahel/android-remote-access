@@ -27,7 +27,37 @@ export async function controlAcceptance(f: Fixture) {
     viewport: { width: 1280, height: 1000 },
     deviceScaleFactor: 1,
   });
+  await context.addInitScript(() => {
+    const counts = window as unknown as {
+      __videoFrames: number;
+      __videoBytes: number;
+    };
+    counts.__videoFrames = 0;
+    CanvasRenderingContext2D.prototype.drawImage = new Proxy(
+      CanvasRenderingContext2D.prototype.drawImage,
+      {
+        apply(target, self, args) {
+          if (
+            typeof VideoFrame !== "undefined" &&
+            args[0] instanceof VideoFrame
+          )
+            counts.__videoFrames++;
+          return Reflect.apply(target, self, args);
+        },
+      },
+    );
+  });
   const page = await context.newPage();
+  const traffic = await context.newCDPSession(page);
+  await traffic.send("Network.enable");
+  let receivedBytes = 0;
+  traffic.on("Network.webSocketFrameReceived", ({ response }) => {
+    if (response.opcode === 2)
+      receivedBytes += Buffer.from(response.payloadData, "base64").length;
+  });
+  let videoMeasurement:
+    | { seconds: number; receivedBytes: number; decodedFrames: number }
+    | undefined;
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   let native: ReturnType<typeof spawn> | undefined;
@@ -217,6 +247,61 @@ export async function controlAcceptance(f: Fixture) {
     }
     await command("control-fixture");
     await until(() => witness().taps === 0);
+    if (process.env.HOSTED_VIDEO === "1") {
+      await page.getByText("Viewing quality", { exact: true }).click();
+      await page
+        .getByLabel("Viewing quality", { exact: true })
+        .selectOption("2");
+      await command("approve-video");
+      // Return from the consent activity to an independent animated native view.
+      await command("control-fixture");
+      await until(
+        () =>
+          page.evaluate(
+            () =>
+              (window as unknown as { __videoFrames: number }).__videoFrames >
+              15,
+          ),
+        20000,
+      );
+      console.log("H264 frames decoded from the encrypted hosted relay");
+      await page
+        .getByLabel("Viewing quality", { exact: true })
+        .selectOption("1");
+      const before = await page.evaluate(
+        () => (window as unknown as { __videoFrames: number }).__videoFrames,
+      );
+      await until(
+        async () =>
+          (await page.evaluate(
+            () =>
+              (window as unknown as { __videoFrames: number }).__videoFrames,
+          )) >
+          before + 10,
+        20000,
+      );
+      console.log("Live video quality change recovered with fresh keyframes");
+      const begin = Date.now(),
+        bytesBefore = receivedBytes;
+      const framesBefore = await page.evaluate(
+        () => (window as unknown as { __videoFrames: number }).__videoFrames,
+      );
+      await delay(5000);
+      videoMeasurement = {
+        seconds: (Date.now() - begin) / 1000,
+        receivedBytes: receivedBytes - bytesBefore,
+        decodedFrames:
+          (await page.evaluate(
+            () =>
+              (window as unknown as { __videoFrames: number }).__videoFrames,
+          )) - framesBefore,
+      };
+      assert.ok(
+        videoMeasurement.decodedFrames >= 10,
+        "Video must continue decoding during the measurement",
+      );
+      console.log(`Measured video: ${JSON.stringify(videoMeasurement)}`);
+    }
     await delay(1500);
     async function at(p: { x: number; y: number }) {
       await canvas.scrollIntoViewIfNeeded();
@@ -357,6 +442,7 @@ export async function controlAcceptance(f: Fixture) {
       const slider = await at(witness().slider);
       await page.mouse.move(slider.x, slider.y);
       await page.mouse.down();
+      await page.mouse.move(slider.x + 35, slider.y, { steps: 3 });
       await until(() => witness().sliderHeld, 3000);
       const debug = await context.newCDPSession(page);
       await debug.send("Debugger.enable");
@@ -370,6 +456,42 @@ export async function controlAcceptance(f: Fixture) {
       await page.mouse.up();
       await delay(1000);
       console.log("Native lost-packet watchdog released held input");
+    }
+    if (process.env.HOSTED_UNLOCK === "1") {
+      await page
+        .getByRole("button", { name: "Lock phone", exact: true })
+        .click();
+      await page.getByLabel("Phone PIN", { exact: true }).fill("314158");
+      await page
+        .getByRole("button", { name: "Unlock phone", exact: true })
+        .click();
+      await page
+        .getByText("Unlock was already attempted.", { exact: false })
+        .waitFor({ timeout: 20000 });
+      assert.equal(
+        await page
+          .getByRole("button", { name: "Unlock phone", exact: true })
+          .isDisabled(),
+        true,
+      );
+      assert.equal(
+        await page
+          .getByRole("button", { name: "Use saved PIN", exact: true })
+          .count(),
+        0,
+      );
+      await command("assert-unlock-blocked");
+      console.log(
+        "Wrong synthetic PIN latched local recovery and forgot the saved PIN",
+      );
+      assert.match(
+        adb("shell", "locksettings", "clear", "--old", "314159"),
+        /Lock credential cleared/,
+      );
+      syntheticLock = false;
+      await rm(path.join(f.state, "synthetic-lock"), { force: true });
+      adb("shell", "input", "keyevent", "KEYCODE_WAKEUP");
+      adb("shell", "wm", "dismiss-keyguard");
     }
     await command("global", { enabled: false });
     await page
@@ -399,6 +521,8 @@ export async function controlAcceptance(f: Fixture) {
           nativeUnicodeText: true,
           nativeSwipe: true,
           heldTouch: process.env.HOSTED_TOUCH === "1",
+          videoMeasurement,
+          smoothVideo: process.env.HOSTED_VIDEO === "1",
           savedAndManualPin: process.env.HOSTED_UNLOCK === "1",
           navigation: true,
           appLaunch: true,
@@ -423,6 +547,15 @@ export async function controlAcceptance(f: Fixture) {
         );
       } catch {}
     }
+    if (syntheticLock) {
+      try {
+        await writeFile(
+          path.join(f.state, "service-nodes.txt"),
+          adb("shell", "run-as", app, "cat", "files/service-nodes.txt"),
+          { mode: 0o600 },
+        );
+      } catch {}
+    }
     await page
       .screenshot({ path: path.join(f.state, "last-browser.png") })
       .catch(() => {});
@@ -443,6 +576,7 @@ export async function controlAcceptance(f: Fixture) {
         ),
       );
     } catch {}
+    await traffic.detach().catch(() => {});
     await context.close();
     if (native?.exitCode === null) {
       adb("shell", "am", "force-stop", app);

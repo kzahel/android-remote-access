@@ -98,7 +98,7 @@ export class VideoRenderer {
     return true;
   }
   close() {
-    this.decoder?.close();
+    if (this.decoder && this.decoder.state !== "closed") this.decoder.close();
     this.decoder = undefined;
     this.pending.clear();
     this.codec = "";
