@@ -327,7 +327,7 @@ export async function controlAcceptance(f: Fixture) {
         .getByRole("button", { name: "Viewing quality", exact: true })
         .click();
       await page
-        .getByLabel("Viewing quality", { exact: true })
+        .getByRole("combobox", { name: "Viewing quality", exact: true })
         .selectOption("2");
       await command("approve-video");
       // Return from the consent activity to an independent animated native view.
@@ -348,7 +348,7 @@ export async function controlAcceptance(f: Fixture) {
         () => (window as unknown as { __videoFrames: number }).__videoFrames,
       );
       await page
-        .getByLabel("Viewing quality", { exact: true })
+        .getByRole("combobox", { name: "Viewing quality", exact: true })
         .selectOption("3");
       await until(
         async () =>
@@ -361,7 +361,7 @@ export async function controlAcceptance(f: Fixture) {
       );
       console.log("Smooth quality mode decoded successfully");
       await page
-        .getByLabel("Viewing quality", { exact: true })
+        .getByRole("combobox", { name: "Viewing quality", exact: true })
         .selectOption("1");
       const before = await page.evaluate(
         () => (window as unknown as { __videoFrames: number }).__videoFrames,

@@ -132,6 +132,14 @@ rotation and both dialogs. It also verifies one heading/status, preserved touch
 aspect ratio and no browser errors. This fixture does not exercise Android or
 submit a credential to a physical phone; native control acceptance is separate.
 
+The deployed viewer also passed the combined hosted emulator suite: manual and
+saved synthetic-PIN unlock, native input/navigation/app launch, held/multitouch
+gestures, H.264 quality changes, display rotation, failed-unlock guard, disarm and
+revocation, with no browser errors. Save data decoded 50 frames over 5.002 seconds
+with 255,899 encrypted relay bytes. The retained physical Pixel 9 session showed
+one `Pixel 9` heading and one status, rendered screenshots and upgraded to direct
+WebRTC after an in-place host update. No physical credential was submitted.
+
 ## Limits
 
 This does not establish behavior before first local unlock, natural overnight
