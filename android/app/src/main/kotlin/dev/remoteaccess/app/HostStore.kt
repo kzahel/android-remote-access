@@ -83,7 +83,7 @@ internal abstract class HostDatabase : RoomDatabase() {
 internal data class HostSnapshot(val settings: HostSettings = HostSettings(armed = false), val browsers: List<Browser> = emptyList())
 
 /** All disk operations run off the UI thread; record authority reads use an immutable snapshot. */
-internal class HostStore private constructor(private val context: android.app.Application, internal val database: HostDatabase) {
+internal class HostStore private constructor(private val legacy: android.content.SharedPreferences, internal val database: HostDatabase) {
     private val dao = database.dao()
 
     @Volatile private var loaded = false
@@ -95,7 +95,6 @@ internal class HostStore private constructor(private val context: android.app.Ap
     @Synchronized
     fun load(): HostStore {
         if (loaded) return this
-        val legacy = WakeSupport.preferences(context)
         if (dao.settings() == null) {
             database.runInTransaction {
                 dao.put(HostSettings(automatic = legacy.getBoolean("wakeEnabled", false)))
@@ -289,7 +288,7 @@ internal class HostStore private constructor(private val context: android.app.Ap
         fun get(context: Context): HostStore =
             instance ?: synchronized(this) {
                 instance ?: HostStore(
-                    context.applicationContext as android.app.Application,
+                    WakeSupport.preferences(context.applicationContext),
                     Room.databaseBuilder(context.applicationContext, HostDatabase::class.java, "remote-access.db").build(),
                 ).also {
                     instance = it
@@ -299,6 +298,6 @@ internal class HostStore private constructor(private val context: android.app.Ap
         fun fixture(
             context: Context,
             database: HostDatabase,
-        ) = HostStore(context.applicationContext as android.app.Application, database)
+        ) = HostStore(context.getSharedPreferences("host-store-fixture", Context.MODE_PRIVATE), database)
     }
 }

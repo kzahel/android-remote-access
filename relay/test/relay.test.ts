@@ -548,3 +548,34 @@ it("push hints select the exact browser generation without carrying authority", 
   expect(sent?.pairingId).toBe(invitation.id);
   expect(sent?.generation).toBe(generation);
 });
+
+it("independently enrolls and revokes two browsers for the same phone", async () => {
+  await enroll();
+  const first = invitation;
+  const firstViewer = viewer;
+  viewer = await createIdentity();
+  invitation = {
+    ...first,
+    id: hex(crypto.getRandomValues(new Uint8Array(16))),
+    viewer: b64(viewer.publicKey),
+    secret: hex(crypto.getRandomValues(new Uint8Array(32))),
+  };
+  await enroll();
+  const second = invitation;
+  const secondViewer = viewer;
+  invitation = first;
+  viewer = firstViewer;
+  await setAccess(false, "11".repeat(16));
+  const denied = client();
+  await expect(denied.login(firstViewer, "viewer")).rejects.toThrow();
+  await api("/revoke", {
+    signature: b64(await phone.sign(revokeBytes(origin, first.id))),
+  });
+  invitation = second;
+  viewer = secondViewer;
+  expect((await api()).status).toBe(200);
+  const unaffected = client();
+  expect((await unaffected.login(secondViewer, "viewer")).type).toBe(
+    "authenticated",
+  );
+});

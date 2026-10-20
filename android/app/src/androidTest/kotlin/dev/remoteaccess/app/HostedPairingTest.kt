@@ -60,7 +60,9 @@ class HostedPairingTest {
             intent.data = Uri.parse(uri)
         }
         context.startActivity(intent)
-        assertTrue(device.wait(Until.hasObject(By.res("${context.packageName}:id/host_status")), 15000) || uri != null)
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+        val control = if (uri == null) "host_status" else "grant_browser"
+        assertTrue(device.wait(Until.hasObject(By.res("${context.packageName}:id/$control")), 15000))
     }
 
     private fun browser() {

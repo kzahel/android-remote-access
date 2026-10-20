@@ -58,6 +58,17 @@ export function createRelay(options: Options) {
       keyBytes(row.viewer);
       if (row.id !== id || typeof row.revoked !== "boolean")
         throw new Error("Invalid authority state");
+      if (
+        row.accessEnabled !== undefined &&
+        typeof row.accessEnabled !== "boolean"
+      )
+        throw new Error("Invalid access policy");
+      if (row.accessGeneration !== undefined) fromHex(row.accessGeneration, 16);
+      if (
+        (row.accessEnabled === undefined) !==
+        (row.accessGeneration === undefined)
+      )
+        throw new Error("Incomplete access policy");
       pairs[id] = row;
     }
   }

@@ -130,6 +130,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
         setContentView(scroll)
+        val lightBars =
+            android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
+                android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+        window.insetsController?.setSystemBarsAppearance(lightBars, lightBars)
         if (page != "home") button(layout, "Back", R.id.navigate_back) { navigate("home") }
         text(
             layout,
@@ -158,7 +162,7 @@ class MainActivity : ComponentActivity() {
 
     private fun home(layout: LinearLayout) {
         val state = store.snapshot
-        toggle(layout, "Remote access", state.settings.armed, R.id.access_toggle) { enabled ->
+        toggle(layout, "Allow remote access", state.settings.armed, R.id.access_toggle) { enabled ->
             change { it.settings(armed = enabled) }
         }
         val live = HostSessions.current.get()

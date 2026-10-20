@@ -16,12 +16,13 @@ import kotlin.test.assertTrue
 @RunWith(AndroidJUnit4::class)
 class HostStoreTest {
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
+    private val legacy get() = context.getSharedPreferences("host-store-fixture", android.content.Context.MODE_PRIVATE)
     private lateinit var db: HostDatabase
     private lateinit var store: HostStore
 
     @Before
     fun setup() {
-        WakeSupport.preferences(context).edit().clear().commit()
+        legacy.edit().clear().commit()
         db = Room.inMemoryDatabaseBuilder(context, HostDatabase::class.java).build()
         store = HostStore.fixture(context, db)
     }
@@ -29,7 +30,7 @@ class HostStoreTest {
     @After
     fun cleanup() {
         db.close()
-        WakeSupport.preferences(context).edit().clear().commit()
+        legacy.edit().clear().commit()
     }
 
     private fun grant(id: String) = JSONObject().put("id", id).put("origin", "https://example.test").put("viewer", "public-identity-$id")
@@ -37,16 +38,16 @@ class HostStoreTest {
     @Test
     fun migratesOnceAndPreservesRevocationAndWakeChoice() {
         val raw = grant("a").toString()
-        WakeSupport.preferences(context).edit().putString("grant", raw).putBoolean("revoked", true).putBoolean("wakeEnabled", true).commit()
+        legacy.edit().putString("grant", raw).putBoolean("revoked", true).putBoolean("wakeEnabled", true).commit()
         store.load()
         val browser = store.snapshot.browsers.single()
         assertEquals(raw, browser.grant)
         assertTrue(browser.revoked)
         assertTrue(store.snapshot.settings.automatic)
         assertFalse(store.allowed(browser.id, browser.generation))
-        assertFalse(WakeSupport.preferences(context).contains("grant"))
+        assertFalse(legacy.contains("grant"))
         // Simulate a crash between the database commit and preference cleanup.
-        WakeSupport.preferences(context).edit().putString("grant", grant("b").toString()).commit()
+        legacy.edit().putString("grant", grant("b").toString()).commit()
         val reopened = HostStore.fixture(context, db).load()
         assertEquals(listOf("a"), reopened.snapshot.browsers.map { it.id })
         assertEquals(1, reopened.events().count { it.kind == "Previous pairing imported" })
