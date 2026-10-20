@@ -81,6 +81,20 @@ HOSTED_ORIGIN=https://YOUR_DEVELOPMENT_ORIGIN pnpm test:mobile
 This owns an emulator and isolated Chromium; it never selects a physical phone.
 Private screenshots/results stay in `.local/mobile-proof/`.
 
+On the phone, **Set up sharing** opens the website link, Copy/Share, an optional
+website QR and **Scan pairing code**. Paired phones keep this under **Add browser**
+and **How to connect**. Approval works before Android permissions; **Enable
+features** is a separate, skippable step. Allowed browsers can check the secure
+connection while the app is visible without notification permission. Optional
+background requests require their own opt-in and notification setup. Screen
+viewing/input remain unavailable in this root host.
+
+Android's public website link is compiled from the `sharingWebsite` Gradle
+property (HTTPS origin, no trailing slash); its default is the hosted website.
+For a separate deployment, supply `-PsharingWebsite=https://YOUR_ORIGIN` to the
+Android build. QR encoding uses the pinned Apache-2.0 ZXing **core** 3.5.3 Java
+library; its license is included in APK assets under `third-party/`.
+
 ## Evidence and plans
 
 See [pairing/relay v1](docs/pairing-relay-v1.md) for enrollment and routing,

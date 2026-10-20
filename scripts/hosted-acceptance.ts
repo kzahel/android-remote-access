@@ -332,12 +332,10 @@ try {
         throw new Error("Native acceptance failed; see private log");
     }
     async function check() {
-      await page
-        .getByRole("button", { name: "Check encrypted connection" })
-        .click();
+      await page.getByRole("button", { name: "Check connection" }).click();
       await page
         .getByRole("status")
-        .filter({ hasText: "Encrypted connection passed." })
+        .filter({ hasText: "Secure connection verified." })
         .waitFor({ timeout: fcm ? 80000 : 30000 });
     }
     await runNative("pair");
@@ -474,9 +472,7 @@ try {
     if (response.status !== 410)
       throw new Error("Revocation not durable at relay");
     revoked = true;
-    await page
-      .getByRole("button", { name: "Check encrypted connection" })
-      .click();
+    await page.getByRole("button", { name: "Check connection" }).click();
     await page
       .getByRole("status")
       .filter({ hasText: "Phone is unavailable" })

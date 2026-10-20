@@ -1,6 +1,5 @@
 <resources>
     <string name="app_name">Android Remote Access</string>
-    <string name="pair_browser">Pair browser</string>
     <string name="grant_browser">Pair browser</string>
     <string name="remove_browser">Remove browser</string>
 </resources>

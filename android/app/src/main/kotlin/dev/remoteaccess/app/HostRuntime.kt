@@ -99,6 +99,7 @@ internal object HostRuntime {
         io.execute {
             val store = HostStore.get(context).load()
             HostSessions.stop(id)
+            ForegroundAccess.disconnect(id)
             WorkManager.getInstance(context).cancelUniqueWork("remote-wake-$id")
             store.record("Disconnected on phone", id)
         }

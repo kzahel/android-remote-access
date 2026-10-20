@@ -1,3 +1,5 @@
+import java.net.URI
+
 plugins {
     id("com.android.application")
     kotlin("android")
@@ -5,6 +7,12 @@ plugins {
     id("org.jlleitschuh.gradle.ktlint")
 }
 if (file("google-services.json").exists()) apply(plugin = "com.google.gms.google-services")
+val sharingWebsite = providers.gradleProperty("sharingWebsite").orElse("https://android-remote.graehlarts.com").get()
+val sharingUri = URI(sharingWebsite)
+require(
+    sharingUri.scheme == "https" && sharingUri.host != null && sharingUri.rawUserInfo == null &&
+        sharingUri.rawQuery == null && sharingUri.rawFragment == null && sharingUri.rawPath.isNullOrEmpty(),
+)
 
 android {
     namespace = "dev.remoteaccess.app"
@@ -14,8 +22,9 @@ android {
         applicationId = "dev.remoteaccess.host"
         minSdk = 30
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.4.0"
+        versionCode = 2
+        versionName = "0.5.0"
+        buildConfigField("String", "SHARING_WEBSITE", "\"$sharingWebsite\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     compileOptions {
@@ -31,6 +40,9 @@ android {
 ksp { arg("room.schemaLocation", "$projectDir/schemas") }
 kotlin { compilerOptions { allWarningsAsErrors.set(true) } }
 dependencies {
+    // Reviewed Apache-2.0 QR encoder; generates public website links only.
+    //noinspection NewerVersionAvailable
+    implementation("com.google.zxing:core:3.5.3")
     // Unused-app restrictions and their system settings entry point.
     //noinspection GradleDependency
     implementation("androidx.core:core:1.16.0")

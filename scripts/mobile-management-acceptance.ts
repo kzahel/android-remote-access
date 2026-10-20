@@ -143,20 +143,16 @@ export async function mobileAcceptance(f: Fixture) {
     enrolled = true;
     const state = await command("pair");
     assert.ok(state.browsers.find((b) => b.id === invitation.id));
-    await page
-      .getByRole("button", { name: "Check encrypted connection" })
-      .waitFor();
+    await page.getByRole("button", { name: "Check connection" }).waitFor();
     return { page, id: invitation.id };
   }
   async function check(page: Page, success = true) {
-    await page
-      .getByRole("button", { name: "Check encrypted connection" })
-      .click();
+    await page.getByRole("button", { name: "Check connection" }).click();
     await page
       .getByRole("status")
       .filter({
         hasText: success
-          ? "Encrypted connection passed."
+          ? "Secure connection verified."
           : "Phone is unavailable",
       })
       .waitFor({ timeout: success ? 80000 : 15000 });
@@ -258,14 +254,47 @@ export async function mobileAcceptance(f: Fixture) {
     assert.match(dbTests, /OK \(3 tests\)/);
     await startNative();
     console.log("Native Room tests passed");
+    await command("home");
+    await shot("home-first-run");
+    await command("setup");
+    await shot("sharing-setup");
+    await command("share-link");
+    await command("website-qr");
+    await shot("sharing-website-qr");
+    const websiteQr = PNG.sync.read(
+      await readFile(path.join(f.state, "sharing-website-qr.png")),
+    );
+    const website = jsQR(
+      new Uint8ClampedArray(websiteQr.data),
+      websiteQr.width,
+      websiteQr.height,
+    );
+    assert.equal(
+      website?.data,
+      f.origin,
+      "Public website QR should navigate, not grant access",
+    );
+    await command("close-setup");
     const a = await pair();
     const b = await pair();
     assert.notEqual(a.id, b.id);
     console.log("Both independent browsers paired");
     await command("rename", { id: a.id, name: "Work laptop" });
     await command("rename", { id: b.id, name: "Home desktop" });
-    await manual(a);
-    await manual(b);
+    await command("features");
+    await shot("feature-setup");
+    await command("skip-setup");
+    for (const peer of [a, b]) {
+      await command("foreground", { id: peer.id });
+      await check(peer.page);
+      await peer.page.getByRole("region", { name: "Phone features" }).waitFor();
+      assert.match(
+        await peer.page
+          .getByRole("region", { name: "Phone features" })
+          .innerText(),
+        /Off · Enable/,
+      );
+    }
     console.log("Both browsers passed encrypted checks");
     await command("home");
     await shot("home-two-browsers");
@@ -405,6 +434,10 @@ export async function mobileAcceptance(f: Fixture) {
     const report = {
       databaseTests: 3,
       independentBrowsers: 2,
+      publicWebsiteQrAndShare: true,
+      pairingAndForegroundAccessBeforePermissions: true,
+      independentSkippableFeatureSetup: true,
+      authenticatedFeatureReports: true,
       renamedThroughUI: true,
       permissionRefreshOnResume: true,
       permissionRevocationAndRestoration: true,

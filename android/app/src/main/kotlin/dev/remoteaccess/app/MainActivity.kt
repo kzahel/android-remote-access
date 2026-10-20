@@ -33,6 +33,8 @@ class MainActivity : ComponentActivity() {
     private var page = "home"
     private var browserId: String? = null
     private var pending: Enrollment? = null
+    private var sharingDialog: AlertDialog? = null
+    private val foregroundOwner = Any()
     private var notice: String? = null
     private var busy = false
     private var changing = false
@@ -76,6 +78,7 @@ class MainActivity : ComponentActivity() {
                 loaded = true
                 intent.dataString?.let { showInvitation(it) } ?: render()
                 refreshSystemReadiness()
+                if (intent.dataString == null && savedInstanceState?.getBoolean("sharing") == true) showSharingSetup()
             }
         }
         render()
@@ -85,6 +88,7 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         listening = true
         store.listeners.add(listener)
+        ForegroundAccess.start(this, foregroundOwner)
         if (loaded) render()
     }
 
@@ -140,18 +144,26 @@ class MainActivity : ComponentActivity() {
         listening = false
         handler.removeCallbacks(refresh)
         store.listeners.remove(listener)
+        ForegroundAccess.stop(foregroundOwner)
         super.onStop()
+    }
+
+    override fun onDestroy() {
+        sharingDialog?.dismiss()
+        super.onDestroy()
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        sharingDialog?.dismiss()
         intent.dataString?.let { showInvitation(it) }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putString("page", page)
         outState.putString("browserId", browserId)
+        outState.putBoolean("sharing", sharingDialog?.isShowing == true)
         super.onSaveInstanceState(outState)
     }
 
@@ -195,6 +207,7 @@ class MainActivity : ComponentActivity() {
             layout,
             when (page) {
                 "settings" -> "Settings"
+                "features" -> "Enable features"
                 "activity" -> "Activity"
                 "browser" -> "Browser"
                 "grant" -> "Pair browser"
@@ -209,6 +222,7 @@ class MainActivity : ComponentActivity() {
         notice?.let { text(layout, it, 16f).apply { accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE } }
         when (page) {
             "settings" -> settings(layout)
+            "features" -> features(layout)
             "activity" -> activity(layout)
             "browser" -> browser(layout)
             "grant" -> invitation(layout)
@@ -229,7 +243,8 @@ class MainActivity : ComponentActivity() {
                 browsers.isEmpty() -> "Pair a browser to get started"
                 live != null -> "${store.browser(live.browserId)?.nickname ?: "Browser"} · ${sessionStatus(live.status)}"
                 browsers.none { it.enabled } -> "No browsers allowed · Enable one below"
-                !state.settings.automatic -> "Connection requests are off"
+                !state.settings.automatic ->
+                    if (browsers.any { ForegroundAccess.listening(it.id) }) "Available while this app is open" else "Paired · Connecting…"
                 com.google.firebase.FirebaseApp.getApps(this).isEmpty() -> "Connection setup unavailable"
                 !WakeSupport.notificationsAllowed(this) -> "Notifications are off · Enable them to receive requests"
                 browsers.any { it.enabled && (!it.synced || !it.wakeReady) } -> "Connection setup needs attention"
@@ -245,10 +260,9 @@ class MainActivity : ComponentActivity() {
                     browsers.any { it.enabled && (!it.synced || !it.wakeReady) }
             )
         ) {
-            button(layout, "Review settings", R.id.review_settings) { navigate("settings") }
+            button(layout, "Finish setup", R.id.review_settings) { navigate("features") }
         }
-        text(layout, "Paired browsers", 20f)
-        if (state.browsers.isEmpty()) text(layout, "No paired browsers yet.")
+        if (state.browsers.isNotEmpty()) text(layout, "Paired browsers", 20f)
         state.browsers.forEach { browser ->
             val summary =
                 when {
@@ -260,21 +274,48 @@ class MainActivity : ComponentActivity() {
                 }
             button(layout, "${browser.nickname}\n$summary") { navigate("browser", browser.id) }
         }
-        button(layout, getString(R.string.pair_browser), R.id.pair_browser) {
-            GmsBarcodeScanning.getClient(this).startScan().addOnSuccessListener { code ->
-                showInvitation(code.rawValue ?: "")
-            }.addOnFailureListener {
-                notice = "Couldn’t open the scanner. Check that Google Play services is up to date and try again."
-                render()
-            }
-        }
+        button(layout, if (browsers.isEmpty()) "Set up sharing" else "Add browser", R.id.pair_browser) { showSharingSetup() }
+        if (browsers.isNotEmpty()) button(layout, "How to connect", R.id.how_to_connect) { showSharingSetup() }
         val row = LinearLayout(this)
         layout.addView(row)
         button(row, "Activity", R.id.open_activity) { navigate("activity") }
         button(row, "Settings", R.id.open_settings) { navigate("settings") }
     }
 
-    private fun settings(layout: LinearLayout) {
+    private fun showSharingSetup() {
+        if (sharingDialog?.isShowing == true) return
+        sharingDialog = SharingSetup.show(this, store.snapshot.browsers.none { !it.revoked }) { scanPairingCode() }
+    }
+
+    private fun scanPairingCode() {
+        GmsBarcodeScanning.getClient(this).startScan().addOnSuccessListener { code ->
+            showInvitation(code.rawValue ?: "")
+        }.addOnFailureListener {
+            notice = "Couldn’t open the scanner. Check that Google Play services is up to date and try again."
+            render()
+        }
+    }
+
+    private fun features(layout: LinearLayout) {
+        text(
+            layout,
+            if (store.snapshot.browsers.any { !it.revoked }) {
+                "Pairing is complete. Choose the features you want to use. You can change these later."
+            } else {
+                "Choose the features you want to use. Pair a browser whenever you’re ready."
+            },
+            14f,
+        )
+        text(layout, "Connection requests", 20f)
+        connectionRequests(layout)
+        text(layout, "Screen viewing", 20f)
+        text(layout, "See this phone’s screen from a paired browser. Not available in this version.", 14f)
+        text(layout, "Touch control", 20f)
+        text(layout, "Tap and navigate this phone from a paired browser. Not available in this version.", 14f)
+        button(layout, "Done", R.id.skip_features) { navigate("home") }
+    }
+
+    private fun connectionRequests(layout: LinearLayout) {
         toggle(layout, "Connect when requested", store.snapshot.settings.automatic, R.id.enable_wake) { enabled ->
             if (enabled && Build.VERSION.SDK_INT >= 33 &&
                 checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
@@ -304,6 +345,11 @@ class MainActivity : ComponentActivity() {
         button(layout, "Notification settings", R.id.notification_settings) {
             openNotificationSettings()
         }
+    }
+
+    private fun settings(layout: LinearLayout) {
+        button(layout, "Feature setup", R.id.open_features) { navigate("features") }
+        connectionRequests(layout)
         text(layout, "When this app is unused", 20f)
         val restrictionsEnabled =
             unusedRestrictions in
@@ -477,7 +523,7 @@ class MainActivity : ComponentActivity() {
                 WakeSupport.enqueue(this, androidx.work.Data.EMPTY, registration = true)
                 runOnUiThread {
                     pending = null
-                    page = "home"
+                    page = "features"
                     notice = "Browser paired"
                 }
             }

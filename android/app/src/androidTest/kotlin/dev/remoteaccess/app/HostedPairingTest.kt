@@ -81,6 +81,7 @@ class HostedPairingTest {
         if (pairing) {
             click("grant_browser")
             waitFor(90000) { store.snapshot.browsers.any { !it.revoked } }
+            click("skip_features")
         }
         val before = KeystoreIdentity.loadOrCreate("phone-identity-v1").publicKey
         assertTrue(before.contentEquals(KeystoreIdentity.loadOrCreate("phone-identity-v1").publicKey))
@@ -144,6 +145,34 @@ class HostedPairingTest {
                     waitFor { store.snapshot.browsers.all { it.synced } }
                 }
                 "home" -> start()
+                "setup" -> {
+                    start()
+                    click("pair_browser")
+                    val scan = assertNotNull(device.wait(Until.findObject(By.res("${context.packageName}:id/scan_pairing_code")), 10000))
+                    assertTrue(scan.isEnabled)
+                    click("copy_website")
+                    val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
+                    assertTrue(clipboard.primaryClip?.getItemAt(0)?.text?.toString() == BuildConfig.SHARING_WEBSITE)
+                }
+                "website-qr" -> click("show_website_qr")
+                "share-link" -> {
+                    click("share_website")
+                    waitFor { device.currentPackageName in setOf("android", "com.android.intentresolver") }
+                    device.pressBack()
+                }
+                "close-setup" -> device.pressBack()
+                "features" -> {
+                    start()
+                    click("review_settings")
+                    assertTrue(device.wait(Until.hasObject(By.res("${context.packageName}:id/skip_features")), 10000))
+                }
+                "skip-setup" -> click("skip_features")
+                "foreground" -> {
+                    start()
+                    assertTrue(!WakeSupport.notificationsAllowed(context))
+                    assertTrue(!store.snapshot.settings.automatic)
+                    waitFor { ForegroundAccess.listening(id) }
+                }
                 "activity" -> {
                     start()
                     click("open_activity")

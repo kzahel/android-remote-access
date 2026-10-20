@@ -13,11 +13,12 @@ import {
   type Grant,
   keyBytes,
 } from "@remote/protocol/enrollment";
+import { type PhoneFeatures, parseFeatures } from "@remote/protocol/features";
 export async function encryptedCheck(
   identity: Identity,
   grant: Grant,
   report?: (message: string) => void,
-): Promise<void> {
+): Promise<PhoneFeatures | undefined> {
   let active = true;
   const url = new URL("/api/socket", location.origin);
   url.protocol = "wss:";
@@ -44,8 +45,8 @@ export async function encryptedCheck(
     active = false;
     wake?.();
   };
-  async function next() {
-    const deadline = Date.now() + 70000;
+  async function receive(timeout: number) {
+    const deadline = Date.now() + timeout;
     while (!queue.length && !ended && Date.now() < deadline)
       await new Promise<void>((resolve) => {
         const timer = setTimeout(resolve, Math.max(1, deadline - Date.now()));
@@ -54,7 +55,10 @@ export async function encryptedCheck(
           resolve();
         };
       });
-    const value = queue.shift();
+    return queue.shift();
+  }
+  async function next() {
+    const value = await receive(70000);
     if (!value || ended)
       throw new Error("Phone is unavailable. Open the app and try again.");
     return value;
@@ -110,6 +114,11 @@ export async function encryptedCheck(
     ws.send(await channel.seal(canary));
     if (!equal(await channel.open(await binary()), canary))
       throw new Error("Connection check failed");
+    const trailer = await receive(1200);
+    if (trailer === undefined) return undefined; // Older hosts have no optional feature trailer.
+    if (!(trailer instanceof Uint8Array))
+      throw new Error("Invalid phone feature report");
+    return parseFeatures(await channel.open(trailer));
   } finally {
     active = false;
     channel?.close();

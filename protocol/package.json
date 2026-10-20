@@ -10,6 +10,10 @@
     "./enrollment": {
       "types": "./dist/enrollment.d.ts",
       "import": "./dist/enrollment.js"
+    },
+    "./features": {
+      "types": "./dist/features.d.ts",
+      "import": "./dist/features.js"
     }
   },
   "scripts": {

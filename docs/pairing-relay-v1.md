@@ -91,3 +91,27 @@ trust. Local disarm/disable/revoke applies immediately even if relay synchroniza
 fails. Re-enabling rotates the generation again; old requests cannot revive.
 Only one native session lease is admitted across all pairings. Management refresh
 with unchanged policy does not displace an active encrypted session.
+
+## Optional feature report (2026-10-20)
+
+The native host may send a second encrypted application record after its unchanged
+canary reply: a UTF-8 JSON object with `type: "features"`, `v: 1`, `screenViewing`,
+`touchControl` and `connectionRequests`. Viewing/control use the finite states
+`unavailable`, `permission-needed`, `enabled`; requests use `unavailable`, `off`,
+`notifications-needed`, `setup-needed`, `enabled`. The current host reports both
+viewing and control as unavailable. This report conveys no authority and is not
+persisted as permission. It is a snapshot from the paired phone during that check.
+
+The viewer validates type/version, finite values, UTF-8 and a 2048-byte maximum,
+drops unknown display fields and renders its own text. It waits at most 1.2 seconds
+for the optional trailer; older hosts may finish with the canary alone. Older
+viewers can ignore the trailer and close as before. The host allows a bounded
+one-second drain or viewer closure before ending a successful check. Neither
+pairing signatures, the handshake nor the canary bytes change. No relay-visible
+capability endpoint is introduced.
+
+Visible-app listeners admit allowed browser grants without capture, accessibility,
+notification or wake opt-in. They authenticate with the existing generation and
+acquire the shared phone-session lease only when a viewer route arrives. Leaving
+the app closes these listeners; process-absent access retains the existing FCM
+opt-in/notification requirements. Policy changes invalidate both paths.

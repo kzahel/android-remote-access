@@ -168,3 +168,10 @@ Owner direction, 2026-10-20:
   skipping/denial, authenticated feature reporting, then existing FCM/policy
   regression and cleanup. Capture actual native screens and deploy the updated
   viewer through the existing Pi runbook after verification.
+
+Website QR encoding dependency review, 2026-10-20: only Maven component
+`com.google.zxing:core:3.5.3` is used, for generating a public HTTPS navigation QR.
+The pinned upstream [license](https://github.com/zxing/zxing/blob/zxing-3.5.3/LICENSE)
+is Apache-2.0, source-reviewed; a copy ships in APK assets. No competitor APK,
+native library or Android camera implementation is reused. The existing Google
+Play services scanner continues to handle scanning without an app camera permission.

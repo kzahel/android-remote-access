@@ -8,6 +8,7 @@ import {
   type Invitation,
   verifyOffer,
 } from "@remote/protocol/enrollment";
+import type { FeatureState, PhoneFeatures } from "@remote/protocol/features";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { encode } from "uqr";
@@ -31,18 +32,27 @@ async function api(id: string, action = "", body?: unknown) {
     );
   return response.json() as Promise<{ state: string; grant?: Grant }>;
 }
+function featureLabel(state: FeatureState): string {
+  return state === "enabled"
+    ? "Enabled on the phone"
+    : state === "permission-needed"
+      ? "Enable this feature in the phone app"
+      : "Not available in this version";
+}
 function App() {
   const [grant, setGrant] = useState<Grant>();
   const [invitation, setInvitation] = useState<Invitation>();
   const [status, setStatus] = useState("Loading saved phone…");
   const [busy, setBusy] = useState(false);
+  const [features, setFeatures] = useState<PhoneFeatures>();
+  const [checked, setChecked] = useState(false);
   useEffect(() => {
     void savedGrant()
       .then((g) => {
         setGrant(g);
         setStatus(
           g
-            ? "Phone paired. Enable remote wake in the phone app, or tap Connect there."
+            ? "Phone paired. Keep the phone app open to connect, or enable connection requests in Feature setup."
             : "Pair your phone to this browser.",
         );
       })
@@ -82,7 +92,7 @@ function App() {
           setGrant(paired);
           setInvitation(undefined);
           setStatus(
-            "Phone paired. Enable remote wake in the phone app, or tap Connect there.",
+            "Phone paired. Keep the phone app open to connect, or enable connection requests in Feature setup.",
           );
         }
       } catch (error) {
@@ -118,7 +128,7 @@ function App() {
       });
       setInvitation(i);
       setStatus(
-        "In the Android app, tap Pair browser, scan this code, then tap Grant.",
+        "On your phone, open Set up sharing or Add browser, tap Scan pairing code, then approve this browser.",
       );
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Pairing failed");
@@ -131,12 +141,11 @@ function App() {
     : undefined;
   return (
     <main>
-      <p className="eyebrow">Android Remote Access · Development</p>
-      <h1>Reach your phone.</h1>
-      <p>
-        Pairing and encrypted connection checks are available. Screen viewing
-        and control are coming next.
-      </p>
+      <p className="eyebrow">Android Remote Access</p>
+      <h1>Connect to your phone.</h1>
+      {!grant && !invitation && (
+        <p>Pair this browser once. Return here whenever you want to connect.</p>
+      )}
       <p role="status">{status}</p>
       {grant ? (
         <>
@@ -145,10 +154,18 @@ function App() {
             type="button"
             onClick={async () => {
               setBusy(true);
+              setFeatures(undefined);
+              setChecked(false);
               setStatus("Connecting to your phone…");
               try {
-                await encryptedCheck(await browserIdentity(), grant, setStatus);
-                setStatus("Encrypted connection passed.");
+                const result = await encryptedCheck(
+                  await browserIdentity(),
+                  grant,
+                  setStatus,
+                );
+                setFeatures(result);
+                setChecked(true);
+                setStatus("Secure connection verified.");
               } catch (error) {
                 setStatus(
                   error instanceof Error ? error.message : "Connection failed",
@@ -158,8 +175,54 @@ function App() {
               }
             }}
           >
-            Check encrypted connection
+            Check connection
           </button>
+          {features && (
+            <section aria-label="Phone features">
+              <h2>Phone features</h2>
+              <dl>
+                <dt>Screen viewing</dt>
+                <dd>{featureLabel(features.screenViewing)}</dd>
+                <dt>Touch control</dt>
+                <dd>{featureLabel(features.touchControl)}</dd>
+                <dt>Connection requests while the app is closed</dt>
+                <dd>
+                  {features.connectionRequests === "enabled"
+                    ? "Enabled on the phone"
+                    : features.connectionRequests === "off"
+                      ? "Off · Enable in the phone app’s Feature setup"
+                      : features.connectionRequests === "notifications-needed"
+                        ? "Notifications needed · Enable them on the phone"
+                        : features.connectionRequests === "setup-needed"
+                          ? "Setup incomplete · Review connection settings on the phone"
+                          : "Unavailable in this installation"}
+                </dd>
+              </dl>
+              <p className="hint">
+                Reported by your phone during this connection. Check again after
+                changing its settings.
+              </p>
+            </section>
+          )}
+          {checked && !features && (
+            <p>
+              Feature status is unavailable from this phone. Update its app to
+              see setup guidance.
+            </p>
+          )}
+          <details>
+            <summary>Connection help</summary>
+            <p>
+              Keep the Android app open to connect without additional
+              permissions. For requests while it is closed, open Feature setup
+              on the phone and enable connection requests.
+            </p>
+            <p>
+              Pairing stays saved if a permission is declined. Screen viewing
+              and touch control each need their own support and setup on the
+              phone.
+            </p>
+          </details>
           <button
             className="secondary"
             disabled={busy}
@@ -167,6 +230,8 @@ function App() {
             onClick={async () => {
               await save("grant", undefined);
               setGrant(undefined);
+              setFeatures(undefined);
+              setChecked(false);
               setStatus(
                 "Forgotten in this browser. Remove it in the phone app to revoke access.",
               );

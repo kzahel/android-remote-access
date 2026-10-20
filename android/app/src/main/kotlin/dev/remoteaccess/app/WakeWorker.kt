@@ -22,12 +22,13 @@ class WakeWorker(context: Context, parameters: WorkerParameters) : Worker(contex
         if (automatic && !WakeSupport.notificationsAllowed(applicationContext)) return Result.success()
         // Synchronize policy before the advanced manual fallback opens a session.
         if (!browser.synced && !syncBrowser(store, browser)) return Result.success()
-        val lease = HostSessions.acquire(browser)
+        val lease = ForegroundAccess.acquireWorker(browser)
         if (lease == null) {
             store.record("Session blocked: phone busy", id)
             return Result.success()
         }
         val done = CountDownLatch(1)
+        val viewerClosed = CountDownLatch(1)
         val passed = AtomicBoolean(false)
         val current = {
             lease.active.get() && !isStopped && store.allowed(id, generation, automatic) &&
@@ -47,7 +48,11 @@ class WakeWorker(context: Context, parameters: WorkerParameters) : Worker(contex
                                 store.record("Connection check completed", id)
                                 done.countDown()
                             }
-                            else -> if (state.startsWith("Connection closed") || state.contains("rejected")) done.countDown()
+                            else ->
+                                if (state.startsWith("Connection closed") || state.contains("rejected")) {
+                                    viewerClosed.countDown()
+                                    done.countDown()
+                                }
                         }
                         store.listeners.forEach { it() }
                     }
@@ -55,6 +60,7 @@ class WakeWorker(context: Context, parameters: WorkerParameters) : Worker(contex
                 requestId = if (automatic) inputData.getString("requestId") else null,
                 accessGeneration = generation,
                 current = current,
+                features = { PhoneFeatures.report(applicationContext) },
             )
         lease.connection = connection
         return try {
@@ -65,6 +71,8 @@ class WakeWorker(context: Context, parameters: WorkerParameters) : Worker(contex
             if (passed.get()) {
                 WakeSupport.preferences(applicationContext).save { putLong("lastWakeExchange", System.currentTimeMillis()) }
                 if (automatic) WakeSupport.notify(applicationContext, "Secure connection verified")
+                // Let the viewer consume the optional feature report before graceful teardown.
+                viewerClosed.await(1000, TimeUnit.MILLISECONDS)
             } else if (current()) {
                 store.record("Connection failed", id)
             }

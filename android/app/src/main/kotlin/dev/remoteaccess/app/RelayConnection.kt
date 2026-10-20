@@ -24,6 +24,8 @@ internal class RelayConnection(
     private val accessGeneration: String? = null,
     private val accessEnabled: Boolean = true,
     private val current: () -> Boolean = { true },
+    private val admit: () -> Boolean = { true },
+    private val features: (() -> JSONObject)? = null,
 ) : WebSocketListener() {
     private val active = AtomicBoolean(true)
     private var handshake: PhoneHandshake? = null
@@ -93,6 +95,7 @@ internal class RelayConnection(
                 "pushRemoved" -> report("Remote wake disabled")
                 "ready" -> {
                     check(!ready)
+                    check(admit())
                     ready = true
                     report("Browser connected; securing session")
                 }
@@ -118,6 +121,10 @@ internal class RelayConnection(
                 // This slice exposes only a fixed connection check, never arbitrary commands.
                 require(plaintext.contentEquals("Encrypted connection check 🌞".toByteArray(Charsets.UTF_8)))
                 webSocket.send(current.seal(plaintext).toByteString())
+                features?.let { report ->
+                    check(active.get() && this.current())
+                    webSocket.send(current.seal(report().toString().toByteArray(Charsets.UTF_8)).toByteString())
+                }
                 report("Encrypted connection passed")
             } else {
                 val pending = handshake
