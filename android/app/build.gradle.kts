@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     kotlin("android")
+    id("com.google.devtools.ksp")
     id("org.jlleitschuh.gradle.ktlint")
 }
 if (file("google-services.json").exists()) apply(plugin = "com.google.gms.google-services")
@@ -8,12 +9,13 @@ if (file("google-services.json").exists()) apply(plugin = "com.google.gms.google
 android {
     namespace = "dev.remoteaccess.app"
     compileSdk = 36
+    buildFeatures { buildConfig = true }
     defaultConfig {
         applicationId = "dev.remoteaccess.host"
         minSdk = 30
         targetSdk = 36
         versionCode = 1
-        versionName = "0.3-fcm-wake"
+        versionName = "0.4-browser-management"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     compileOptions {
@@ -26,8 +28,14 @@ android {
         warningsAsErrors = true
     }
 }
+ksp { arg("room.schemaLocation", "$projectDir/schemas") }
 kotlin { compilerOptions { allWarningsAsErrors.set(true) } }
 dependencies {
+    // Room 2.7 supports the pinned Kotlin 2.0 toolchain.
+    //noinspection GradleDependency
+    implementation("androidx.room:room-runtime:2.7.2")
+    //noinspection GradleDependency
+    ksp("androidx.room:room-compiler:2.7.2")
     // Pinned to the reviewed installation-registration API and Kotlin 2.0 toolchain.
     //noinspection GradleDependency
     implementation(platform("com.google.firebase:firebase-bom:34.16.0"))
