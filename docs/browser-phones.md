@@ -104,7 +104,9 @@ area. Android navigation, wake/lock, viewing quality, typing/app launch and
 disconnect form a compact vertical rail to the right of the screen. The rail
 scrolls internally in short landscape windows. Status changes, unlocking,
 permission loss, dialogs and phone rotation preserve the screen/rail geometry
-and page scroll. Canvas aspect ratio and input mapping remain intact.
+and page scroll. The workspace is centered and sized from the initial phone
+aspect ratio so wide desktop windows keep the rail beside the phone. Short
+windows retain enough width for unlock/setup controls. Canvas aspect ratio and input mapping remain intact.
 
 Settings opens over the viewer and preserves the live session. Appearance defaults
 to System and follows live OS changes; Light and Dark override it. Optional control
@@ -116,7 +118,7 @@ and works with the existing production Content Security Policy. Unavailable or
 malformed preference storage falls back to defaults; failed preference writes
 show an error in Settings.
 
-The four-size isolated layout suite passes drawer dismissal/focus restoration,
+The five-size isolated layout suite (including a wide desktop) passes drawer dismissal/focus restoration,
 desktop collapsing, breakpoint changes, right-side rail placement, stable
 lock/unlock/error/rotation/dialog geometry, sequential text entry, appearance
 changes, saved overrides and cross-tab settings. The phone-library suite passes

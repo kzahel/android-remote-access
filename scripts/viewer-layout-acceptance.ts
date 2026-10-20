@@ -74,6 +74,7 @@ try {
   browser = await chromium.launch({ headless: true });
   for (const [name, width, height] of [
     ["desktop", 1280, 1000],
+    ["wide-desktop", 1728, 997],
     ["mobile", 390, 844],
     ["small-mobile", 320, 680],
     ["landscape", 844, 390],
@@ -142,6 +143,14 @@ try {
       )
       .toBeGreaterThan(10);
     await stable(page, baseline); // First decoded still cannot resize the stage.
+    if (width >= 900) {
+      const screen = await page.locator("canvas").boundingBox();
+      assert.ok(screen && rail);
+      assert.ok(
+        rail.x - screen.x - screen.width <= 16,
+        "Controls stay beside the portrait phone on wide desktops",
+      );
+    }
     await page.screenshot({
       path: path.join(artifacts, `${name}-unlocked.png`),
       fullPage: true,
@@ -199,6 +208,9 @@ try {
       Math.abs(canvas.width / canvas.height - 2400 / 1080) < 0.01,
       "Displayed canvas preserves touch coordinate aspect ratio",
     );
+    await expect(
+      page.getByRole("heading", { name: "Enable screen access" }),
+    ).toBeHidden();
     for (const [open, close] of [
       ["Viewing quality", "Close viewing quality"],
       ["Type or open an app", "Close typing controls"],

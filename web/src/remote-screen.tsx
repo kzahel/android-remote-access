@@ -4,7 +4,7 @@ import {
   type ControlState,
   resultMessage,
 } from "@remote/protocol/control";
-import { useEffect, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { useClientSettings } from "./client-settings.js";
 import { ControlIcon } from "./control-icon.js";
 import type { RemoteSession } from "./control-session.js";
@@ -195,6 +195,12 @@ export function RemoteScreen({
       <div
         className="viewer-workspace"
         data-labels={controlLabels || undefined}
+        style={
+          {
+            "--screen-aspect":
+              (initial.width || 1080) / (initial.height || 2400),
+          } as CSSProperties
+        }
       >
         <div className="screen-stage">
           <canvas

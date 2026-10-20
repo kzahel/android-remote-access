@@ -273,9 +273,21 @@ input[type="checkbox"] {
   overflow-anchor: none;
 }
 .viewer-workspace {
+  --dock-width: 54px;
+  --workspace-gap: 12px;
+  --stage-height: calc(100dvh - 112px);
+  width: min(
+    100%,
+    calc(
+      max(300px, var(--stage-height) * var(--screen-aspect) + 2px) +
+      var(--dock-width) +
+      var(--workspace-gap)
+    )
+  );
+  margin-inline: auto;
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: var(--workspace-gap);
   height: 100%;
   min-height: 0;
 }
@@ -359,7 +371,7 @@ input[type="checkbox"] {
   flex-direction: column;
   flex-shrink: 0;
   align-items: stretch;
-  width: 54px;
+  width: var(--dock-width);
   max-height: 100%;
   overflow: auto;
   overscroll-behavior: contain;
@@ -407,8 +419,8 @@ input[type="checkbox"] {
   clip-path: inset(50%);
   white-space: nowrap;
 }
-[data-labels] .control-dock {
-  width: 92px;
+.viewer-workspace[data-labels] {
+  --dock-width: 92px;
 }
 [data-labels] .control-dock button {
   flex-direction: column;
@@ -625,7 +637,8 @@ a {
     padding: 8px;
   }
   .viewer-workspace {
-    gap: 8px;
+    --workspace-gap: 8px;
+    --stage-height: calc(100dvh - 96px);
   }
   .screen-overlay {
     padding: 8px;
