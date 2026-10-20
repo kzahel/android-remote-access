@@ -137,6 +137,7 @@ class MainActivity : ComponentActivity() {
             "Waiting for your browser" -> "Waiting for browser"
             "Encrypted session established" -> "Connected securely"
             "Encrypted connection passed" -> "Connection verified"
+            "Remote control connected" -> "Viewing and control connected"
             else -> "Connection ended"
         }
 
@@ -308,10 +309,32 @@ class MainActivity : ComponentActivity() {
         )
         text(layout, "Connection requests", 20f)
         connectionRequests(layout)
-        text(layout, "Screen viewing", 20f)
-        text(layout, "See this phone’s screen from a paired browser. Not available in this version.", 14f)
-        text(layout, "Touch control", 20f)
-        text(layout, "Tap and navigate this phone from a paired browser. Not available in this version.", 14f)
+        text(layout, "Screen viewing and touch", 20f)
+        text(
+            layout,
+            "See this phone’s screen and control it from a paired browser. " +
+                "Android uses one accessibility permission for these features.",
+            14f,
+        )
+        text(
+            layout,
+            if (dev.remoteaccess.app.control.ScreenAccessService.current != null) "Screen access is enabled" else "Screen access is off",
+        )
+        button(layout, "Screen access settings") {
+            AlertDialog.Builder(this).setTitle("Allow remote screen access?")
+                .setMessage(
+                    "Android Remote Access uses accessibility to capture this phone’s screen, read the focused field, " +
+                        "and perform taps, gestures and typing that you request from a paired browser. " +
+                        "Screen content and actions are encrypted between this phone and your browser " +
+                        "and pass through our relay when needed. " +
+                        "They are not stored in Activity. Only enable this if you want paired browsers to view and control this phone. " +
+                        "You can stop access in the app or Android settings.",
+                )
+                .setNegativeButton(
+                    "Cancel",
+                    null,
+                ).setPositiveButton("Continue") { _, _ -> startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }.show()
+        }
         button(layout, "Done", R.id.skip_features) { navigate("home") }
     }
 
@@ -415,7 +438,7 @@ class MainActivity : ComponentActivity() {
         }
         text(layout, "About", 20f)
         text(layout, "Android Remote Access ${BuildConfig.VERSION_NAME}", 14f)
-        text(layout, "This version supports browser pairing and secure connection checks.", 14f)
+        text(layout, "Pair browsers to view and control this phone securely.", 14f)
         text(
             layout,
             "After a restart, unlock the phone locally once. Activity is stored only on this phone for up to 30 days or 10,000 entries.",

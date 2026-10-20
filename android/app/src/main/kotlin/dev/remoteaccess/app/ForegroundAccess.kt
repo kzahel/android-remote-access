@@ -19,6 +19,8 @@ internal object ForegroundAccess {
         @Volatile var expires = Long.MAX_VALUE
 
         @Volatile var passed = false
+
+        @Volatile var control = false
     }
 
     private val entries = ConcurrentHashMap<String, Entry>()
@@ -41,7 +43,7 @@ internal object ForegroundAccess {
             synchronized(this) {
                 app = application
                 store = HostStore.get(app).load()
-                if (owners.isEmpty()) store.listeners.add(listener)
+                store.listeners.add(listener)
                 owners.add(owner)
                 visible = true
                 reconcile()
@@ -56,8 +58,7 @@ internal object ForegroundAccess {
                 visible = owners.isNotEmpty()
                 if (!visible) {
                     handler.removeCallbacks(retry)
-                    store.listeners.remove(listener)
-                    entries.values.toList().forEach { end(it) }
+                    entries.values.toList().filter { !it.control }.forEach { end(it) }
                     retryAfter.clear()
                 }
             }
@@ -81,7 +82,7 @@ internal object ForegroundAccess {
     }
 
     private fun valid(entry: Entry): Boolean =
-        visible && entry.active.get() && store.allowed(entry.browser.id, entry.browser.generation) &&
+        (visible || entry.control) && entry.active.get() && store.allowed(entry.browser.id, entry.browser.generation) &&
             (entry.lease?.active?.get() != false) && System.currentTimeMillis() < entry.expires
 
     private fun admit(entry: Entry): Boolean {
@@ -98,7 +99,7 @@ internal object ForegroundAccess {
         handler.postDelayed({
             HostRuntime.io.execute {
                 synchronized(this) {
-                    if (entries[entry.browser.id] === entry) {
+                    if (entries[entry.browser.id] === entry && !entry.control) {
                         end(entry)
                         reconcile()
                     }
@@ -110,8 +111,8 @@ internal object ForegroundAccess {
 
     @Synchronized
     private fun reconcile() {
-        if (!visible) return
         entries.values.toList().filter { !valid(it) }.forEach { end(it) }
+        if (!visible) return
         var delay = Long.MAX_VALUE
         for (browser in store.snapshot.browsers) {
             if (!browser.synced || !store.allowed(browser.id, browser.generation) || entries.containsKey(browser.id)) continue
@@ -129,7 +130,12 @@ internal object ForegroundAccess {
                     { state -> HostRuntime.io.execute { report(entry, state) } },
                     accessGeneration = browser.generation,
                     current = { valid(entry) }, admit = { admit(entry) },
-                    features = { PhoneFeatures.report(app) },
+                    features = { PhoneFeatures.report(app) }, context = app,
+                    onControl = {
+                        entry.control = true
+                        entry.expires = System.currentTimeMillis() + 30 * 60 * 1000
+                        handler.postDelayed({ entry.connection.close() }, 30 * 60 * 1000)
+                    },
                 )
             entry.connection.connect()
         }
@@ -146,6 +152,7 @@ internal object ForegroundAccess {
         when (state) {
             "Waiting for your browser" -> entry.ready = true
             "Encrypted session established" -> store.connected(entry.browser.id)
+            "Remote control connected" -> store.record("Remote control started", entry.browser.id)
             "Encrypted connection passed" -> {
                 entry.passed = true
                 store.record("Connection check completed", entry.browser.id)

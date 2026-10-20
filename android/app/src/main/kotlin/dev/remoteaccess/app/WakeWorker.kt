@@ -30,9 +30,12 @@ class WakeWorker(context: Context, parameters: WorkerParameters) : Worker(contex
         val done = CountDownLatch(1)
         val viewerClosed = CountDownLatch(1)
         val passed = AtomicBoolean(false)
+        val control = AtomicBoolean(false)
+        val sessionDeadline = System.currentTimeMillis() + 30 * 60 * 1000
         val current = {
             lease.active.get() && !isStopped && store.allowed(id, generation, automatic) &&
-                (!automatic || WakeSupport.notificationsAllowed(applicationContext)) && expires > System.currentTimeMillis() / 1000
+                (!automatic || WakeSupport.notificationsAllowed(applicationContext)) &&
+                (if (control.get()) System.currentTimeMillis() < sessionDeadline else expires > System.currentTimeMillis() / 1000)
         }
         val connection =
             RelayConnection(
@@ -43,6 +46,7 @@ class WakeWorker(context: Context, parameters: WorkerParameters) : Worker(contex
                     if (current()) {
                         when (state) {
                             "Encrypted session established" -> store.connected(id)
+                            "Remote control connected" -> store.record("Remote control started", id)
                             "Encrypted connection passed" -> {
                                 passed.set(true)
                                 store.record("Connection check completed", id)
@@ -60,7 +64,22 @@ class WakeWorker(context: Context, parameters: WorkerParameters) : Worker(contex
                 requestId = if (automatic) inputData.getString("requestId") else null,
                 accessGeneration = generation,
                 current = current,
-                features = { PhoneFeatures.report(applicationContext) },
+                features = { PhoneFeatures.report(applicationContext) }, context = applicationContext,
+                onControl = { control.set(true) },
+                startSession = {
+                    val notification = dev.remoteaccess.app.control.SessionService.notification(applicationContext)
+                    val info =
+                        if (android.os.Build.VERSION.SDK_INT >= 34) {
+                            androidx.work.ForegroundInfo(
+                                102,
+                                notification,
+                                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
+                            )
+                        } else {
+                            androidx.work.ForegroundInfo(102, notification)
+                        }
+                    setForegroundAsync(info).get(5, TimeUnit.SECONDS)
+                },
             )
         lease.connection = connection
         return try {
@@ -73,7 +92,7 @@ class WakeWorker(context: Context, parameters: WorkerParameters) : Worker(contex
                 if (automatic) WakeSupport.notify(applicationContext, "Secure connection verified")
                 // Let the viewer consume the optional feature report before graceful teardown.
                 viewerClosed.await(1000, TimeUnit.MILLISECONDS)
-            } else if (current()) {
+            } else if (current() && !control.get()) {
                 store.record("Connection failed", id)
             }
             Result.success()

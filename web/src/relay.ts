@@ -14,40 +14,56 @@ import {
   keyBytes,
 } from "@remote/protocol/enrollment";
 import { type PhoneFeatures, parseFeatures } from "@remote/protocol/features";
-export async function encryptedCheck(
+
+/** One ordered cryptographic lane. Callers serialize send/read and own teardown. */
+export async function openEncryptedSession(
   identity: Identity,
   grant: Grant,
   report?: (message: string) => void,
-): Promise<PhoneFeatures | undefined> {
+  signal?: AbortSignal,
+) {
   let active = true;
   const url = new URL("/api/socket", location.origin);
   url.protocol = "wss:";
   const ws = new WebSocket(url);
   ws.binaryType = "arraybuffer";
-  const queue: (Bytes | { type: string; nonce?: string })[] = [];
+  type Frame = Bytes | { type: string; nonce?: string };
+  const queue: Frame[] = [];
+  let queuedBytes = 0;
   let wake: (() => void) | undefined;
-  let ended = false;
+  let channel: Channel | undefined;
+  const close = () => {
+    active = false;
+    channel?.close();
+    ws.close();
+    wake?.();
+    signal?.removeEventListener("abort", close);
+  };
+  signal?.addEventListener("abort", close, { once: true });
+  if (signal?.aborted) close();
   ws.onmessage = (event) => {
-    queue.push(
-      typeof event.data === "string"
-        ? JSON.parse(event.data)
-        : new Uint8Array(event.data as ArrayBuffer),
-    );
-    wake?.();
+    try {
+      const frame: Frame =
+        typeof event.data === "string"
+          ? JSON.parse(event.data)
+          : new Uint8Array(event.data as ArrayBuffer);
+      queuedBytes +=
+        typeof event.data === "string"
+          ? event.data.length
+          : event.data.byteLength;
+      if (queuedBytes > 2097152 || queue.length >= 32)
+        throw new Error("Slow receiver");
+      queue.push(frame);
+      wake?.();
+    } catch {
+      close();
+    }
   };
-  ws.onclose = () => {
-    ended = true;
-    active = false;
-    wake?.();
-  };
-  ws.onerror = () => {
-    ended = true;
-    active = false;
-    wake?.();
-  };
-  async function receive(timeout: number) {
+  ws.onclose = close;
+  ws.onerror = close;
+  async function receive(timeout: number): Promise<Frame | undefined> {
     const deadline = Date.now() + timeout;
-    while (!queue.length && !ended && Date.now() < deadline)
+    while (!queue.length && active && Date.now() < deadline)
       await new Promise<void>((resolve) => {
         const timer = setTimeout(resolve, Math.max(1, deadline - Date.now()));
         wake = () => {
@@ -55,11 +71,15 @@ export async function encryptedCheck(
           resolve();
         };
       });
-    return queue.shift();
+    if (!active) throw new Error("Connection ended. Reconnect to continue.");
+    const value = queue.shift();
+    if (value instanceof Uint8Array) queuedBytes -= value.byteLength;
+    else if (value) queuedBytes -= JSON.stringify(value).length;
+    return value;
   }
   async function next() {
     const value = await receive(70000);
-    if (!value || ended)
+    if (!value)
       throw new Error("Phone is unavailable. Open the app and try again.");
     return value;
   }
@@ -69,7 +89,6 @@ export async function encryptedCheck(
       throw new Error("Unexpected relay message");
     return value;
   };
-  let channel: Channel | undefined;
   try {
     const challenge = await next();
     if (
@@ -79,17 +98,13 @@ export async function encryptedCheck(
     )
       throw new Error("Invalid relay challenge");
     fromHex(challenge.nonce, 32);
-    ws.send(
-      JSON.stringify({
-        id: grant.id,
-        role: "viewer",
-        signature: b64(
-          await identity.sign(
-            authBytes(location.origin, grant.id, "viewer", challenge.nonce),
-          ),
-        ),
-      }),
+    const signature = b64(
+      await identity.sign(
+        authBytes(location.origin, grant.id, "viewer", challenge.nonce),
+      ),
     );
+    if (!active) throw new Error("Connection ended");
+    ws.send(JSON.stringify({ id: grant.id, role: "viewer", signature }));
     report?.("Contacting phone…");
     let ready = false;
     while (!ready) {
@@ -110,18 +125,44 @@ export async function encryptedCheck(
     ws.send(handshake.hello);
     ws.send(await handshake.answer(await binary()));
     channel = await handshake.finish(await binary());
+    const established = channel;
+    return {
+      close,
+      async send(bytes: Bytes) {
+        if (!active || ws.bufferedAmount > 1048608)
+          throw new Error("Connection ended or too slow");
+        const record = await established.seal(bytes);
+        if (!active) throw new Error("Connection ended");
+        ws.send(record);
+      },
+      async read(timeout = 30000): Promise<Bytes | undefined> {
+        const frame = await receive(timeout);
+        if (!frame) return undefined;
+        if (!(frame instanceof Uint8Array))
+          throw new Error("Unexpected relay message");
+        return established.open(frame);
+      },
+    };
+  } catch (error) {
+    close();
+    throw error;
+  }
+}
+export async function encryptedCheck(
+  identity: Identity,
+  grant: Grant,
+  report?: (message: string) => void,
+): Promise<PhoneFeatures | undefined> {
+  const session = await openEncryptedSession(identity, grant, report);
+  try {
     const canary = utf8("Encrypted connection check 🌞");
-    ws.send(await channel.seal(canary));
-    if (!equal(await channel.open(await binary()), canary))
+    await session.send(canary);
+    const reply = await session.read();
+    if (!reply || !equal(reply, canary))
       throw new Error("Connection check failed");
-    const trailer = await receive(1200);
-    if (trailer === undefined) return undefined; // Older hosts have no optional feature trailer.
-    if (!(trailer instanceof Uint8Array))
-      throw new Error("Invalid phone feature report");
-    return parseFeatures(await channel.open(trailer));
+    const trailer = await session.read(1200);
+    return trailer ? parseFeatures(trailer) : undefined;
   } finally {
-    active = false;
-    channel?.close();
-    ws.close();
+    session.close();
   }
 }

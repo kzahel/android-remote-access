@@ -1,6 +1,6 @@
 /** Commands travel only inside an authenticated application record. Integers are big-endian. */
 export type Command =
-  | { op: "start" | "status" | "capture" | "wake" }
+  | { op: "start" | "status" | "capture" | "wake" | "apps" }
   | { op: "tap"; scene: number; x: number; y: number }
   | {
       op: "swipe";
@@ -24,6 +24,7 @@ const operations = [
   "text",
   "launch",
   "wake",
+  "apps",
 ] as const;
 export const MAX_COMMAND = 4112;
 export function encodeCommand(
@@ -94,7 +95,9 @@ export type ControlState = {
   height: number;
   scene: number;
 };
+export type AppEntry = { name: string; packageName: string };
 export type Reply = { id: number } & (
+  | { kind: "apps"; apps: AppEntry[] }
   | { kind: "state"; state: ControlState }
   | { kind: "result"; code: number }
   | {
@@ -159,6 +162,30 @@ export function decodeReply(data: Uint8Array<ArrayBuffer>): Reply {
       )
         throw new Error("Invalid image");
       return { id, kind: "image", scene, width, height, jpeg: data.slice(24) };
+    }
+    case 4: {
+      if (data.length > 131072) throw new Error("Invalid app list");
+      const apps: unknown = JSON.parse(
+        new TextDecoder("utf-8", { fatal: true }).decode(data.slice(12)),
+      );
+      if (
+        !Array.isArray(apps) ||
+        apps.length > 200 ||
+        apps.some(
+          (a) =>
+            !a ||
+            typeof a !== "object" ||
+            typeof a.name !== "string" ||
+            a.name.length > 100 ||
+            typeof a.packageName !== "string" ||
+            a.packageName.length > 256 ||
+            !/^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$/.test(
+              a.packageName,
+            ),
+        )
+      )
+        throw new Error("Invalid app list");
+      return { id, kind: "apps", apps };
     }
     default:
       throw new Error("Unknown control reply");

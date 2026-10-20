@@ -145,6 +145,18 @@ class HostedPairingTest {
                     waitFor { store.snapshot.browsers.all { it.synced } }
                 }
                 "home" -> start()
+                "control-ready" -> {
+                    start()
+                    waitFor { dev.remoteaccess.app.control.ScreenAccessService.current != null }
+                    waitFor { ForegroundAccess.listening(id) }
+                }
+                "control-fixture" -> {
+                    context.startActivity(
+                        Intent().setClassName("${context.packageName}.test", "dev.remoteaccess.app.ControlFixtureActivity")
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
+                    )
+                    assertTrue(device.wait(Until.hasObject(By.text("Tap witness")), 10000))
+                }
                 "setup" -> {
                     start()
                     click("pair_browser")

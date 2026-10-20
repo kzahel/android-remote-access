@@ -10,6 +10,7 @@ import { chromium } from "@playwright/test";
 import jsQR from "jsqr";
 import { PNG } from "pngjs";
 import { decodeInvitation } from "../protocol/src/enrollment.js";
+import { controlAcceptance } from "./control-acceptance.js";
 import { mobileAcceptance } from "./mobile-management-acceptance.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -20,10 +21,11 @@ if (
   !origin.startsWith("https://")
 )
   throw new Error("Set HOSTED_ORIGIN to the HTTPS development relay origin");
+const control = process.argv.includes("--control");
 const multi =
   process.env.HOSTED_MULTI === "1" || process.argv.includes("--multi");
 const physical = process.env.HOSTED_DEVICE;
-if (multi && physical)
+if ((multi || control) && physical)
   throw new Error("Multi-browser acceptance owns an emulator only");
 const expectedModel = process.env.HOSTED_DEVICE_MODEL;
 const doze = process.env.HOSTED_DOZE === "1";
@@ -35,11 +37,13 @@ if (doze && (!physical || process.env.HOSTED_FCM !== "1"))
   throw new Error("Doze acceptance requires physical FCM mode");
 const state = path.join(
   root,
-  multi
-    ? ".local/mobile-proof"
-    : physical
-      ? ".local/physical-hosted-proof"
-      : ".local/hosted-proof",
+  control
+    ? ".local/control-proof"
+    : multi
+      ? ".local/mobile-proof"
+      : physical
+        ? ".local/physical-hosted-proof"
+        : ".local/hosted-proof",
 );
 const fcm = process.env.HOSTED_FCM === "1";
 const sdk = process.env.ANDROID_HOME ?? path.join(os.homedir(), "Android/Sdk");
@@ -240,7 +244,17 @@ try {
     adb("shell", "pm", "grant", appId, "android.permission.POST_NOTIFICATIONS");
   adb("shell", "run-as", appId, "mkdir", "-p", "files");
   browser = await chromium.launch({ headless: true });
-  if (multi) {
+  if (control) {
+    await controlAcceptance({
+      browser,
+      origin,
+      state,
+      adbPath,
+      serial,
+      adb,
+      privateWrite,
+    });
+  } else if (multi) {
     await mobileAcceptance({
       browser,
       origin,

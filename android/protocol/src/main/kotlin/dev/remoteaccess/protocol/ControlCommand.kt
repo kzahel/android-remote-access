@@ -17,7 +17,7 @@ data class ControlCommand(val id: Long, val op: Int, val values: List<Int> = emp
             val values = mutableListOf<Int>()
             var text = ""
             when (op) {
-                1, 2, 3, 9 -> require(!input.hasRemaining())
+                1, 2, 3, 9, 10 -> require(!input.hasRemaining())
                 4, 5 -> {
                     val count = if (op == 4) 3 else 6
                     require(input.remaining() == count * 4)
@@ -46,7 +46,7 @@ data class ControlCommand(val id: Long, val op: Int, val values: List<Int> = emp
             kind: Int,
             payload: ByteArray,
         ): ByteArray {
-            require(id in 1..0xffffffffL && kind in 1..3 && payload.size <= 1048564)
+            require(id in 1..0xffffffffL && kind in 1..4 && payload.size <= 1048564)
             return ByteBuffer.allocate(12 + payload.size).putInt(0x41525031).put(kind.toByte())
                 .put(byteArrayOf(0, 0, 0)).putInt(id.toInt()).put(payload).array()
         }

@@ -16,8 +16,9 @@ internal object PhoneFeatures {
                 state.browsers.any { !it.revoked && it.enabled && !it.wakeReady } -> "setup-needed"
                 else -> "enabled"
             }
+        val screenAccess = if (dev.remoteaccess.app.control.ScreenAccessService.current != null) "enabled" else "permission-needed"
         return JSONObject().put("type", "features").put("v", 1)
-            .put("screenViewing", "unavailable").put("touchControl", "unavailable")
+            .put("screenViewing", screenAccess).put("touchControl", screenAccess)
             .put("connectionRequests", requests)
     }
 }

@@ -1,4 +1,5 @@
 import { b64 } from "@remote/protocol";
+import type { ControlState } from "@remote/protocol/control";
 import {
   createBytes,
   encodeInvitation,
@@ -9,10 +10,12 @@ import {
   verifyOffer,
 } from "@remote/protocol/enrollment";
 import type { FeatureState, PhoneFeatures } from "@remote/protocol/features";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { encode } from "uqr";
+import { RemoteSession } from "./control-session.js";
 import { encryptedCheck } from "./relay.js";
+import { RemoteScreen } from "./remote-screen.js";
 import { browserIdentity, save, savedGrant } from "./store.js";
 import "./viewer.css";
 async function api(id: string, action = "", body?: unknown) {
@@ -46,6 +49,24 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [features, setFeatures] = useState<PhoneFeatures>();
   const [checked, setChecked] = useState(false);
+  const [remote, setRemote] = useState<{
+    session: RemoteSession;
+    state: ControlState;
+  }>();
+  const connection = useRef<AbortController | undefined>(undefined);
+  useEffect(
+    () => () => {
+      connection.current?.abort();
+    },
+    [],
+  );
+  function disconnect() {
+    connection.current?.abort();
+    remote?.session.close();
+    setRemote(undefined);
+    setBusy(false);
+    setStatus("Disconnected");
+  }
   useEffect(() => {
     void savedGrant()
       .then((g) => {
@@ -149,8 +170,48 @@ function App() {
       <p role="status">{status}</p>
       {grant ? (
         <>
+          {remote ? (
+            <RemoteScreen
+              session={remote.session}
+              initial={remote.state}
+              disconnect={disconnect}
+            />
+          ) : (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                setStatus("Connecting to your phone…");
+                const abort = new AbortController();
+                connection.current = abort;
+                try {
+                  const result = await RemoteSession.connect(
+                    await browserIdentity(),
+                    grant,
+                    setStatus,
+                    abort.signal,
+                  );
+                  if (!abort.signal.aborted) {
+                    setRemote(result);
+                    setStatus("Connected securely");
+                  } else result.session.close();
+                } catch (error) {
+                  setStatus(
+                    error instanceof Error
+                      ? error.message
+                      : "Connection failed",
+                  );
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              Connect to phone
+            </button>
+          )}
           <button
-            disabled={busy}
+            disabled={busy || !!remote}
             type="button"
             onClick={async () => {
               setBusy(true);
@@ -225,7 +286,7 @@ function App() {
           </details>
           <button
             className="secondary"
-            disabled={busy}
+            disabled={busy || !!remote}
             type="button"
             onClick={async () => {
               await save("grant", undefined);

@@ -71,3 +71,25 @@ dd {
   font-size: 0.9rem;
   opacity: 0.8;
 }
+
+.phone-screen {
+  display: block;
+  max-width: 100%;
+  max-height: 70vh;
+  width: auto;
+  height: auto;
+  background: #111;
+  touch-action: none;
+  border-radius: 8px;
+}
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+input {
+  display: block;
+  padding: 10px;
+  margin: 8px 0;
+  max-width: 100%;
+}

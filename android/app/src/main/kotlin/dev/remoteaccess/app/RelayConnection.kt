@@ -26,12 +26,16 @@ internal class RelayConnection(
     private val current: () -> Boolean = { true },
     private val admit: () -> Boolean = { true },
     private val features: (() -> JSONObject)? = null,
+    private val context: android.content.Context? = null,
+    private val onControl: () -> Unit = {},
+    private val startSession: (() -> Unit)? = null,
 ) : WebSocketListener() {
     private val active = AtomicBoolean(true)
     private var handshake: PhoneHandshake? = null
     private var channel: Channel? = null
     private var socket: WebSocket? = null
     private var ready = false
+    private var control: dev.remoteaccess.app.control.ControlSession? = null
 
     fun connect() {
         val url = grant.getString("origin").replaceFirst("https:", "wss:") + "/api/socket"
@@ -40,10 +44,13 @@ internal class RelayConnection(
 
     @Synchronized
     fun close(graceful: Boolean = false) {
-        active.set(false)
+        if (!active.compareAndSet(true, false)) return
+        control?.close()
+        if (control != null && context != null) dev.remoteaccess.app.control.SessionService.stop(context)
         handshake?.close()
         channel?.close()
         if (graceful) socket?.close(1000, null) else socket?.cancel()
+        report("Connection closed. Reconnect to continue.")
     }
 
     @Synchronized
@@ -118,8 +125,20 @@ internal class RelayConnection(
             val current = channel
             if (current != null) {
                 val plaintext = current.open(input)
-                // This slice exposes only a fixed connection check, never arbitrary commands.
-                require(plaintext.contentEquals("Encrypted connection check 🌞".toByteArray(Charsets.UTF_8)))
+                val existing = control
+                if (existing != null) {
+                    existing.receive(plaintext)
+                    return
+                }
+                if (!plaintext.contentEquals("Encrypted connection check 🌞".toByteArray(Charsets.UTF_8))) {
+                    require(context != null && dev.remoteaccess.protocol.ControlCommand.decode(plaintext).op == 1)
+                    startSession?.invoke() ?: dev.remoteaccess.app.control.SessionService.start(context)
+                    onControl()
+                    control = dev.remoteaccess.app.control.ControlSession(context, { active.get() && this.current() }, ::sendControl)
+                    report("Remote control connected")
+                    control!!.receive(plaintext)
+                    return
+                }
                 webSocket.send(current.seal(plaintext).toByteString())
                 features?.let { report ->
                     check(active.get() && this.current())
@@ -142,6 +161,19 @@ internal class RelayConnection(
         } catch (_: Exception) {
             close()
             report("Encrypted session rejected")
+        }
+    }
+
+    @Synchronized
+    private fun sendControl(bytes: ByteArray) {
+        try {
+            check(active.get() && current())
+            val ws = checkNotNull(socket)
+            check(ws.queueSize() <= 1048608)
+            check(ws.send(checkNotNull(channel).seal(bytes).toByteString()))
+        } catch (_: Exception) {
+            close()
+            report("Connection closed. Reconnect to continue.")
         }
     }
 
