@@ -351,13 +351,14 @@ screenshot, supplies it through the normal Android pairing intent, taps Grant,
 checks encrypted exchanges, restarts the native process/reloads the browser,
 and revokes the paired browser. Camera optics are a separate physical check.
 
-The [FCM wake slice](fcm-wake-v1.md) is implemented locally; sender provisioning
-and real delivery acceptance remain pending. Its acceptance has three layers: deterministic
-sender/registration/revocation tests; real Firebase delivery with the application
+The [FCM wake slice](fcm-wake-v1.md) passes deterministic tests and real hosted
+Firebase delivery to an owned emulator with the app process/socket absent.
+Physical Doze and overnight acceptance remain pending. Its acceptance has three
+layers: deterministic sender/registration/revocation tests; real Firebase delivery with the application
 relay socket closed and native receipt → authenticated exchange evidence; then
 physical forced-Doze and natural overnight runs. Include token replacement,
 duplicate/expired wake hints, offline recovery and revoked requests. An accepted
 Firebase send is not delivery evidence, and force-stop expects local recovery.
 Use an app-specific Firebase registration and authorized sender configuration;
-never borrow YA registrations or credentials. No real FCM delivery is claimed
-by the pairing or crypto tests.
+never borrow YA registrations or credentials. Pairing and crypto tests alone
+do not establish real FCM delivery; the separate opt-in FCM acceptance does.

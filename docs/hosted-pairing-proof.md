@@ -67,18 +67,21 @@ camera optics, Play-services scanner module download or real-phone ergonomics.
 
 ## Remaining boundaries
 
-The Android host supports one paired browser in this slice and stays connected
-only during the foreground development flow. The only encrypted application
-operation is a fixed connection check, not a general command handler. Durable
+The Android host supports one paired browser. The original pairing acceptance
+uses a foreground connection; the subsequent [FCM slice](fcm-wake-v1.md) adds a
+bounded background connection check after real push delivery. The only encrypted
+application operation is a fixed connection check, not a general command handler. Durable
 pairing metadata contains public authority; private signing keys stay in their
 platform stores. The relay sees routing, timing and sizes and can deny service;
 compromised hosted viewer JavaScript remains an endpoint compromise.
 
-No real FCM, WebRTC, capture/input, PIN entry, background foreground-service
-lifecycle, physical-camera acceptance, natural idle/reboot qualification or Play
-submission is claimed. FCM testing next requires app-specific Firebase setup,
-then actual native receipt and an authenticated session with the relay socket
-initially closed; follow with authorized physical Doze/overnight qualification.
+This original pairing run does not qualify FCM. The subsequent
+[FCM acceptance](fcm-wake-v1.md#verification-and-measured-acceptance) establishes
+real native receipt and an authenticated session with the process/socket initially
+absent. WebRTC, capture/input, PIN entry, indefinite foreground-service lifecycle,
+physical-camera acceptance, natural idle/reboot qualification and Play submission
+remain outside these measured slices. Follow with authorized physical
+Doze/overnight qualification.
 The deployment's backups and backup key currently share a host; off-host
 recovery is separate operator work. This protocol composition remains subject
 to independent review before a consumer release.

@@ -1,11 +1,11 @@
 # FCM wake slice
 
-Implementation and local acceptance: **2026-10-20**. Firebase console provisioning
-started, but the Machine Control resident became unavailable before sender
-credentials were created. **No real Firebase delivery or FCM deployment is
-accepted yet.** The hosted development instance still runs its previous pairing
-slice. Concrete Firebase project IDs and Pi credential paths belong in the private
-dotfiles runbook.
+Implementation and hosted emulator acceptance: **2026-10-20**. A separate
+Firebase project, Android registration and dedicated relay sender are provisioned.
+Real Firebase delivery from the hosted relay passes with the application process
+and socket absent. Concrete Firebase identities and Pi credential paths belong
+in the private dotfiles runbook. Physical Doze and overnight reliability remain
+unqualified.
 
 ## Decision and wire behavior
 
@@ -19,7 +19,9 @@ pairing tests, but the app reports that remote wake is not configured.
 
 Firebase Messaging 25.1.1 (BoM 34.16.0) uses installation IDs and `onRegistered`.
 The relay pins Firebase Admin 14.2.0, with FID delivery support. The installed SDKs
-compile against these APIs; this follows the pinned
+compile against these APIs. The manifest must explicitly set
+`firebase_messaging_installation_id_enabled=true`; otherwise `register()` fails
+before network registration. This follows the pinned
 [YA lifecycle reference](sibling-repositories.md#yep-anywhere-fcm-implementation-reference)
 without reusing its registration, sender identity or application runtime.
 
@@ -68,7 +70,7 @@ need an owner retry after 30 seconds. Existing API/IP, socket and payload bounds
 still apply. These are development-instance admission defaults, not a capacity
 qualification.
 
-## Verification and remaining acceptance
+## Verification and measured acceptance
 
 Local checks pass: **59 TypeScript tests**, **13 Kotlin JVM tests**, TS build and
 type checking, Biome, ktlint, Android lint, debug APK and instrumentation APK.
@@ -83,7 +85,7 @@ restart, removal and subsequent refusal against the previously deployed relay.
 This is backward compatibility evidence, **not FCM delivery evidence**. The
 owned emulator and isolated Playwright Chromium were reaped.
 
-After Firebase provisioning and deployment, build with the client config and run:
+Build with the downloaded client config and run:
 
 ```sh
 HOSTED_FCM=1 HOSTED_ORIGIN=https://YOUR_DEVELOPMENT_ORIGIN pnpm test:hosted
@@ -95,7 +97,26 @@ with `am kill` (not force-stop), verifies process absence, and requests the brow
 check. Acceptance requires a new native Firebase receipt timestamp, a new native
 encrypted exchange and the browser's successful canary. Delivery addresses are
 neither printed nor injected through the runner. Only safe checkpoint/latency
-results are reported. The FCM mode is prepared but **has not been run** yet.
+results are reported.
+
+The configured build passed this mode against the public HTTPS/WSS relay:
+
+| Checkpoint | Result |
+| --- | --- |
+| Normal QR/Grant and foreground E2E check | Pass |
+| Explicit native wake opt-in and authenticated FID registration | Pass |
+| App process and application socket absent before request | Pass; process reclamation with `am kill`, not force-stop |
+| Fresh native Firebase receipt | Pass; 84 ms after browser request |
+| Fresh native E2E exchange and browser canary | Pass; 379 ms after request |
+| Native restart and browser reload | Pass; identities retained |
+| Phone removal and later connection refusal | Pass |
+| Owned emulator and isolated Chromium cleanup | Pass |
+
+These latencies describe one API-35 ARM64 Google APIs emulator run, not an SLA.
+Three encrypted exchanges and both native instrumentation invocations passed.
+The first live attempt exposed the missing manifest opt-in; after correcting it,
+the failed fixture's grant was removed through the normal native flow before
+rerunning. Private checkpoint evidence stays in `.local/hosted-proof/`.
 
 Real emulator delivery is followed by an explicitly selected physical-device
 Doze test and unplugged natural overnight acceptance. No claim is made about
