@@ -28,7 +28,8 @@ inventory is introduced.
 ## Contact and tab behavior
 
 Only an authenticated successful check or control state response advances
-`lastContactAt`. The connected viewer records status responses at most every
+`lastContactAt`. Explicit successful Connect/Check operations always update it.
+The connected viewer throttles background status recording to once every
 15 seconds (or immediately when a new model is learned); it does not timestamp
 page loads, failed connections, raw relay responses or accepted push requests.
 The list shows relative time with the exact local timestamp on hover and does
@@ -63,3 +64,18 @@ unknown deep links, removal/session teardown and responsive overflow. Artifacts
 stay under ignored `.local/viewer-phones-proof/`. The fixture is not a production
 entry point and never selects a physical phone. Hosted native pairing/control
 acceptance remains separate.
+
+All those browser checks pass, including preserved metadata/no duplicate on
+re-pair and rejection of a saved-phone URL in a fresh unpaired browser. Visual
+captures at 1280×1000, 390×844 and 320×680 show the two-phone library without
+horizontal overflow; the existing four-size stable-viewer checks also pass.
+All 92 TypeScript tests, type checks, production build and Biome checks pass.
+
+The deployed per-phone page passed the combined owned-emulator hosted control
+suite: actual screenshots/input/navigation/app launch, held/multitouch gestures,
+manual/saved synthetic-PIN unlock, all H.264 modes, rotation, failed-unlock guard,
+disarm and revocation. No browser errors; Save data decoded 50 frames in 5.002
+seconds with 267,388 encrypted relay bytes. The retained owner browser also
+migrated its existing pairing, opened the Pixel 9 URL, connected over direct
+WebRTC and displayed its authenticated model/contact time in a separate library
+tab. The physical phone was locked; no physical PIN was read or submitted.

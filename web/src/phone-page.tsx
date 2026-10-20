@@ -69,8 +69,9 @@ export function PhonePage({
       close();
     };
   }, [close]);
-  function recordContact(state?: ControlState) {
+  function recordContact(state?: ControlState, force = false) {
     if (
+      !force &&
       Date.now() - lastRecorded.current < 15000 &&
       (!state?.phoneName || state.phoneName === phone.model)
     )
@@ -121,7 +122,7 @@ export function PhonePage({
         connected = true;
         live.current = result.session;
         setRemote(result);
-        recordContact(result.state);
+        recordContact(result.state, true);
       } else {
         const result = await services.check(
           identity,
@@ -132,7 +133,7 @@ export function PhonePage({
         if (abort.signal.aborted) return;
         setFeatures(result);
         setChecked(true);
-        recordContact();
+        recordContact(undefined, true);
         setStatus("Secure connection verified.");
       }
     } catch (error) {

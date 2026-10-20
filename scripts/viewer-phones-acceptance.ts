@@ -185,6 +185,13 @@ try {
   await a.evaluate(() => {
     window.phonesFixture.fail = false;
   });
+  await a
+    .getByRole("button", { name: "Check connection", exact: true })
+    .click();
+  await expect(a.getByRole("status")).toHaveText("Secure connection verified.");
+  await expect
+    .poll(async () => (await records(a))[0]?.lastContactAt ?? 0)
+    .toBeGreaterThan(beforeFailure ?? 0);
   await rename(home, "Pixel 9", "RV phone");
   await expect(a.getByRole("heading", { level: 1 })).toHaveText("RV phone");
   await expect(a).toHaveTitle("RV phone · Remote access");
@@ -297,7 +304,7 @@ try {
     .click();
   await expect
     .poll(() => a.evaluate(() => window.phonesFixture.calls.length))
-    .toBe(4);
+    .toBe(5);
   await a
     .getByRole("button", { name: "Cancel connection", exact: true })
     .click();
