@@ -692,7 +692,6 @@ export async function controlAcceptance(f: Fixture) {
     }
     await command("global", { enabled: false });
     await page
-      .getByRole("region", { name: "Remote screen" })
       .getByRole("status")
       .filter({ hasText: /Connection ended/ })
       .waitFor({ timeout: 20000 });

@@ -127,3 +127,27 @@ changing appearance without reconnecting or closing the live session, alongside
 its existing migration/pairing/multi-phone coverage. Type checks, production
 build, Biome and all 92 TypeScript tests pass. Hosted native control is verified
 separately after deploying the committed revision.
+
+Deployment `8f62fc3` is live through the existing Pi service/Caddy setup. The
+retained owner browser rendered the real phone library in system dark mode;
+its existing pairing was preserved. Before the final spacing refinement, its
+Pixel 9 page also connected through native direct WebRTC and showed one live
+status. No physical PIN was read or submitted, and no Android update was needed.
+
+Reliability follow-up: one initial owned-emulator run completed saved-PIN unlock,
+then timed out during the following manual-PIN unlock. SystemUI still displayed
+the entered synthetic credential; the host latched local recovery and did not
+retry. The runner cleared its synthetic credential during cleanup. The next
+fresh emulator run completed both unlock paths. This UI slice does not resolve
+or isolate that intermittent native unlock failure; private evidence is retained
+under `.local/shell-unlock-failure/`. A separate acceptance selector also needed
+updating because live status moved from the screen region into the top bar.
+
+The complete final hosted regression against `8f62fc3` passes with the corrected
+top-bar status selector: native tap/swipe/navigation/text/app launch, held and
+multitouch input, watchdog release, manual/saved synthetic-PIN unlock, all H.264
+modes, rotation/touch mapping, wrong-PIN guard, global disarm, revocation and
+cleanup. No browser errors. The Save data sample decoded 50 frames over 5.001
+seconds, receiving 254,876 encrypted relay bytes. This is a fixture measurement,
+not a capacity guarantee. The successful rerun does not close the intermittent
+unlock follow-up above. The runner reaped its emulator and isolated Chromium.
