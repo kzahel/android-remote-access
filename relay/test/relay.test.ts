@@ -415,6 +415,124 @@ it("registration refresh does not displace a live encrypted route", async () => 
   expect(v.socket.readyState).toBe(WebSocket.OPEN);
   expect(p.socket.readyState).toBe(WebSocket.OPEN);
 });
+it("delivers a fresh wake after a rapid check-to-control reconnect", async () => {
+  const sent: { requestId: string; expires: number }[] = [];
+  await relay.close();
+  await start({
+    wakeCooldownMs: 400,
+    sender: async (_fid, request) => {
+      sent.push(request);
+      return "accepted";
+    },
+  });
+  await enroll();
+  await registerPush();
+  const check = client();
+  await check.login(viewer, "viewer");
+  await check.json();
+  const firstPhone = client();
+  await firstPhone.login(phone, "phone", { requestId: sent[0]?.requestId });
+  await firstPhone.json();
+  await check.json();
+  const ended = once(firstPhone.socket, "close");
+  check.socket.close();
+  await ended;
+
+  const control = client();
+  await control.login(viewer, "viewer");
+  expect(await control.json()).toMatchObject({
+    type: "contacting",
+    delivery: "coalesced",
+  });
+  expect(sent).toHaveLength(1);
+  // The old hint must never authorize this new request while a resend is queued.
+  const stale = client();
+  await expect(
+    stale.login(phone, "phone", { requestId: sent[0]?.requestId }),
+  ).rejects.toThrow();
+  expect(await control.json()).toMatchObject({
+    type: "contacting",
+    delivery: "accepted",
+  });
+  expect(sent).toHaveLength(2);
+  expect(sent[1]?.requestId).not.toBe(sent[0]?.requestId);
+  const nextPhone = client();
+  await nextPhone.login(phone, "phone", { requestId: sent[1]?.requestId });
+  expect((await nextPhone.json()).type).toBe("ready");
+  expect((await control.json()).type).toBe("ready");
+});
+
+it.each([
+  "viewer leaves",
+  "access revoked",
+  "phone arrives",
+])("cancels a delayed wake when %s", async (reason) => {
+  const sent: unknown[] = [];
+  await relay.close();
+  await start({
+    wakeCooldownMs: 300,
+    sender: async (_fid, request) => {
+      sent.push(request);
+      return "accepted";
+    },
+  });
+  await enroll();
+  await registerPush();
+  const first = client();
+  await first.login(viewer, "viewer");
+  await first.json();
+  const ended = once(first.socket, "close");
+  first.socket.close();
+  await ended;
+  const waiting = client();
+  await waiting.login(viewer, "viewer");
+  expect(await waiting.json()).toMatchObject({ delivery: "coalesced" });
+  if (reason === "viewer leaves") {
+    const closed = once(waiting.socket, "close");
+    waiting.socket.close();
+    await closed;
+  } else if (reason === "access revoked") {
+    expect(
+      (
+        await api("/revoke", {
+          signature: b64(await phone.sign(revokeBytes(origin, invitation.id))),
+        })
+      ).status,
+    ).toBe(200);
+  } else {
+    const arriving = client();
+    await arriving.login(phone, "phone");
+    expect((await arriving.json()).type).toBe("ready");
+    expect((await waiting.json()).type).toBe("ready");
+  }
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  expect(sent).toHaveLength(1);
+});
+it("expires a queued wake rather than sending a stale hint", async () => {
+  let sends = 0;
+  await relay.close();
+  await start({
+    wakeCooldownMs: 2500,
+    wakeLifetimeMs: 1200,
+    sender: async () => {
+      sends++;
+      return "accepted";
+    },
+  });
+  await enroll();
+  await registerPush();
+  const first = client();
+  await first.login(viewer, "viewer");
+  await first.json();
+  const ended = once(first.socket, "close");
+  first.socket.close();
+  await ended;
+  const waiting = client();
+  await waiting.login(viewer, "viewer");
+  expect(await waiting.json()).toMatchObject({ delivery: "coalesced" });
+  await once(waiting.socket, "close");
+  expect(sends).toBe(1);
+});
 it("rejects delayed, expired and revoked wake requests", async () => {
   let sent: { requestId: string; expires: number } | undefined;
   await relay.close();

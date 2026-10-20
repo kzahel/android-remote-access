@@ -98,8 +98,8 @@ The native host may send a second encrypted application record after its unchang
 canary reply: a UTF-8 JSON object with `type: "features"`, `v: 1`, `screenViewing`,
 `touchControl` and `connectionRequests`. Viewing/control use the finite states
 `unavailable`, `permission-needed`, `enabled`; requests use `unavailable`, `off`,
-`notifications-needed`, `setup-needed`, `enabled`. The current host reports both
-viewing and control as unavailable. This report conveys no authority and is not
+`notifications-needed`, `setup-needed`, `enabled`. The current host queries the
+screen-access service for viewing/control readiness. This report conveys no authority and is not
 persisted as permission. It is a snapshot from the paired phone during that check.
 
 The viewer validates type/version, finite values, UTF-8 and a 2048-byte maximum,
@@ -115,3 +115,18 @@ notification or wake opt-in. They authenticate with the existing generation and
 acquire the shared phone-session lease only when a viewer route arrives. Leaving
 the app closes these listeners; process-absent access retains the existing FCM
 opt-in/notification requirements. Policy changes invalidate both paths.
+
+## Rapid reconnect wake scheduling (2026-10-20)
+
+A new viewer session creates a fresh wake request ID. The relay retains its
+30-second per-pairing push cooldown, but a request arriving during that cooldown
+is queued and sent when it ends, within the original request expiry. It must not
+rely on an earlier hint whose request ID no longer matches. While queued, the
+viewer explains the short wait. Disconnect, revocation/policy changes, phone
+arrival and relay shutdown cancel pending delivery; expired requests never send.
+This fixes the physically reproduced check-connection → connect-control stall
+with the Pixel 9 app in the background. No phone update is needed.
+
+Regression coverage exercises fresh request delivery after a completed earlier
+route, rejection of the stale request ID, cancellation on departure/revocation/
+phone arrival, expiry and the browser's waiting/delivery messages.

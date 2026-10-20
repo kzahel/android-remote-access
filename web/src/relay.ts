@@ -27,7 +27,7 @@ export async function openEncryptedSession(
   url.protocol = "wss:";
   const ws = new WebSocket(url);
   ws.binaryType = "arraybuffer";
-  type Frame = Bytes | { type: string; nonce?: string };
+  type Frame = Bytes | { type: string; nonce?: string; delivery?: string };
   const queue: Frame[] = [];
   let queuedBytes = 0;
   let wake: (() => void) | undefined;
@@ -115,6 +115,12 @@ export async function openEncryptedSession(
       )
         throw new Error("Invalid relay state");
       ready = value.type === "ready";
+      if (value.type === "contacting")
+        report?.(
+          value.delivery === "coalesced"
+            ? "Waiting a moment before contacting your phone again…"
+            : "Contacting phone…",
+        );
     }
     const handshake = await ViewerHandshake.start(identity, {
       id: fromHex(grant.id, 16),

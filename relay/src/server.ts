@@ -39,6 +39,7 @@ export interface Options {
   trustProxy?: boolean;
   sender?: Sender;
   wakeLifetimeMs?: number;
+  wakeCooldownMs?: number;
 }
 export function createRelay(options: Options) {
   const origin = originURL(options.origin);
@@ -101,8 +102,19 @@ export function createRelay(options: Options) {
       throw new Error("Persistence unavailable");
     }
   };
-  const push = new PushRegistry(options.stateDir, options.sender);
+  const push = new PushRegistry(
+    options.stateDir,
+    options.sender,
+    Date.now,
+    options.wakeCooldownMs,
+  );
   const requests = new Map<string, Wake>();
+  const wakeTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  const clearRequest = (id: string) => {
+    requests.delete(id);
+    clearTimeout(wakeTimers.get(id));
+    wakeTimers.delete(id);
+  };
   const pending = new Map<string, Pending>();
   const buckets = new Map<string, { until: number; count: number }>();
   const routes = new Map<
@@ -112,7 +124,7 @@ export function createRelay(options: Options) {
   const disconnect = (id: string) => {
     const route = routes.get(id);
     routes.delete(id);
-    requests.delete(id);
+    clearRequest(id);
     for (const ws of Object.values(route ?? {}))
       ws.close(4001, "Reconnect with a fresh session");
   };
@@ -435,19 +447,43 @@ export function createRelay(options: Options) {
               ),
             };
             requests.set(id, request);
-            void push
-              .wake(id, request)
-              .then((delivery) => {
-                if (
-                  ws.readyState === WebSocket.OPEN &&
-                  requests.get(message.id) === request
-                )
-                  ws.send(JSON.stringify({ type: "contacting", delivery }));
-              })
-              .catch(() => ws.close(4003, "Wake unavailable"));
+            const pairingId = id;
+            const stillWaiting = () =>
+              ws.readyState === WebSocket.OPEN &&
+              requests.get(pairingId) === request &&
+              routes.get(pairingId)?.viewer === ws &&
+              !routes.get(pairingId)?.phone;
+            const sendWake = async () => {
+              wakeTimers.delete(pairingId);
+              if (!stillWaiting()) return;
+              if (request.expires * 1000 <= Date.now()) {
+                disconnect(pairingId);
+                return;
+              }
+              try {
+                const delivery = await push.wake(pairingId, request);
+                if (!stillWaiting()) return;
+                ws.send(JSON.stringify({ type: "contacting", delivery }));
+                // A new viewer has a fresh request ID. An earlier wake cannot
+                // satisfy it: retain the rate limit, then send this exact request.
+                if (delivery === "coalesced") {
+                  const delay = Math.min(
+                    Math.max(1, push.retryAfterMs(pairingId)),
+                    request.expires * 1000 - Date.now(),
+                  );
+                  wakeTimers.set(
+                    pairingId,
+                    setTimeout(() => void sendWake(), delay),
+                  );
+                }
+              } catch {
+                if (stillWaiting()) ws.close(4003, "Wake unavailable");
+              }
+            };
+            void sendWake();
           }
           if (route.phone && route.viewer) {
-            requests.delete(id);
+            clearRequest(id);
             for (const peer of Object.values(route))
               peer.send(JSON.stringify({ type: "ready" }));
           }
@@ -538,6 +574,7 @@ export function createRelay(options: Options) {
     server,
     async close() {
       clearInterval(sweep);
+      for (const id of requests.keys()) clearRequest(id);
       for (const ws of wss.clients) ws.terminate();
       await new Promise<void>((resolve) => wss.close(() => resolve()));
       await new Promise<void>((resolve, reject) =>

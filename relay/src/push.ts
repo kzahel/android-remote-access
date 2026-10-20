@@ -73,6 +73,7 @@ export class PushRegistry {
     directory: string,
     private readonly send?: Sender,
     private readonly now = Date.now,
+    private readonly cooldownMs = 30000,
   ) {
     this.file = path.join(directory, "push-registrations-v1.json");
     if (existsSync(this.file)) {
@@ -124,6 +125,9 @@ export class PushRegistry {
     );
     renameSync(`${this.file}.next`, this.file);
   }
+  retryAfterMs(id: string): number {
+    return Math.max(0, (this.cooldown.get(id) ?? 0) - this.now());
+  }
   async wake(
     id: string,
     request: Wake,
@@ -133,14 +137,14 @@ export class PushRegistry {
     if (!fid || !this.send) return "unregistered";
     const now = this.now();
     if (request.expires * 1000 <= now) return "unavailable";
-    if ((this.cooldown.get(id) ?? 0) > now) return "coalesced";
+    if (this.retryAfterMs(id) > 0) return "coalesced";
     if (this.window <= now) {
       this.window = now + 60000;
       this.sends = 0;
     }
     if (this.sends >= 100) return "unavailable";
     this.sends++;
-    this.cooldown.set(id, now + 30000);
+    this.cooldown.set(id, now + this.cooldownMs);
     for (const [key, until] of this.cooldown)
       if (until <= now) this.cooldown.delete(key);
     let result: Delivery;
