@@ -75,6 +75,47 @@ would need deliberate helper packaging or another audited native integration.
   studies with policy/provenance boundaries. Consult original sources before
   adopting components; Buddy's AI harness is not needed for manual access.
 
+## Yep Anywhere FCM implementation reference
+
+Source-reviewed **2026-10-20** at committed baseline
+`92eb659827c98dedf257b5ff08a5a5b3d8bda73d`; the sibling working tree was clean.
+No sibling changes, builds, push sends or device tests were performed here.
+This is the reference to consult when implementing our own FCM registration,
+hosted sender and lifecycle checks, rather than starting from an empty example.
+
+| Reference | Useful mechanism and boundary |
+| --- | --- |
+| [FCM contract](../../yepanywhere/topics/android-fcm-push.md) | Registration lifecycle, native installation capabilities, delivery privacy, Firebase configuration and bounded recovery. Owns the current design. |
+| [Messaging service](../../yepanywhere/packages/android/app/src/main/java/com/yepanywhere/mobile/notifications/YepFirebaseMessagingService.kt) | Native `FirebaseMessagingService`; `onRegistered` updates the installation target; receipt is independent of an Activity/WebView. `onNewToken` is the legacy callback in this pin. |
+| [Installation coordinator](../../yepanywhere/packages/android/app/src/main/java/com/yepanywhere/mobile/notifications/BrokerInstallationCoordinator.kt) and [storage](../../yepanywhere/packages/android/app/src/main/java/com/yepanywhere/mobile/notifications/BrokerInstallationStore.kt) | Stable broker installation with current-target digest, replacement on change, one fresh registration after broker NOT_FOUND, and deferred failure. Delivery registration is separate from product pairing. |
+| [Native broker client](../../yepanywhere/packages/android/app/src/main/java/com/yepanywhere/mobile/notifications/PushBrokerClient.kt) | Bounded native installation/subscription API boundary; installation management belongs on the phone rather than in hosted page state. |
+| [Firebase provider](../../yepanywhere/packages/push-broker/src/providers/firebase.ts), [validation](../../yepanywhere/packages/push-broker/src/validation.ts) and [rate limiting](../../yepanywhere/packages/push-broker/src/rate-limiter.ts) | TypeScript Firebase Admin sender, data payload construction, provider error classification, validated delivery targets and broker admission controls. |
+| [Coordinator tests](../../yepanywhere/packages/android/app/src/test/java/com/yepanywhere/mobile/notifications/BrokerInstallationCoordinatorTest.kt), [provider tests](../../yepanywhere/packages/push-broker/test/firebase-provider.test.ts) and [broker integration tests](../../yepanywhere/packages/push-broker/test/e2e/broker.e2e.test.ts) | Entry points for registration/target replacement, delivery outcome and API-boundary regression coverage. Tests were located, not run in this review. |
+| [Headless instrumentation](../../yepanywhere/packages/android/app/src/androidTest/java/com/yepanywhere/mobile/notifications/NativePushHeadlessInstrumentedTest.kt), [live instrumentation](../../yepanywhere/packages/android/app/src/androidTest/java/com/yepanywhere/mobile/notifications/NativePushLiveInstrumentedTest.kt) and [physical lifecycle record](../../yepanywhere/docs/testing/android-lifecycle-hardening-2026-10-07.md) | Useful harness/evidence for notification handling without UI and after process death. Preserve the original record's device/runtime limits; it is not new acceptance for this product. |
+
+At this pin YA documents Firebase Messaging **25.1.1**, BoM **34.16.0**, FID
+targeting and `onRegistered`. Verify the supported SDK/API when adding our
+dependencies rather than assuming every example using `onNewToken` matches it.
+The [original smoke](../../yepanywhere/docs/tactical/069-android-fcm-live-smoke.md)
+is historical: its initial diagnostic logging/config instructions were
+superseded by the [native foundation](../../yepanywhere/docs/tactical/071-android-wrapper-notification-integration.md)
+and current topic contract.
+
+Adapt the lifecycle and tests, not YA's product identity. We need product-specific
+Firebase app configuration and hosted sender authorization; do not copy
+its registrations, credentials, server subscriptions or deployment targets.
+Whether a separate broker is useful is still an implementation choice; the
+reference does not require that extra service for our single hosted relay.
+
+YA sends notifications and opens authenticated session destinations. Our FCM
+message is a best-effort wake hint followed by authenticated pending-request
+lookup and session establishment. Its high-priority sender is not blanket
+permission for silent wake traffic: validate our user-visible semantics and
+FCM processing window. This source review does not prove display wake, phone
+unlock, access before first unlock, force-stop recovery or an overnight
+socket-free control session. Keep our paired-device/session authority independent
+of delivery registration and preserve the stated [platform limits](android-platform.md).
+
 ## Licensing and ownership
 
 MC and JSTorrent declare MIT in their repository documentation; examine exact

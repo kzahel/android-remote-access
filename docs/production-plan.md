@@ -1,9 +1,10 @@
 # Production plan
 
-Written 2026-10-19 at the owner's request, after the phone spikes. It is a plan,
-not an implementation: no production repository, brand, relay service or store
-listing exists. Evidence references point to the spike documents; anything
-not listed there as tested is a hypothesis.
+Written 2026-10-19 at the owner's request, updated 2026-10-20 with repository
+and stack decisions. Production implementation is authorized in this repository;
+the current runtime is still the spike. No production relay or store listing
+exists. Evidence references point to the spike documents; anything not listed
+there as tested is a hypothesis.
 
 ## Goal
 
@@ -18,7 +19,8 @@ scope.
 
 ## Decisions made so far
 
-These are owner decisions from 2026-10-19; everything else below is open.
+These are owner decisions from 2026-10-19 and 2026-10-20. Implementation defaults
+and open questions are identified separately below.
 
 1. Aim for a Play-published consumer app, not a research artifact.
 2. We host and operate the relay, following the existing projects' hosting and
@@ -37,6 +39,12 @@ These are owner decisions from 2026-10-19; everything else below is open.
 6. Include FCM for waking the app to establish a session on demand. An always-open
    application connection to our relay is not a product requirement. Validate
    idle disconnection and push-triggered connection before relying on them.
+7. Keep the product in this repository. Move the current runnable prototype,
+   its tests and runners under `spike/`, preserving it as a working reference.
+   Keep docs, research and ignored competitor references at the root.
+8. Use TypeScript for the relay, shared protocol package and React web viewer.
+   Use clean Kotlin for the Android app. Establish reproducible builds,
+   automated tests, type checking, formatting and lint from the start.
 
 ## What the spikes established
 
@@ -53,10 +61,12 @@ sections for exact limits.
 | Reconnect across Wi-Fi/cellular changes | [Tailscale route](phone-spike.md#tailscale-route) | Measured over Tailscale, not a relay |
 | Account-free QR pairing and revocation | [QR pairing](phone-spike.md#qr-pairing-without-an-account) | Camera scan, multi-phone and end-to-end encryption untested |
 
-## Gates before production code
+## Gates before broad release
 
-Each gate can stop or reshape the product, and each is cheaper than the code it
-protects. Record results in this repository.
+Each gate can stop or reshape the product. Address policy and saved-PIN design
+early, and run implementation-dependent experiments as the required pieces
+become available. These gates do not block authorized build setup or core
+implementation. Record results in this repository.
 
 1. **Play accessibility policy.** Read the current
    [accessibility API policy](https://support.google.com/googleplay/android-developer/answer/10964491?hl=en)
@@ -147,7 +157,7 @@ or has enough capacity for production video.
 - Health and aggregate capacity monitoring, admission limits and an operator
   action to stop new sessions without inspecting screen or credential content.
 
-Product code and protocol tests belong in the new product repository. Concrete
+Product code and protocol tests belong in this repository. Concrete
 host selection, domains, ports, DNS/TLS configuration, service units, deployment
 scripts and private operator runbooks belong in dotfiles. Select the host and
 domain before provisioning; this plan does not deploy or reconfigure a service.
@@ -185,10 +195,31 @@ receivers, network changes and session teardown. Record wake-to-ready latency
 and idle battery cost. A push delivery receipt is not proof of a usable remote
 session.
 
-## Build in a new repository
+## Repository and build structure
 
-Keep this repository as research and test bed. Start the product in a new
-repository and port proven pieces deliberately, each with its tests:
+Preserve the spike while building the product in the same repository. The
+2026-10-20 owner decision supersedes the earlier new-repository proposal.
+Planned layout (not yet moved or scaffolded):
+
+```text
+android/       Kotlin Android app
+relay/         TypeScript hosted service
+web/           React + TypeScript viewer
+protocol/      Versioned wire schemas, TS types and cross-language fixtures
+spike/         Existing prototype, its tests and runners
+docs/          Product decisions, runbooks and evidence
+research/      Research method and source inventory
+references/    Ignored pinned competitor checkouts
+```
+
+Move the executable prototype as one unit, retaining its own package manifest,
+lockfile and Android build. Update path assumptions and runbooks so it remains
+usable. Preserve private `.local/` state; do not move credentials into tracked
+files or interrupt an active phone demo to perform the migration. Carry the
+known pairing-revocation persistence assertion failure into the migration work
+and diagnose it before declaring the preserved spike checks green.
+
+Port proven pieces deliberately, each with its relevant regression coverage:
 
 - Android: Kotlin and Jetpack Compose. Port the accessibility capture and
   input, touch relay, video encoder, unlock sequence, start-after-restart and
@@ -200,9 +231,43 @@ repository and port proven pieces deliberately, each with its tests:
 - Web viewer: rebuilt around the readiness model below; reuse the spike
   viewer's interaction lessons rather than its code wholesale.
 
-Automated tests should cover protocol and security properties (as
-`tests/pairing.test.mjs` does) and a small physical-device acceptance run per
-release.
+Implementation defaults, chosen to make the owner's stack requirements concrete
+without further framework decisions:
+
+- Node LTS with pnpm workspaces and a committed lockfile. Strict TypeScript,
+  explicit package boundaries and runtime validation at network boundaries;
+  TypeScript types alone do not validate a phone or browser message.
+- React + Vite for the viewer; Vitest and React Testing Library for behavior
+  tests, Playwright Chromium for browser acceptance. Keep frame decoding and
+  pointer transport outside React render-state updates so screen traffic does
+  not delay typing or touch feedback.
+- Biome for TypeScript/React formatting and lint; separate TypeScript checking.
+  Build relay and protocol packages with explicit build/typecheck scripts.
+- Kotlin, Jetpack Compose, coroutines and explicit lifecycle/resource ownership
+  on Android. Separate transport, pairing/session authority, accessibility
+  capture/input, PIN delivery and MediaProjection. Use a committed Gradle
+  wrapper, Android lint and ktlint; no shell helpers or test activities in the
+  production APK. Kotlin must validate the same protocol constraints as TS.
+- Root commands for `build`, `typecheck`, `lint`, `format:check` and `test`, with
+  documented Android prerequisites. CI builds the web/relay and debug APK and
+  runs static checks plus meaningful TS/Kotlin tests. Device acceptance is an
+  explicit separate command, not a silently skipped unit-test dependency.
+
+Test protocol compatibility across TS/Kotlin, pairing and revocation, stale or
+expired authority, uncertain command delivery without replay, touch release on
+disconnect, capture lifecycle and slow receivers. Keep browser tests focused on
+complete user paths and sequential typing under incoming screen updates.
+Use emulator instrumentation for Android framework behavior and a small
+authorized physical-device acceptance run per release. Avoid tests that merely
+assert scaffolding exists or mirror implementation details.
+
+Start with build/CI and spike preservation, then one complete product path:
+pair, connect through the hosted fallback, view stills and control touch. Add
+on-demand FCM wake and direct WebRTC against that working fallback. Preserve the
+tested native mechanisms as they are ported; this is not a reason to reinvent
+continued gestures, codec edge cases or known-PIN checks. Consult the pinned
+[Yep Anywhere FCM reference](sibling-repositories.md#yep-anywhere-fcm-implementation-reference)
+before implementing push registration and delivery.
 
 ## Onboarding and readiness
 
@@ -229,8 +294,8 @@ emulator screenshots.
 
 | Phase | Done when |
 | --- | --- |
-| 0. Gates | Every gate above has a recorded result and the saved-PIN decision is made |
-| 1. Decisions | Decision records for transport, encryption, wake and routing; hosting target and operations plan selected within the existing infrastructure |
+| 0. Foundation | Spike preserved under `spike/`; TS/React/Kotlin builds, tests and lint run locally and in CI |
+| 1. Decisions and early gates | Transport, encryption, wake and routing decisions recorded; saved-PIN scope settled; hosting target selected; policy review starts early and remaining release gates have owners |
 | 2. Core | New app pairs, wakes on demand, tries direct WebRTC and automatically falls back to hosted control/stills; overnight test passes with no idle application relay connection |
 | 3. Onboarding | First-run flow and readiness checks complete; a non-technical tester sets up a phone unaided |
 | 4. Closed testing | Play closed track with the accessibility declaration accepted; issues from testers fixed |

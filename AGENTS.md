@@ -23,9 +23,10 @@ combined camera/Bluetooth product.
 
 ## Current authorization and reading
 
-This repository contains research and an explicitly authorized emulator spike,
-not an approved product implementation plan. The originating request authorizes repository creation, use-case and
-sibling documentation, competitive/UX research, Git initialization and a
+This repository began with research and an explicitly authorized emulator spike.
+Later implementation authorization is recorded below. The originating request
+authorizes repository creation, use-case and sibling documentation,
+competitive/UX research, Git initialization and a
 commit of that work. Brainstorming and “we should build this” are not sufficient
 reason to choose a brand, impose a YA integration, install software on phones
 or change their lock/debugging settings. Follow later explicit instructions.
@@ -61,6 +62,17 @@ Read README.md and the applicable documents under docs/ before proposing work.
 Keep product decisions separate from hypotheses and implementation evidence.
 Do not mark something implemented or authorized beyond what the user requested.
 Do not create approval rituals for ordinary reversible research or docs edits.
+
+The 2026-10-20 owner decision authorizes proceeding with the standalone product
+in this repository, preserving the existing executable prototype under `spike/`
+and building clean production components at the root. Use TypeScript for the
+relay/protocol and React viewer, and Kotlin for Android, with reproducible
+builds, tests and lint. See `docs/production-plan.md` for the planned layout,
+implementation defaults and open release decisions. This supersedes the earlier
+new-repository proposal; it does not authorize publication, production deployment,
+new device-setting changes or changes to unrelated sibling products. Use the
+pinned YA FCM reference in `docs/sibling-repositories.md` without making YA a
+runtime dependency.
 
 ## Research discipline
 

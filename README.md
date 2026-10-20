@@ -15,6 +15,12 @@ independent of Yep Anywhere (YA) and must work without AI subscriptions or an
 agent being signed in. Repairing YA Android-host authentication is one useful
 test case, not the product's identity.
 
+Production implementation was authorized **2026-10-20** in this same repository:
+React/TypeScript viewer, TypeScript relay/protocol and Kotlin Android app, with
+builds, tests and lint. The current runtime remains experimental; preserving it
+under `spike/` and creating the production layout are next. See the
+[production plan](docs/production-plan.md#repository-and-build-structure).
+
 - [Run the emulator demo](spike/README.md)
 - [Control an attached phone](docs/phone-spike.md)
 - [Continuous touch and smooth-view experiment](docs/touch-spike.md)
