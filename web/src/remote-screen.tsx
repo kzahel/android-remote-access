@@ -7,7 +7,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import type { RemoteSession } from "./control-session.js";
 import { TouchInput } from "./touch-input.js";
-import { VideoRenderer } from "./video-renderer.js";
+import { VideoDecodeError, VideoRenderer } from "./video-renderer.js";
 
 /** Media and pointer coordinates stay in refs; React owns only status and controls. */
 export function RemoteScreen({
@@ -113,7 +113,14 @@ export function RemoteScreen({
           );
       } catch (error) {
         if (!stopped) {
-          setActionMessage("");
+          if (error instanceof VideoDecodeError) {
+            videoActive = false;
+            shownVideo = false;
+            renderer?.close();
+            setQuality(0);
+            setActionMessage(error.message);
+            await session.command({ op: "video", quality: 0 }).catch(() => {});
+          } else setActionMessage("");
           setMessage(
             error instanceof Error ? error.message : "Connection ended",
           );

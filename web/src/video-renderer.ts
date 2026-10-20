@@ -1,6 +1,11 @@
 import type { Reply } from "@remote/protocol/control";
 
 type Frame = Extract<Reply, { kind: "video" }>;
+export class VideoDecodeError extends Error {
+  constructor() {
+    super("Smooth view is unavailable in this browser. Using still frames.");
+  }
+}
 /** Annex-B baseline AVC, no B frames. Keep decoded pixels and metadata out of React. */
 export class VideoRenderer {
   private decoder: VideoDecoder | undefined;
@@ -20,7 +25,8 @@ export class VideoRenderer {
     return typeof VideoDecoder !== "undefined";
   }
   push(frame: Frame): boolean {
-    if (this.failed || (this.decoder?.decodeQueueSize ?? 0) > 4) {
+    if (this.failed) throw new VideoDecodeError();
+    if ((this.decoder?.decodeQueueSize ?? 0) > 4) {
       this.close();
       this.failed = false;
       return false;
@@ -78,7 +84,13 @@ export class VideoRenderer {
             this.failed = true;
           },
         });
-        this.decoder.configure({ codec, optimizeForLatency: true });
+        try {
+          this.decoder.configure({ codec, optimizeForLatency: true });
+        } catch {
+          this.failed = true;
+          this.close();
+          throw new VideoDecodeError();
+        }
       }
     }
     if (
@@ -88,13 +100,19 @@ export class VideoRenderer {
     )
       return false;
     this.pending.set(frame.timestamp, frame);
-    this.decoder.decode(
-      new EncodedVideoChunk({
-        type: frame.key ? "key" : "delta",
-        timestamp: frame.timestamp,
-        data: frame.data,
-      }),
-    );
+    try {
+      this.decoder.decode(
+        new EncodedVideoChunk({
+          type: frame.key ? "key" : "delta",
+          timestamp: frame.timestamp,
+          data: frame.data,
+        }),
+      );
+    } catch {
+      this.failed = true;
+      this.close();
+      throw new VideoDecodeError();
+    }
     return true;
   }
   close() {
