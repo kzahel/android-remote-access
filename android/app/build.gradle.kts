@@ -69,6 +69,8 @@ dependencies {
     // Match the Kotlin 2.0-compatible Room runtime used above.
     //noinspection GradleDependency
     androidTestImplementation("androidx.room:room-testing:2.7.2")
+    // Data channels only. Exact AAR/license review: docs/direct-transport.md.
+    implementation("io.github.webrtc-sdk:android:150.7871.01")
     implementation(project(":protocol"))
     // Keep the established 4.x API with the pinned Kotlin 2.0 toolchain.
     //noinspection NewerVersionAvailable

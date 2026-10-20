@@ -30,6 +30,7 @@ export function RemoteScreen({
   const [text, setText] = useState("");
   const [pin, setPin] = useState("");
   const [quality, setQuality] = useState(0);
+  const [connectionPath, setConnectionPath] = useState(session.path);
   const [apps, setApps] = useState<AppEntry[]>([]);
   useEffect(() => {
     let stopped = false;
@@ -62,6 +63,7 @@ export function RemoteScreen({
           if (status.kind === "state") {
             videoActive = status.state.videoActive === true;
             setState(status.state);
+            setConnectionPath(session.path);
             if (!videoActive && shownVideo) {
               renderer?.close();
               shownVideo = false;
@@ -116,6 +118,10 @@ export function RemoteScreen({
             error instanceof Error ? error.message : "Connection ended",
           );
           frame.current = undefined;
+          if (session.connected)
+            timer = setTimeout(() => {
+              void capture();
+            }, 500);
         }
       }
     }
@@ -145,7 +151,7 @@ export function RemoteScreen({
     }
   }
   return (
-    <section aria-label="Remote screen">
+    <section aria-label="Remote screen" data-transport={connectionPath}>
       <p role="status">{actionMessage || message || "Connected securely"}</p>
       {!state.accessibility && (
         <p>
@@ -236,6 +242,9 @@ export function RemoteScreen({
       </div>
       <details>
         <summary>Viewing quality</summary>
+        <p>
+          Connection: {connectionPath === "direct" ? "Direct" : "Hosted relay"}
+        </p>
         <label>
           Smooth view
           <select

@@ -40,6 +40,8 @@ internal class RelayConnection(
     private var ready = false
     private var control: ControlSession? = null
 
+    @Volatile private var direct: dev.remoteaccess.app.transport.DirectLink? = null
+
     fun connect() {
         val url = grant.getString("origin").replaceFirst("https:", "wss:") + "/api/socket"
         socket = http.newWebSocket(Request.Builder().url(url).build(), this)
@@ -49,7 +51,8 @@ internal class RelayConnection(
     fun close(graceful: Boolean = false) {
         if (!active.compareAndSet(true, false)) return
         control?.close()
-        if (control != null && context != null) SessionService.stop(context)
+        direct?.close()
+        if ((control != null || direct != null) && context != null) SessionService.stop(context)
         handshake?.close()
         channel?.close()
         if (graceful) socket?.close(1000, null) else socket?.cancel()
@@ -138,7 +141,12 @@ internal class RelayConnection(
                         require(context != null && ControlCommand.decode(plaintext).op == 1)
                         startSession?.invoke() ?: SessionService.start(context)
                         onControl()
-                        control = ControlSession(context, grant.getString("id"), { active.get() && this.current() }, ::sendControl)
+                        direct?.close()
+                        direct = null
+                        control =
+                            ControlSession(
+                                context, grant.getString("id"), { active.get() && this.current() }, ::sendControl, ::offerDirect,
+                            )
                         report("Remote control connected")
                         control!!.receive(plaintext)
                         return
@@ -169,6 +177,24 @@ internal class RelayConnection(
             close()
             report("Encrypted session rejected")
         }
+    }
+
+    @Synchronized
+    private fun offerDirect(
+        sdp: String,
+        reply: (String?) -> Unit,
+    ) {
+        val app = context ?: return reply(null)
+        direct?.close()
+        val link =
+            dev.remoteaccess.app.transport.DirectLink(app, identity, grant, { active.get() && current() }) {
+                synchronized(this) {
+                    control?.close()
+                    control = null
+                }
+            }
+        direct = link
+        link.offer(sdp, reply)
     }
 
     @Synchronized

@@ -27,6 +27,28 @@ export async function controlAcceptance(f: Fixture) {
     viewport: { width: 1280, height: 1000 },
     deviceScaleFactor: 1,
   });
+  if (process.env.HOSTED_DIRECT === "1") {
+    await context.addInitScript(() => {
+      const native = window.RTCPeerConnection;
+      const peers: RTCPeerConnection[] = [];
+      (window as unknown as { __rtcPeers: RTCPeerConnection[] }).__rtcPeers =
+        peers;
+      window.RTCPeerConnection = class extends native {
+        constructor(config?: RTCConfiguration) {
+          super(config);
+          peers.push(this);
+        }
+      };
+    });
+  } else {
+    await context.addInitScript(() => {
+      window.RTCPeerConnection = class {
+        constructor() {
+          throw new Error("Acceptance fixture forces hosted fallback");
+        }
+      } as unknown as typeof RTCPeerConnection;
+    });
+  }
   await context.addInitScript(() => {
     const counts = window as unknown as {
       __videoFrames: number;
@@ -203,6 +225,18 @@ export async function controlAcceptance(f: Fixture) {
     await until(() =>
       canvas.evaluate((c) => c instanceof HTMLCanvasElement && c.width > 500),
     );
+    if (process.env.HOSTED_DIRECT === "1") {
+      await until(
+        async () =>
+          (await page
+            .getByRole("region", { name: "Remote screen" })
+            .getAttribute("data-transport")) === "direct",
+        20000,
+      );
+      console.log(
+        "Fresh pinned-identity session established over native WebRTC",
+      );
+    }
     if (process.env.HOSTED_UNLOCK === "1") {
       await page
         .getByRole("button", { name: "Lock phone", exact: true })
@@ -457,6 +491,32 @@ export async function controlAcceptance(f: Fixture) {
       await delay(1000);
       console.log("Native lost-packet watchdog released held input");
     }
+    if (process.env.HOSTED_DIRECT === "1") {
+      await command("control-fixture");
+      await delay(1500);
+      const middle = await at(witness().slider);
+      await page.mouse.move(middle.x, middle.y);
+      await page.mouse.down();
+      await page.mouse.move(middle.x + 35, middle.y, { steps: 3 });
+      await until(() => witness().sliderHeld, 3000);
+      await page.evaluate(() =>
+        (
+          window as unknown as { __rtcPeers: RTCPeerConnection[] }
+        ).__rtcPeers.forEach((peer) => peer.close()),
+      );
+      await until(() => !witness().sliderHeld, 3000);
+      await page.mouse.up();
+      await until(
+        async () =>
+          (await page
+            .getByRole("region", { name: "Remote screen" })
+            .getAttribute("data-transport")) === "relay",
+        20000,
+      );
+      console.log(
+        "Direct-path loss released native input and recovered through the relay without replay",
+      );
+    }
     if (process.env.HOSTED_UNLOCK === "1") {
       await page
         .getByRole("button", { name: "Lock phone", exact: true })
@@ -531,6 +591,7 @@ export async function controlAcceptance(f: Fixture) {
           nativeSwipe: true,
           heldTouch: process.env.HOSTED_TOUCH === "1",
           videoMeasurement,
+          directAndFallback: process.env.HOSTED_DIRECT === "1",
           smoothVideo: process.env.HOSTED_VIDEO === "1",
           savedAndManualPin: process.env.HOSTED_UNLOCK === "1",
           navigation: true,

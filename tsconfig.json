@@ -15,6 +15,7 @@
     "protocol/src",
     "protocol/test",
     "web/src",
+    "web/test",
     "scripts",
     "relay/src",
     "relay/test"

@@ -15,6 +15,7 @@ internal class ControlSession(
     private val browserId: String,
     private val current: () -> Boolean,
     private val send: (ByteArray) -> Unit,
+    private val offerDirect: ((String, (String?) -> Unit) -> Unit)? = null,
 ) {
     private val active = AtomicBoolean(true)
     private val busy = AtomicBoolean(false)
@@ -34,7 +35,16 @@ internal class ControlSession(
                 if (active.get() && current()) send(ControlCommand.reply(commandId, kind, payload))
             }
         }
-        if (command.op == 10) {
+        if (command.op == 19) {
+            val negotiate = offerDirect
+            if (negotiate == null) {
+                reply(2, byteArrayOf(4))
+            } else {
+                negotiate(command.text) { sdp ->
+                    if (sdp == null) reply(2, byteArrayOf(4)) else reply(6, sdp.toByteArray())
+                }
+            }
+        } else if (command.op == 10) {
             val intent =
                 android.content.Intent(android.content.Intent.ACTION_MAIN)
                     .addCategory(android.content.Intent.CATEGORY_LAUNCHER)

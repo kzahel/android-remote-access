@@ -33,7 +33,8 @@ export type Command =
   | { op: "touch"; batch: TouchBatch }
   | { op: "release" | "unlockSaved" | "sleep" }
   | { op: "unlock"; pin: string }
-  | { op: "video"; quality: 0 | 1 | 2 | 3 };
+  | { op: "video"; quality: 0 | 1 | 2 | 3 }
+  | { op: "directOffer"; sdp: string };
 const operations = [
   "start",
   "status",
@@ -53,8 +54,9 @@ const operations = [
   "video",
   "videoFrame",
   "videoKey",
+  "directOffer",
 ] as const;
-export const MAX_COMMAND = 4112;
+export const MAX_COMMAND = 32784;
 export function encodeCommand(
   id: number,
   command: Command,
@@ -82,6 +84,11 @@ export function encodeCommand(
       tail = new Uint8Array([
         ["back", "home", "recents"].indexOf(command.action) + 1,
       ]);
+      break;
+    case "directOffer":
+      tail = new TextEncoder().encode(command.sdp);
+      if (!command.sdp.startsWith("v=0\r\n") || tail.length > 32768)
+        throw new Error("Invalid direct offer");
       break;
     case "video":
       if (![0, 1, 2, 3].includes(command.quality))
@@ -142,6 +149,7 @@ export type ControlState = {
 export type AppEntry = { name: string; packageName: string };
 export type Reply = { id: number } & (
   | { kind: "apps"; apps: AppEntry[] }
+  | { kind: "directAnswer"; sdp: string }
   | { kind: "state"; state: ControlState }
   | { kind: "result"; code: number }
   | {
@@ -228,6 +236,14 @@ export function decodeReply(data: Uint8Array<ArrayBuffer>): Reply {
       )
         throw new Error("Invalid image");
       return { id, kind: "image", scene, width, height, jpeg: data.slice(24) };
+    }
+    case 6: {
+      if (data.length > 32780) throw new Error("Invalid direct answer");
+      const sdp = new TextDecoder("utf-8", { fatal: true }).decode(
+        data.slice(12),
+      );
+      if (!sdp.startsWith("v=0\r\n")) throw new Error("Invalid direct answer");
+      return { id, kind: "directAnswer", sdp };
     }
     case 5: {
       if (data.length < 52 || data.length > 524288)

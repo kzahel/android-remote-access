@@ -72,6 +72,19 @@ describe("control boundary", () => {
       ),
     ).toBe("415243310d00000000000008333134313539");
   });
+  it("bounds encrypted direct signaling independently of text input", () => {
+    expect(() => encodeCommand(1, { op: "directOffer", sdp: "bad" })).toThrow();
+    expect(() =>
+      encodeCommand(1, {
+        op: "directOffer",
+        sdp: `v=0\r\n${"x".repeat(32768)}`,
+      }),
+    ).toThrow();
+    expect(
+      encodeCommand(1, { op: "directOffer", sdp: `v=0\r\n${"x".repeat(8000)}` })
+        .length,
+    ).toBeGreaterThan(8000);
+  });
   it("bounds video metadata before decoder allocation", () => {
     const record = new Uint8Array(56),
       v = new DataView(record.buffer);
