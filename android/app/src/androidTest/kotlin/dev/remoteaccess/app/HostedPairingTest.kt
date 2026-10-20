@@ -1,12 +1,15 @@
 package dev.remoteaccess.app
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
+import org.json.JSONObject
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
@@ -55,6 +58,13 @@ class HostedPairingTest {
         assertTrue(command.exists(), "Browser runner did not finish")
         if (command.readText() == "wake") {
             device.findObject(By.res("${context.packageName}:id/enable_wake")).click()
+            if (android.os.Build.VERSION.SDK_INT >= 33 &&
+                context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+            ) {
+                val allow = device.wait(Until.findObject(By.res("com.android.permissioncontroller:id/permission_allow_button")), 10000)
+                assertNotNull(allow, "Notification permission prompt missing")
+                allow.click()
+            }
             assertTrue(device.wait(Until.hasObject(By.text("Remote wake ready")), 60000), "Firebase registration did not reach relay")
             device.pressHome()
             stage.writeText("wake-ready")
@@ -65,5 +75,22 @@ class HostedPairingTest {
             stage.writeText("revoked")
         }
         command.delete()
+    }
+
+    /** Owned test fixture cleanup also works behind a secure keyguard, without credential entry. */
+    @Test
+    fun revokeFixture() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        assertTrue(File(context.filesDir, "hosted-stage").exists(), "Not an enrolled acceptance fixture")
+        val preferences = WakeSupport.preferences(context)
+        val grant = JSONObject(assertNotNull(preferences.getString("grant", null)))
+        preferences.save { putBoolean("revoked", true) }
+        androidx.work.WorkManager.getInstance(context).cancelAllWork()
+        val signature =
+            KeystoreIdentity.loadOrCreate(
+                "phone-identity-v1",
+            ).sign(fields("ara/pair/revoke/v1", grant.getString("origin"), grant.getString("id")))
+        request(grant.getString("origin"), grant.getString("id"), "revoke", JSONObject().put("signature", encoded(signature)))
+        preferences.save { remove("grant").remove("revoked").putBoolean("wakeEnabled", false) }
     }
 }

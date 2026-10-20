@@ -352,8 +352,9 @@ checks encrypted exchanges, restarts the native process/reloads the browser,
 and revokes the paired browser. Camera optics are a separate physical check.
 
 The [FCM wake slice](fcm-wake-v1.md) passes deterministic tests and real hosted
-Firebase delivery to an owned emulator with the app process/socket absent.
-Physical Doze and overnight acceptance remain pending. Its acceptance has three
+Firebase delivery to an owned emulator and a physical Pixel 7a with the app
+process/socket absent, including screen-off forced Doze. Natural overnight
+acceptance remains pending. Its acceptance has three
 layers: deterministic sender/registration/revocation tests; real Firebase delivery with the application
 relay socket closed and native receipt → authenticated exchange evidence; then
 physical forced-Doze and natural overnight runs. Include token replacement,

@@ -13,7 +13,8 @@ and Kotlin now enroll real peer identities by QR, reconnect with durable pins,
 exchange encrypted test messages through a hosted relay, and revoke access.
 See [hosted acceptance](docs/hosted-pairing-proof.md) for measured scope. The
 [FCM wake slice](docs/fcm-wake-v1.md) now passes real delivery from the hosted
-relay to an owned Android emulator with its app process and socket absent.
+relay with the app process/socket absent, on an owned emulator and a physical
+Pixel 7a, including screen-off forced Doze.
 Screen viewing/control and WebRTC are later slices. The
 [manual-access spike](spike/README.md) remains the working remote-control demo.
 This project is independent of Yep Anywhere and needs no AI runtime.

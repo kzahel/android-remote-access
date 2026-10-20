@@ -58,6 +58,14 @@ tests and use of the attached Pixel 7a. The current hardware trial uses it as
 the browser client; it does not install the host APK or change its lock/debugging
 settings. See `docs/touch-spike.md` for the measured role and limits.
 
+The 2026-10-20 owner request to use the attached Pixel 7a for testing extends
+its role to the new hosted pairing/FCM host acceptance. This includes temporary
+test-package installation, normal Grant/notification consent, process reclamation
+and screen-off forced-Doze checks with battery/idle overrides restored afterward.
+Preserve the earlier spike and other applications. This does not authorize PIN
+entry, lock/debugging changes or reboot testing. See `docs/fcm-wake-v1.md` for
+the measured result; natural unplugged overnight qualification remains separate.
+
 Read README.md and the applicable documents under docs/ before proposing work.
 Keep product decisions separate from hypotheses and implementation evidence.
 Do not mark something implemented or authorized beyond what the user requested.

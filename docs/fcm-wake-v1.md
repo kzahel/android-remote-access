@@ -4,8 +4,8 @@ Implementation and hosted emulator acceptance: **2026-10-20**. A separate
 Firebase project, Android registration and dedicated relay sender are provisioned.
 Real Firebase delivery from the hosted relay passes with the application process
 and socket absent. Concrete Firebase identities and Pi credential paths belong
-in the private dotfiles runbook. Physical Doze and overnight reliability remain
-unqualified.
+in the private dotfiles runbook. A physical Pixel 7a also passes screen-off
+forced-Doze wake; natural overnight reliability remains unqualified.
 
 ## Decision and wire behavior
 
@@ -118,8 +118,51 @@ The first live attempt exposed the missing manifest opt-in; after correcting it,
 the failed fixture's grant was removed through the normal native flow before
 rerunning. Private checkpoint evidence stays in `.local/hosted-proof/`.
 
-Real emulator delivery is followed by an explicitly selected physical-device
-Doze test and unplugged natural overnight acceptance. No claim is made about
+## Physical Pixel 7a acceptance
+
+Owner-authorized and measured **2026-10-20**, Pixel 7a, Android 17/API 37,
+against the same public HTTPS/WSS relay. The current host APK is a separate
+package from the preserved accessibility spike. The physical mode requires an
+exact selector and expected model, current owner user, unlocked/awake readiness,
+and both test packages absent globally. It refuses to replace existing app data
+or existing battery/forced-idle overrides.
+
+```sh
+HOSTED_DEVICE="$PHONE_SERIAL" HOSTED_DEVICE_MODEL='Pixel 7a' \
+HOSTED_FCM=1 HOSTED_DOZE=1 HOSTED_ORIGIN=https://YOUR_DEVELOPMENT_ORIGIN \
+pnpm test:hosted
+```
+
+Omit `HOSTED_DOZE=1` for a foreground/background wake run without screen/idle
+changes. Physical mode accepts the normal notification permission prompt;
+emulator mode retains its owned-fixture permission setup. Neither mode enters
+a lock credential. QR screenshot decoding still enters through the normal
+pairing intent and Grant UI, without a camera photo.
+
+| Checkpoint | Result |
+| --- | --- |
+| Grant, notification prompt and authenticated registration | Pass |
+| Ordinary background wake with process/socket absent | Push receipt 810 ms; E2E exchange 2366 ms |
+| Deep Doze, screen off, host not battery exempt | `IDLE` verified before wake; 31 s without ADB polling |
+| FCM wake from that forced-idle state, process/socket absent | Push receipt 1005 ms; E2E exchange 2339 ms |
+| Native restart and viewer reload | Pairing retained; four encrypted exchanges in total |
+| Authenticated phone-side cleanup and later viewer refusal | Pass; native test key signs ordinary revocation behind keyguard |
+| Device restoration | Both temporary packages removed; battery simulation reset; forced idle released; original task requested |
+
+Latency uses a device-clock offset estimate with ±19 ms sampling uncertainty.
+These are two individual wakes, not reliability statistics. Native UI pairing,
+reconnect and locked-fixture revocation instrumentation passed. Cleanup checks
+confirmed normal powered battery reporting and deep/light idle `ACTIVE`; the
+phone's normal PIN keyguard remained visible after waking the display. No PIN,
+lock/debugging setting, accessibility grant, network setting or other package
+was changed. Private logs and witnesses stay in `.local/physical-hosted-proof/`.
+A locked physical phone is refused before installation on a subsequent run;
+unlock it locally to repeat. Failed enrollment retains owned fixture state for
+signed revocation/repair rather than silently erasing its keys.
+
+This forced-idle experiment used a USB-connected phone with charging simulated
+as unplugged, not hours of natural unplugged idle. Natural overnight acceptance
+remains next. No claim is made about
 force-stop recovery, non-GMS devices, first unlock after reboot, display wake,
 keyguard dismissal, screen capture/input, battery cost or Play review.
 
