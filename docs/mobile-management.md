@@ -197,3 +197,76 @@ three encrypted checks, process-absent Firebase delivery, restart/reload
 persistence, revocation and subsequent refusal. The production viewer/relay
 release is `29b8295`; later documentation/license-asset changes do not alter its
 wire behavior. Final APK assets include the pinned upstream license and NOTICE.
+
+## Simplified navigation and appearance
+
+Owner direction, 2026-10-20: keep initial use focused on basic phone settings
+and local activity. Per-browser grants remain useful, but are secondary UI.
+Add familiar native navigation, Light/Dark appearance and a minimal green accent.
+
+The Android host now has a fixed title bar and native hamburger drawer with
+Home, Activity and Settings. Detail screens use a back arrow; Android Back closes
+the drawer first or returns through the actual navigation hierarchy. The selected
+page and its parent stack survive Activity recreation. The drawer stays intact
+while connection/readiness updates refresh page content.
+
+- Home shows the global access switch, current connection/readiness, Stop
+  connection while connected, and Connect from another device. Specific repair
+  rows lead directly to screen access or background settings. Choosing to connect
+  only while the app is open is a valid configuration, not unfinished setup.
+- Settings has focused Screen and control, Unlocking, Background connections,
+  Manage access, Appearance and About pages. Paired browsers, nicknames,
+  per-browser access/unlock switches, disconnect and confirmed removal live under
+  Manage access. Existing grant defaults and authority checks are unchanged.
+- Pairing still works before Android permissions. The skippable post-pairing
+  guide links to the same feature screens used by Settings. There is one place
+  to change each preference; no separate duplicated setup controls.
+- Activity remains bounded, local history with event/browser/time entries. The
+  redesign does not extend retention, capture screen content or make history a
+  tamper-proof audit service. It does not add one-time grants or a new browser
+  identity protocol; local names and paired/last-used times retain their limits.
+- Appearance offers System (default), Light and Dark. The explicit choice persists
+  locally and takes precedence over the phone's theme; System follows Android
+  changes. Both palettes use green accents, neutral surfaces, readable secondary
+  text and green primary actions. Native permission explanations and dialogs use
+  the selected Activity theme. Appearance is separate from access policy.
+
+The UI stays in Kotlin/native views, with AndroidX DrawerLayout 1.2.0 for modal
+drawer behavior. The exact artifact's published POM declares Apache-2.0 (reviewed
+2026-10-20); see its [release](https://developer.android.com/jetpack/androidx/releases/drawerlayout#1.2.0)
+and [POM](https://dl.google.com/dl/android/maven2/androidx/drawerlayout/drawerlayout/1.2.0/drawerlayout-1.2.0.pom).
+There is no viewer/relay/protocol or database-schema change.
+
+### Verification
+
+`pnpm build:android` builds the app and instrumentation APK. Then run:
+
+```sh
+pnpm test:mobile-ui
+HOSTED_ORIGIN=https://YOUR_DEVELOPMENT_ORIGIN pnpm test:mobile
+```
+
+The new relay-independent runner owns an API-35 emulator on port 5596, refuses
+an occupied selector, and closes its emulator. It exercises the actual native
+UI: the simple first-run Home, drawer selection/dismissal, Settings/detail Back,
+fixed title bar while scrolling, explicit Light/Dark, persistence across task
+restart, Android theme changes, themed sharing dialog and landscape recreation.
+System appearance and rotation overrides are restored in the test's finally
+block. Screenshots, instrumentation output and receipt stay in ignored
+`.local/mobile-ui-proof/`.
+
+The existing hosted management runner uses the new drawer and Settings paths to
+exercise real two-browser pairing, renaming, foreground access, notification
+repair, process-absent FCM, global/per-browser policy, disconnect and revocation.
+It keeps its separate owned emulator and isolated browser fixtures. No physical
+phone or lock/debugging setting is selected by either run.
+
+Both acceptance runs passed on 2026-10-20. Native screenshots were visually
+reviewed in Light/Dark, the sharing dialog and landscape, including an explicit
+Light choice while Android uses Dark. The hosted run passed all three Room tests,
+both real foreground exchanges and process-absent FCM wakes, persisted aliases,
+notification repair/revocation/restoration, global and per-browser policy,
+disconnect and isolated removal of both fixture grants. Android debug/test builds,
+Android lint, ktlint, TypeScript checking, the new runner's Biome check and
+`git diff --check` also passed. These are owned-emulator results, not a new
+physical-phone, reboot or natural overnight qualification.

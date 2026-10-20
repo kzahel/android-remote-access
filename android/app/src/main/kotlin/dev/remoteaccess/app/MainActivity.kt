@@ -3,17 +3,23 @@ package dev.remoteaccess.app
 import android.Manifest
 import android.app.AlertDialog
 import android.content.Intent
+import android.content.res.ColorStateList
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.RippleDrawable
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.util.TypedValue
+import android.view.Gravity
 import android.view.View
-import android.view.WindowInsets
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
-import android.widget.ScrollView
+import android.widget.RadioButton
+import android.widget.RadioGroup
 import android.widget.Switch
 import android.widget.TextView
 import androidx.activity.ComponentActivity
@@ -33,6 +39,8 @@ import java.util.Date
 /** Plain native management UI. Authority and sessions belong to the application, not this activity. */
 class MainActivity : ComponentActivity() {
     private val store by lazy { HostStore.get(this) }
+    private lateinit var shell: ManagementShell
+    private val backStack = mutableListOf<String>()
     private var page = "home"
     private var browserId: String? = null
     private var pending: Enrollment? = null
@@ -63,18 +71,21 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        setTheme(Appearance.theme(this))
         super.onCreate(savedInstanceState)
         onBackPressedDispatcher.addCallback(
             this,
             object : OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
-                    if (page == "home") finish() else navigate("home")
+                    goBack()
                 }
             },
         )
         page = savedInstanceState?.getString("page") ?: "home"
         browserId = savedInstanceState?.getString("browserId")
         if (page == "grant") page = "home" // Never persist QR secrets in activity state.
+        backStack.addAll(savedInstanceState?.getStringArrayList("navigation") ?: emptyList())
+        shell = ManagementShell(this, ::goBack, { navigate(it) }, ::showSharingSetup)
         HostRuntime.io.execute {
             store.load()
             runOnUiThread {
@@ -165,6 +176,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
+        outState.putStringArrayList("navigation", ArrayList(backStack))
         outState.putString("page", page)
         outState.putString("browserId", browserId)
         outState.putBoolean("sharing", sharingDialog?.isShowing == true)
@@ -173,10 +185,29 @@ class MainActivity : ComponentActivity() {
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
 
+    private fun goBack() {
+        if (shell.closeDrawer()) return
+        if (backStack.isNotEmpty()) {
+            page = backStack.removeAt(backStack.lastIndex)
+            notice = null
+            pending = null
+            render()
+        } else if (page != "home") {
+            navigate("home")
+        } else {
+            finish()
+        }
+    }
+
     private fun navigate(
         value: String,
         id: String? = null,
     ) {
+        if (value in setOf("home", "activity", "settings")) {
+            backStack.clear()
+        } else if (page != value) {
+            backStack.add(page)
+        }
         page = value
         browserId = id
         notice = null
@@ -186,39 +217,24 @@ class MainActivity : ComponentActivity() {
 
     private fun render() {
         if (isDestroyed || isFinishing) return
-        val layout =
-            LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(dp(20), dp(12), dp(20), dp(24))
-            }
-        val scroll =
-            ScrollView(this).apply {
-                isFillViewport = true
-                addView(layout)
-                setOnApplyWindowInsetsListener { view, insets ->
-                    val bars = insets.getInsets(WindowInsets.Type.systemBars())
-                    view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
-                    insets
-                }
-            }
-        setContentView(scroll)
-        val lightBars =
-            android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
-                android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
-        window.insetsController?.setSystemBarsAppearance(lightBars, lightBars)
-        if (page != "home") button(layout, "Back", R.id.navigate_back) { navigate("home") }
-        text(
-            layout,
+        shell.page(
+            page,
             when (page) {
                 "settings" -> "Settings"
-                "features" -> "Enable features"
+                "features" -> "Choose features"
                 "activity" -> "Activity"
-                "browser" -> "Browser"
+                "browsers" -> "Manage access"
+                "browser" -> browserId?.let(store::browser)?.nickname ?: "Browser"
+                "screen" -> "Screen and control"
+                "unlock" -> "Unlocking"
+                "background" -> "Background connections"
+                "appearance" -> "Appearance"
+                "about" -> "About"
                 "grant" -> "Pair browser"
-                else -> "Remote access"
+                else -> "Home"
             },
-            26f,
         )
+        val layout = shell.body
         if (!loaded) {
             text(layout, "Loading…")
             return
@@ -228,7 +244,13 @@ class MainActivity : ComponentActivity() {
             "settings" -> settings(layout)
             "features" -> features(layout)
             "activity" -> activity(layout)
+            "browsers" -> browsers(layout)
             "browser" -> browser(layout)
+            "screen" -> screenSettings(layout)
+            "unlock" -> unlockSettings(layout)
+            "background" -> backgroundSettings(layout)
+            "appearance" -> appearance(layout)
+            "about" -> about(layout)
             "grant" -> invitation(layout)
             else -> home(layout)
         }
@@ -236,55 +258,69 @@ class MainActivity : ComponentActivity() {
 
     private fun home(layout: LinearLayout) {
         val state = store.snapshot
-        toggle(layout, "Allow remote access", state.settings.armed, R.id.access_toggle) { enabled ->
-            change { it.settings(armed = enabled) }
-        }
         val live = HostSessions.current.get()
         val browsers = state.browsers.filter { !it.revoked }
         val status =
             when {
-                !state.settings.armed -> "Off · Paired browsers cannot connect"
-                browsers.isEmpty() -> "Pair a browser to get started"
+                !state.settings.armed -> "Remote access is off"
+                browsers.isEmpty() -> "Connect from another device to get started"
                 live != null -> "${store.browser(live.browserId)?.nickname ?: "Browser"} · ${sessionStatus(live.status)}"
-                browsers.none { it.enabled } -> "No browsers allowed · Enable one below"
-                ScreenAccessService.current == null -> "Paired · Enable screen access when ready"
-                !state.settings.automatic ->
-                    if (browsers.any { ForegroundAccess.listening(it.id) }) "Available while this app is open" else "Paired · Connecting…"
-                com.google.firebase.FirebaseApp.getApps(this).isEmpty() -> "Connection setup unavailable"
-                !WakeSupport.notificationsAllowed(this) -> "Notifications are off · Enable them to receive requests"
-                browsers.any { it.enabled && (!it.synced || !it.wakeReady) } -> "Connection setup needs attention"
+                browsers.none { it.enabled } -> "Access is paused for all paired browsers"
+                !state.settings.automatic -> "Available while this app is open"
+                com.google.firebase.FirebaseApp.getApps(this).isEmpty() -> "Background connections need attention"
+                !WakeSupport.notificationsAllowed(this) -> "Background connections need notifications"
+                browsers.any { it.enabled && (!it.synced || !it.wakeReady) } -> "Updating connection setup…"
                 else -> "Ready for connection requests"
             }
-        text(layout, status, 18f).apply {
+        val access = section(layout)
+        toggle(access, "Allow remote access", state.settings.armed, R.id.access_toggle) { enabled ->
+            change { it.settings(armed = enabled) }
+        }
+        text(access, status).apply {
             id = R.id.host_status
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         }
-        if (state.settings.armed && browsers.any { it.enabled } && live == null &&
-            (
-                ScreenAccessService.current == null || !state.settings.automatic || !WakeSupport.notificationsAllowed(this) ||
-                    browsers.any { it.enabled && (!it.synced || !it.wakeReady) }
-            )
-        ) {
-            button(layout, "Finish setup", R.id.review_settings) { navigate("features") }
+        if (live != null) {
+            button(access, "Stop connection", R.id.disconnect_browser) { HostRuntime.disconnect(this, live.browserId) }
         }
-        if (state.browsers.isNotEmpty()) text(layout, "Paired browsers", 20f)
-        state.browsers.forEach { browser ->
+        if (state.settings.armed && browsers.any { it.enabled }) {
+            if (ScreenAccessService.current == null) {
+                row(layout, "Screen access is off", "Review to enable viewing and control", R.id.review_settings) { navigate("screen") }
+            }
+            if (state.settings.automatic && (
+                    !WakeSupport.notificationsAllowed(this) ||
+                        browsers.any { it.enabled && (!it.synced || !it.wakeReady) }
+                )
+            ) {
+                row(layout, "Background connections", "Review connection setup", R.id.background_settings) { navigate("background") }
+            }
+        }
+        if (state.settings.armed && browsers.isNotEmpty() && browsers.none { it.enabled }) {
+            row(layout, "Manage access", "Choose which browsers can connect", R.id.manage_access) { navigate("browsers") }
+        }
+        button(layout, "Connect from another device", R.id.pair_browser) { showSharingSetup() }
+        text(
+            layout,
+            "Open the website on another device, then pair it with this phone. Paired browsers can reconnect without scanning again.",
+            14f,
+        )
+    }
+
+    private fun browsers(layout: LinearLayout) {
+        text(layout, "Browsers you have paired can reach this phone. Open an entry to rename it, change permissions or remove access.", 14f)
+        if (store.snapshot.browsers.isEmpty()) text(layout, "No paired browsers yet.")
+        store.snapshot.browsers.forEach { browser ->
             val summary =
                 when {
                     browser.revoked -> "Access removed · Finishing removal"
-                    !browser.enabled -> "Disabled"
-                    !state.settings.armed -> "Allowed · Remote access is off"
-                    live?.browserId == browser.id -> sessionStatus(live.status)
-                    else -> "Allowed · ${lastConnected(browser)}"
+                    !browser.enabled -> "Access paused"
+                    !store.snapshot.settings.armed -> "Allowed · Remote access is off"
+                    HostSessions.current.get()?.browserId == browser.id -> "Connected"
+                    else -> lastConnected(browser)
                 }
-            button(layout, "${browser.nickname}\n$summary") { navigate("browser", browser.id) }
+            row(layout, browser.nickname, summary) { navigate("browser", browser.id) }
         }
-        button(layout, if (browsers.isEmpty()) "Set up sharing" else "Add browser", R.id.pair_browser) { showSharingSetup() }
-        if (browsers.isNotEmpty()) button(layout, "How to connect", R.id.how_to_connect) { showSharingSetup() }
-        val row = LinearLayout(this)
-        layout.addView(row)
-        button(row, "Activity", R.id.open_activity) { navigate("activity") }
-        button(row, "Settings", R.id.open_settings) { navigate("settings") }
+        button(layout, "Add browser", R.id.pair_browser) { showSharingSetup() }
     }
 
     private fun showSharingSetup() {
@@ -302,18 +338,38 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun features(layout: LinearLayout) {
-        text(
+        text(layout, "Browser paired. Choose what you want to enable, or do this later in Settings.")
+        featureRows(layout)
+        button(layout, "Done", R.id.skip_features) { navigate("home") }
+    }
+
+    private fun featureRows(layout: LinearLayout) {
+        row(layout, "Screen and control", if (ScreenAccessService.current != null) "Enabled" else "Off", R.id.screen_settings) {
+            navigate("screen")
+        }
+        row(
             layout,
-            if (store.snapshot.browsers.any { !it.revoked }) {
-                "Pairing is complete. Choose the features you want to use. You can change these later."
-            } else {
-                "Choose the features you want to use. Pair a browser whenever you’re ready."
+            "Unlocking",
+            if (PinVault(this).saved()) "PIN saved on this phone" else "Optional · No saved PIN",
+            R.id.unlock_settings,
+        ) {
+            navigate("unlock")
+        }
+        row(
+            layout,
+            "Background connections",
+            when {
+                !store.snapshot.settings.automatic -> "Off · Connect while the app is open"
+                !WakeSupport.notificationsAllowed(this) -> "Notifications needed"
+                else -> "On · Depends on Android and network availability"
             },
-            14f,
-        )
-        text(layout, "Connection requests", 20f)
-        connectionRequests(layout)
-        text(layout, "Screen viewing and touch", 20f)
+            R.id.background_settings,
+        ) {
+            navigate("background")
+        }
+    }
+
+    private fun screenSettings(layout: LinearLayout) {
         text(
             layout,
             "See this phone’s screen and control it from a paired browser. " +
@@ -324,6 +380,7 @@ class MainActivity : ComponentActivity() {
             layout,
             if (ScreenAccessService.current != null) "Screen access is enabled" else "Screen access is off",
         )
+        text(layout, "Smooth video also needs Android’s screen-sharing approval when requested. Protected screens may remain hidden.", 14f)
         button(layout, "Screen access settings") {
             AlertDialog.Builder(this).setTitle("Allow remote screen access?")
                 .setMessage(
@@ -339,14 +396,21 @@ class MainActivity : ComponentActivity() {
                     null,
                 ).setPositiveButton("Continue") { _, _ -> startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }.show()
         }
-        text(layout, "Locked phone", 20f)
-        text(layout, "You can enter a PIN from the browser or save it on this phone. Allow unlocking in each browser’s settings.", 14f)
+    }
+
+    private fun unlockSettings(layout: LinearLayout) {
+        text(
+            layout,
+            "Enter your phone’s PIN during a remote session, or optionally save it on this phone. " +
+                "Each browser needs your permission to unlock.",
+        )
+        text(layout, "After a restart, unlock the phone locally once before remote unlocking can work.", 14f)
         button(layout, "Save phone PIN", R.id.save_pin) { UnlockSetup.show(this) { render() } }
         if (PinVault(this).saved()) {
             text(layout, "A PIN is saved on this phone")
             button(layout, "Forget saved PIN", R.id.forget_pin) { UnlockSetup.forget(this) { render() } }
         }
-        button(layout, "Done", R.id.skip_features) { navigate("home") }
+        row(layout, "Manage browser permissions", "Choose which browsers may unlock", R.id.manage_access) { navigate("browsers") }
     }
 
     private fun connectionRequests(layout: LinearLayout) {
@@ -382,7 +446,62 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun settings(layout: LinearLayout) {
-        button(layout, "Feature setup", R.id.open_features) { navigate("features") }
+        featureRows(layout)
+        row(layout, "Manage access", "Paired browsers and their permissions", R.id.manage_access) { navigate("browsers") }
+        row(
+            layout,
+            "Appearance",
+            when (Appearance.choice(this)) {
+                "light" -> "Light"
+                "dark" -> "Dark"
+                else -> "System"
+            },
+            R.id.appearance_settings,
+        ) {
+            navigate("appearance")
+        }
+        row(layout, "About", "App version and information", R.id.about_settings) { navigate("about") }
+    }
+
+    private fun appearance(layout: LinearLayout) {
+        text(layout, "Choose how this app looks. System follows your phone’s appearance setting.", 14f)
+        val selected = Appearance.choice(this)
+        val choices = RadioGroup(this).apply { orientation = RadioGroup.VERTICAL }
+        for ((mode, resource) in listOf(
+            "system" to R.id.appearance_system,
+            "light" to R.id.appearance_light,
+            "dark" to R.id.appearance_dark,
+        )) {
+            choices.addView(
+                RadioButton(this).apply {
+                    id = resource
+                    text = mode.replaceFirstChar { it.uppercase() }
+                    textSize = 18f
+                    minHeight = dp(56)
+                    isChecked = mode == selected
+                    isEnabled = !busy
+                },
+                LinearLayout.LayoutParams(-1, -2),
+            )
+        }
+        choices.setOnCheckedChangeListener { _, checked ->
+            val mode =
+                when (checked) {
+                    R.id.appearance_light -> "light"
+                    R.id.appearance_dark -> "dark"
+                    else -> "system"
+                }
+            if (mode != selected) {
+                perform {
+                    Appearance.save(this, mode)
+                    runOnUiThread { recreate() }
+                }
+            }
+        }
+        layout.addView(choices)
+    }
+
+    private fun backgroundSettings(layout: LinearLayout) {
         connectionRequests(layout)
         toggle(layout, "Restore setup after restart", RestartRecovery.enabled(this), R.id.restore_setup) { enabled ->
             perform { RestartRecovery.setEnabled(this, enabled) }
@@ -437,26 +556,9 @@ class MainActivity : ComponentActivity() {
         if (com.google.firebase.FirebaseApp.getApps(this).isEmpty()) {
             text(layout, "Connection requests are unavailable in this installation. Install an app update to complete setup.", 14f)
         }
-        store.snapshot.browsers.filter { !it.revoked }.forEach {
-            text(
-                layout,
-                "${it.nickname}: ${if (!it.synced) {
-                    "Settings update pending"
-                } else if (!store.snapshot.settings.armed || !it.enabled) {
-                    "Access is off"
-                } else if (!store.snapshot.settings.automatic) {
-                    "Connection requests are off"
-                } else if (!WakeSupport.notificationsAllowed(this)) {
-                    "Notifications needed"
-                } else if (it.wakeReady) {
-                    "Ready for connection requests"
-                } else {
-                    "Setup incomplete"
-                }}",
-                14f,
-            )
-        }
-        text(layout, "About", 20f)
+    }
+
+    private fun about(layout: LinearLayout) {
         text(layout, "Android Remote Access ${BuildConfig.VERSION_NAME}", 14f)
         text(layout, "Pair browsers to view and control this phone securely.", 14f)
         text(
@@ -472,7 +574,6 @@ class MainActivity : ComponentActivity() {
                 text(layout, "Browser removed")
                 return
             }
-        text(layout, browser.nickname, 22f)
         text(layout, "Paired ${time(browser.pairedAt)}\n${lastConnected(browser)}", 14f)
         if (browser.revoked) {
             text(layout, "This browser can no longer connect. Connect this phone to the internet to finish removing it.")
@@ -519,8 +620,9 @@ class MainActivity : ComponentActivity() {
                 if (isDestroyed || page != "activity" || !container.isAttachedToWindow) return@runOnUiThread
                 if (events.isEmpty()) text(container, "No activity yet.")
                 events.forEach { event ->
+                    val entry = section(container)
                     text(
-                        container,
+                        entry,
                         when (event.kind) {
                             "Wake setup completed" -> "Connection settings updated"
                             "Wake setup failed" -> "Connection setup needs attention"
@@ -529,8 +631,9 @@ class MainActivity : ComponentActivity() {
                         },
                         16f,
                     )
-                    text(container, "${time(event.at)}${event.browserName?.let { " · $it" } ?: ""}", 14f)
+                    text(entry, "${time(event.at)}${event.browserName?.let { " · $it" } ?: ""}", 14f)
                 }
+                shell.restoreScroll()
                 if (events.size == activityLimit && activityLimit < 10000) {
                     button(container, "Show older activity") {
                         activityLimit = (activityLimit + 200).coerceAtMost(10000)
@@ -545,6 +648,8 @@ class MainActivity : ComponentActivity() {
         try {
             check(!busy)
             pending = Enrollment(uri)
+            backStack.clear()
+            backStack.add("home")
             page = "grant"
             notice = null
             render()
@@ -573,6 +678,8 @@ class MainActivity : ComponentActivity() {
                 WakeSupport.enqueue(this, androidx.work.Data.EMPTY, registration = true)
                 runOnUiThread {
                     pending = null
+                    backStack.clear()
+                    backStack.add("home")
                     page = "features"
                     notice = "Browser paired"
                 }
@@ -619,6 +726,72 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun color(attr: Int): Int = TypedValue().also { theme.resolveAttribute(attr, it, true) }.data
+
+    private fun section(layout: LinearLayout): LinearLayout =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(8), dp(16), dp(12))
+            background =
+                GradientDrawable().apply {
+                    cornerRadius = dp(16).toFloat()
+                    setColor(color(R.attr.surfaceColor))
+                    setStroke(dp(1), color(R.attr.outlineColor))
+                }
+            layout.addView(this, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(16) })
+        }
+
+    private fun row(
+        layout: LinearLayout,
+        label: String,
+        summary: String,
+        resource: Int = View.NO_ID,
+        action: () -> Unit,
+    ) {
+        val row =
+            LinearLayout(this).apply {
+                id = resource
+                gravity = Gravity.CENTER_VERTICAL
+                minimumHeight = dp(76)
+                setPadding(dp(16), dp(8), dp(16), dp(8))
+                background =
+                    RippleDrawable(
+                        ColorStateList.valueOf(color(android.R.attr.colorControlHighlight)),
+                        GradientDrawable().apply {
+                            cornerRadius = dp(12).toFloat()
+                            setColor(color(R.attr.surfaceColor))
+                            setStroke(dp(1), color(R.attr.outlineColor))
+                        },
+                        null,
+                    )
+                isFocusable = true
+                isClickable = true
+                isEnabled = !busy
+                setOnClickListener { action() }
+            }
+        val copy =
+            LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+            }
+        text(copy, label, 17f).apply {
+            setTypeface(null, Typeface.BOLD)
+            setPadding(0, dp(2), 0, dp(2))
+        }
+        text(copy, summary, 14f).setPadding(0, dp(2), 0, dp(2))
+        row.contentDescription = "$label. $summary"
+        row.addView(copy, LinearLayout.LayoutParams(0, -2, 1f))
+        row.addView(
+            TextView(this).apply {
+                text = if (resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_RTL) "‹" else "›"
+                textSize = 26f
+                setPadding(dp(12), 0, 0, 0)
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+            },
+        )
+        layout.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
+    }
+
     private fun text(
         layout: LinearLayout,
         value: String,
@@ -627,6 +800,11 @@ class MainActivity : ComponentActivity() {
         TextView(this).apply {
             text = value
             textSize = size
+            setTextColor(color(if (size < 16f) android.R.attr.textColorSecondary else android.R.attr.textColorPrimary))
+            if (size >= 20f) {
+                setTypeface(null, Typeface.BOLD)
+                isAccessibilityHeading = true
+            }
             setPadding(0, dp(7), 0, dp(7))
             layout.addView(this)
         }
@@ -641,6 +819,10 @@ class MainActivity : ComponentActivity() {
             id = resource
             text = label
             isAllCaps = false
+            minHeight = dp(52)
+            val primary = resource in setOf(R.id.pair_browser, R.id.grant_browser, R.id.skip_features, R.id.save_pin)
+            backgroundTintList = ColorStateList.valueOf(color(if (primary) android.R.attr.colorAccent else R.attr.accentSurfaceColor))
+            setTextColor(color(if (primary) R.attr.onAccentColor else android.R.attr.textColorPrimary))
             isEnabled = !busy || resource == R.id.navigate_back
             setOnClickListener { action() }
             layout.addView(this, LinearLayout.LayoutParams(if (layout.orientation == LinearLayout.VERTICAL) -1 else -2, -2))

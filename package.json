@@ -19,6 +19,7 @@
     "build:android": "./android/gradlew -p android :app:assembleDebug :app:assembleDebugAndroidTest",
     "check:ts": "biome check protocol web/src web/public web/test scripts relay package.json tsconfig.json biome.json vitest.config.ts web/vite.config.ts web/package.json",
     "test:hosted": "tsx scripts/hosted-acceptance.ts",
+    "test:mobile-ui": "tsx scripts/mobile-ui-acceptance.ts",
     "test:mobile": "tsx scripts/hosted-acceptance.ts --multi",
     "test:viewer-layout": "tsx scripts/viewer-layout-acceptance.ts",
     "test:viewer-phones": "tsx scripts/viewer-phones-acceptance.ts"

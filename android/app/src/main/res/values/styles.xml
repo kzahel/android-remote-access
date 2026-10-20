@@ -1,0 +1,40 @@
+<resources>
+    <attr name="surfaceColor" format="color" />
+    <attr name="outlineColor" format="color" />
+    <attr name="accentSurfaceColor" format="color" />
+    <attr name="onAccentColor" format="color" />
+    <style name="Theme.RemoteAccess.Light" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:forceDarkAllowed">false</item>
+        <item name="android:colorAccent">#256B49</item>
+        <item name="android:windowBackground">#F5F7F5</item>
+        <item name="android:colorBackground">#F5F7F5</item>
+        <item name="android:textColorPrimary">#19251E</item>
+        <item name="android:textColorSecondary">#526158</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:navigationBarColor">#F5F7F5</item>
+        <item name="android:colorControlHighlight">#20256B49</item>
+        <item name="surfaceColor">#FFFFFF</item>
+        <item name="outlineColor">#DCE4DD</item>
+        <item name="accentSurfaceColor">#DCEEE1</item>
+        <item name="onAccentColor">#FFFFFF</item>
+    </style>
+    <style name="Theme.RemoteAccess.Dark" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:forceDarkAllowed">false</item>
+        <item name="android:colorAccent">#91D5AA</item>
+        <item name="android:windowBackground">#121914</item>
+        <item name="android:colorBackground">#121914</item>
+        <item name="android:textColorPrimary">#E2EBE3</item>
+        <item name="android:textColorSecondary">#ADBCAF</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:navigationBarColor">#121914</item>
+        <item name="android:colorControlHighlight">#3091D5AA</item>
+        <item name="surfaceColor">#1C261F</item>
+        <item name="outlineColor">#35453A</item>
+        <item name="accentSurfaceColor">#294A35</item>
+        <item name="onAccentColor">#103820</item>
+    </style>
+</resources>

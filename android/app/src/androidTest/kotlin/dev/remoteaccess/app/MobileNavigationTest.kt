@@ -1,0 +1,163 @@
+package dev.remoteaccess.app
+
+import android.app.UiModeManager
+import android.content.Intent
+import android.util.TypedValue
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+import androidx.test.runner.lifecycle.Stage
+import androidx.test.uiautomator.By
+import androidx.test.uiautomator.UiDevice
+import androidx.test.uiautomator.Until
+import org.junit.Test
+import org.junit.runner.RunWith
+import java.io.File
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
+
+/** Run on an owned emulator. Exercises real navigation, recreation and Android theme changes. */
+@RunWith(AndroidJUnit4::class)
+class MobileNavigationTest {
+    private val instrumentation = InstrumentationRegistry.getInstrumentation()
+    private val context = instrumentation.targetContext
+    private val device = UiDevice.getInstance(instrumentation)
+
+    private fun click(id: String) {
+        assertNotNull(device.wait(Until.findObject(By.res("${context.packageName}:id/$id")), 10000)).click()
+        instrumentation.waitForIdleSync()
+    }
+
+    private fun title(expected: String) {
+        assertTrue(device.wait(Until.hasObject(By.res("${context.packageName}:id/page_title").text(expected)), 10000))
+    }
+
+    private fun start() {
+        context.startActivity(
+            Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
+        )
+        title("Home")
+        assertTrue(device.wait(Until.hasObject(By.res("${context.packageName}:id/host_status")), 10000))
+    }
+
+    private fun settings() {
+        click("navigation_menu")
+        click("open_settings")
+        title("Settings")
+    }
+
+    private fun shot(name: String) {
+        assertTrue(device.takeScreenshot(File(context.filesDir, "ui-$name.png")))
+    }
+
+    private fun themed(dark: Boolean) {
+        val expected = if (dark) 0xff121914.toInt() else 0xfff5f7f5.toInt()
+        val deadline = System.nanoTime() + 10_000_000_000L
+        var actual = 0
+        while (actual != expected && System.nanoTime() < deadline) {
+            instrumentation.runOnMainSync {
+                val activity = ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED).firstOrNull()
+                if (activity != null) {
+                    actual = TypedValue().also { activity.theme.resolveAttribute(android.R.attr.colorBackground, it, true) }.data
+                }
+            }
+            if (actual != expected) Thread.sleep(100)
+        }
+        assertEquals(expected, actual, "The visible activity must adopt the selected theme")
+    }
+
+    @Test
+    fun navigationAndAppearance() {
+        assertEquals("1", device.executeShellCommand("getprop ro.kernel.qemu").trim(), "Owned emulator only")
+        val previousMode = context.getSystemService(UiModeManager::class.java).nightMode
+        val previousChoice = Appearance.choice(context)
+        try {
+            Appearance.save(context, "light")
+            start()
+            themed(false)
+            assertFalse(device.hasObject(By.res("${context.packageName}:id/browser_toggle")))
+            assertFalse(device.hasObject(By.res("${context.packageName}:id/manage_access")))
+            shot("light-home")
+            click("navigation_menu")
+            assertTrue(device.hasObject(By.res("${context.packageName}:id/open_home").selected(true)))
+            shot("light-drawer")
+            device.pressBack()
+            title("Home")
+            assertFalse(device.hasObject(By.res("${context.packageName}:id/open_settings")))
+            settings()
+            shot("light-settings")
+            click("manage_access")
+            title("Manage access")
+            click("navigate_back")
+            title("Settings")
+            click("unlock_settings")
+            title("Unlocking")
+            device.pressBack()
+            title("Settings")
+            click("background_settings")
+            title("Background connections")
+            val bar = assertNotNull(device.findObject(By.res("${context.packageName}:id/page_title"))).visibleBounds
+            device.swipe(device.displayWidth / 2, device.displayHeight * 4 / 5, device.displayWidth / 2, device.displayHeight / 3, 20)
+            assertEquals(bar, assertNotNull(device.findObject(By.res("${context.packageName}:id/page_title"))).visibleBounds)
+            click("navigate_back")
+            title("Settings")
+            click("appearance_settings")
+            title("Appearance")
+            click("appearance_dark")
+            themed(true)
+            title("Appearance")
+            assertTrue(device.wait(Until.hasObject(By.res("${context.packageName}:id/appearance_dark").checked(true)), 10000))
+            shot("dark-appearance")
+            device.pressBack()
+            title("Settings")
+            shot("dark-settings")
+            click("navigation_menu")
+            shot("dark-drawer")
+            click("open_home")
+            title("Home")
+            shot("dark-home")
+            // Restarting the task must retain the preference and native dialog styling.
+            start()
+            themed(true)
+            click("pair_browser")
+            assertTrue(device.wait(Until.hasObject(By.res("${context.packageName}:id/scan_pairing_code")), 10000))
+            shot("dark-sharing")
+            device.pressBack()
+            settings()
+            click("appearance_settings")
+            click("appearance_light")
+            themed(false)
+            device.executeShellCommand("cmd uimode night yes")
+            themed(false) // An explicit Light choice takes precedence over Android's setting.
+            shot("light-overrides-dark-system")
+            click("appearance_system")
+            themed(true)
+            device.executeShellCommand("cmd uimode night no")
+            themed(false)
+            // Recreation must retain the current detail screen and its navigation parent.
+            device.setOrientationLeft()
+            title("Appearance")
+            shot("landscape-appearance")
+            device.pressBack()
+            title("Settings")
+            device.setOrientationNatural()
+            click("navigation_menu")
+            click("open_activity")
+            title("Activity")
+            shot("activity")
+        } finally {
+            Appearance.save(context, previousChoice)
+            val mode =
+                when (previousMode) {
+                    UiModeManager.MODE_NIGHT_YES -> "yes"
+                    UiModeManager.MODE_NIGHT_NO -> "no"
+                    else -> "auto"
+                }
+            device.executeShellCommand("cmd uimode night $mode")
+            device.setOrientationNatural()
+            device.unfreezeRotation()
+        }
+    }
+}

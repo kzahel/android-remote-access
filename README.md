@@ -112,11 +112,17 @@ See [browser phone management](docs/browser-phones.md). Run
 `pnpm test:viewer-phones` for isolated browser migration, multi-phone/tab and
 responsive acceptance; no Android device or relay is selected.
 
-On the phone, **Set up sharing** opens the website link, Copy/Share, an optional
-website QR and **Scan pairing code**. Paired phones keep this under **Add browser**
-and **How to connect**. Approval works before Android permissions; **Enable
-features** is a separate, skippable step. Allowed browsers can check the secure
-connection while the app is visible without notification permission. Optional
+The Android app has a fixed title bar and a drawer for **Home**, **Activity** and
+**Settings**. Home keeps the access switch, current connection and **Connect from
+another device**, which opens the website link, Copy/Share, optional website QR
+and **Scan pairing code**. **Settings → Manage access** holds paired browsers and
+per-browser permissions. **Settings → Appearance** offers System/Light/Dark with
+a green accent. Approval works before Android permissions; **Choose features**
+is a separate, skippable step that links to the same focused settings screens.
+Run `pnpm test:mobile-ui` for relay-independent native navigation/theme acceptance;
+see [mobile navigation](docs/mobile-management.md#simplified-navigation-and-appearance).
+Allowed browsers can check the secure connection while the app is visible without
+notification permission. Optional
 background requests require their own opt-in and notification setup. Screen
 viewing/input use the separately enabled Android screen-access service. Smooth
 video asks for fresh system screen-sharing consent. Manual PIN entry remains

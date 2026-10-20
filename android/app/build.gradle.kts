@@ -41,6 +41,8 @@ android {
 ksp { arg("room.schemaLocation", "$projectDir/schemas") }
 kotlin { compilerOptions { allWarningsAsErrors.set(true) } }
 dependencies {
+    // Native modal navigation drawer, with RTL and accessibility support.
+    implementation("androidx.drawerlayout:drawerlayout:1.2.0")
     // Reviewed Apache-2.0 QR encoder; generates public website links only.
     //noinspection NewerVersionAvailable
     implementation("com.google.zxing:core:3.5.3")

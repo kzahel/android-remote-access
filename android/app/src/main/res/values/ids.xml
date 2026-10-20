@@ -1,4 +1,16 @@
 <resources>
+    <item name="navigation_menu" type="id" />
+    <item name="page_title" type="id" />
+    <item name="open_home" type="id" />
+    <item name="manage_access" type="id" />
+    <item name="screen_settings" type="id" />
+    <item name="unlock_settings" type="id" />
+    <item name="background_settings" type="id" />
+    <item name="appearance_settings" type="id" />
+    <item name="about_settings" type="id" />
+    <item name="appearance_system" type="id" />
+    <item name="appearance_light" type="id" />
+    <item name="appearance_dark" type="id" />
     <item name="how_to_connect" type="id" />
     <item name="sharing_website" type="id" />
     <item name="copy_website" type="id" />
