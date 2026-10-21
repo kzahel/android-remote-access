@@ -719,3 +719,88 @@ a {
   background: transparent;
   color: var(--muted);
 }
+
+/* Fullscreen keeps the live canvas mounted and reserves space for navigation. */
+.remote-viewer[data-fullscreen] {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  width: 100%;
+  height: 100dvh;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+    env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--page);
+}
+.app-shell:has(.remote-viewer[data-fullscreen]) > .app-topbar,
+.app-shell:has(.remote-viewer[data-fullscreen]) > .app-sidebar {
+  visibility: hidden;
+}
+.remote-viewer[data-fullscreen] > .viewer-heading {
+  flex: 0 0 36px;
+  padding-inline: 8px;
+}
+.remote-viewer[data-fullscreen] > .viewer-heading h1 {
+  display: none;
+}
+.remote-viewer[data-fullscreen] .viewer-workspace {
+  width: 100%;
+  flex: 1;
+  flex-direction: column;
+  gap: 0;
+  height: auto;
+}
+.remote-viewer[data-fullscreen] .screen-stage {
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+}
+.remote-viewer[data-fullscreen] .control-dock {
+  position: relative;
+  flex-direction: row;
+  justify-content: center;
+  align-items: stretch;
+  width: 100%;
+  max-height: none;
+  overflow: visible;
+  border-radius: 0;
+  border-width: 1px 0 0;
+  gap: 4px;
+}
+.remote-viewer[data-fullscreen] .phone-nav {
+  flex-direction: row;
+}
+.remote-viewer[data-fullscreen] .control-dock button {
+  min-width: 44px;
+  max-width: 64px;
+}
+.remote-viewer[data-fullscreen] .auxiliary-controls:not([hidden]) {
+  position: absolute;
+  right: 8px;
+  bottom: calc(100% + 8px);
+  max-height: calc(100dvh - 140px);
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 4px 24px #0003;
+}
+.remote-viewer[data-fullscreen] .auxiliary-controls button {
+  justify-content: flex-start;
+  flex-direction: row;
+  gap: 8px;
+  width: 100%;
+  max-width: none;
+  min-height: 44px;
+  font-size: 0.8125rem;
+}
+.remote-viewer[data-fullscreen] .auxiliary-controls .control-label {
+  position: static;
+  width: auto;
+  height: auto;
+  clip-path: none;
+  white-space: normal;
+}

@@ -1,5 +1,7 @@
 export type ControlIconName =
   | "back"
+  | "fullscreen"
+  | "exit-fullscreen"
   | "home"
   | "recents"
   | "wake"
@@ -21,6 +23,8 @@ export type ControlIconName =
 /** Small, consistent line icons; the enclosing button supplies its accessible name. */
 export function ControlIcon({ name }: { name: ControlIconName }) {
   const shapes = {
+    fullscreen: <path d="M9 3H3v6m12-6h6v6M3 15v6h6m12-6v6h-6" />,
+    "exit-fullscreen": <path d="M3 9h6V3m12 6h-6V3M9 21v-6H3m12 6v-6h6" />,
     screen: (
       <>
         <rect x="3" y="3" width="18" height="14" rx="2" />

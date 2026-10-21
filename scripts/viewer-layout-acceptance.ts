@@ -166,6 +166,144 @@ try {
       path: path.join(artifacts, `${name}-unlocked.png`),
       fullPage: true,
     });
+    // Native fullscreen and its viewport fallback keep the same live canvas.
+    await page.locator("canvas").evaluate((c) => {
+      c.setAttribute("data-fullscreen-original", "yes");
+    });
+    for (const mode of ["native", "unsupported", "rejected"] as const) {
+      if (mode === "unsupported")
+        await page.evaluate(() => {
+          Object.defineProperty(document, "fullscreenEnabled", {
+            value: false,
+            configurable: true,
+          });
+        });
+      if (mode === "rejected")
+        await page.locator(".remote-viewer").evaluate((element) => {
+          element.requestFullscreen = () =>
+            Promise.reject(new TypeError("Fixture fullscreen rejection"));
+        });
+      await page
+        .getByRole("button", { name: "Fullscreen", exact: true })
+        .click();
+      await expect(page.locator(".remote-viewer")).toHaveAttribute(
+        "data-fullscreen",
+        "true",
+      );
+      assert.equal(
+        await page.evaluate(() => document.fullscreenElement !== null),
+        mode === "native",
+      );
+      await expect(page.locator("canvas")).toHaveAttribute(
+        "data-fullscreen-original",
+        "yes",
+      );
+      await expect(page.getByRole("status")).toHaveCount(1);
+      await expect(page.getByRole("status")).toBeVisible();
+      const screen = await page.locator(".screen-stage").boundingBox();
+      const dock = await page.locator(".control-dock").boundingBox();
+      const image = await page.locator("canvas").boundingBox();
+      assert.ok(screen && dock && image);
+      assert.ok(
+        dock.y >= screen.y + screen.height - 1,
+        "Navigation is below the screen",
+      );
+      assert.ok(
+        dock.y + dock.height <= height + 1,
+        "Navigation fits the viewport",
+      );
+      assert.ok(image.x >= screen.x - 1 && image.y >= screen.y - 1);
+      assert.ok(image.x + image.width <= screen.x + screen.width + 1);
+      assert.ok(image.y + image.height <= screen.y + screen.height + 1);
+      assert.ok(Math.abs(image.width / image.height - 1080 / 2400) < 0.01);
+      for (const action of ["Back", "Home", "Recents"]) {
+        await page.getByRole("button", { name: action, exact: true }).click();
+        await expect(page.locator(".remote-viewer")).toHaveAttribute(
+          "data-fullscreen",
+          "true",
+        );
+      }
+      await page
+        .getByRole("button", { name: "More controls", exact: true })
+        .click();
+      await page
+        .getByRole("button", { name: "Viewing quality", exact: true })
+        .click();
+      await expect(
+        page.getByRole("dialog", { name: "Viewing quality", exact: true }),
+      ).toBeVisible();
+      if (mode === "unsupported") {
+        await page.keyboard.press("Escape");
+        await expect(page.getByRole("dialog")).toBeHidden();
+        await expect(page.locator(".remote-viewer")).toHaveAttribute(
+          "data-fullscreen",
+          "true",
+        );
+      } else {
+        await page
+          .getByRole("button", { name: "Close viewing quality", exact: true })
+          .click();
+      }
+      await page
+        .getByRole("button", { name: "More controls", exact: true })
+        .click();
+      await page.screenshot({
+        path: path.join(artifacts, `${name}-fullscreen-${mode}.png`),
+      });
+      if (mode === "native") {
+        // Exit outside our button, as the browser does for local Back/Escape.
+        // Hold a pointer first to prove that exit releases remote input.
+        await page.mouse.move(
+          image.x + image.width / 2,
+          image.y + image.height / 2,
+        );
+        await page.mouse.down();
+        await expect
+          .poll(() =>
+            page.evaluate(() =>
+              window.layoutFixture.trace.some((line) =>
+                line.startsWith("touch:"),
+              ),
+            ),
+          )
+          .toBe(true);
+        await page.evaluate(() => document.exitFullscreen());
+        await expect
+          .poll(() =>
+            page.evaluate(() =>
+              window.layoutFixture.trace.some((line) =>
+                line.startsWith("release:"),
+              ),
+            ),
+          )
+          .toBe(true);
+        await page.mouse.up();
+      } else if (mode === "unsupported") {
+        await page.keyboard.press("Escape");
+      } else {
+        await page
+          .getByRole("button", { name: "Exit fullscreen", exact: true })
+          .click();
+      }
+      await expect(page.locator(".remote-viewer")).not.toHaveAttribute(
+        "data-fullscreen",
+      );
+      await expect(page.locator("canvas")).toHaveAttribute(
+        "data-fullscreen-original",
+        "yes",
+      );
+      await stable(page, baseline);
+      if (mode === "unsupported")
+        await page.evaluate(() =>
+          Reflect.deleteProperty(document, "fullscreenEnabled"),
+        );
+      if (mode === "rejected")
+        await page
+          .locator(".remote-viewer")
+          .evaluate((element) =>
+            Reflect.deleteProperty(element, "requestFullscreen"),
+          );
+    }
     for (const button of ["Back", "Home", "Recents", "Wake screen"]) {
       await page.getByRole("button", { name: button, exact: true }).click();
       await stable(page, baseline);
@@ -285,6 +423,36 @@ try {
       path: path.join(artifacts, `${name}-dark-labels.png`),
       fullPage: true,
     });
+    await page.getByRole("button", { name: "Fullscreen", exact: true }).click();
+    await expect(page.locator(".remote-viewer")).toHaveAttribute(
+      "data-fullscreen",
+      "true",
+    );
+    const labeledBar = await page.locator(".control-dock").boundingBox();
+    assert.ok(labeledBar);
+    for (const label of [
+      "Back",
+      "Home",
+      "Recents",
+      "More controls",
+      "Exit fullscreen",
+    ]) {
+      const button = await page
+        .getByRole("button", { name: label, exact: true })
+        .boundingBox();
+      assert.ok(button && button.width >= 44 && button.height >= 44);
+      assert.ok(button.x >= 0 && button.x + button.width <= width);
+      assert.ok(button.y >= labeledBar.y && button.y + button.height <= height);
+    }
+    await page.screenshot({
+      path: path.join(artifacts, `${name}-fullscreen-labels.png`),
+    });
+    await page
+      .getByRole("button", { name: "Exit fullscreen", exact: true })
+      .click();
+    await expect(page.locator(".remote-viewer")).not.toHaveAttribute(
+      "data-fullscreen",
+    );
     if (width < 900)
       await page.getByRole("button", { name: "Toggle navigation" }).click();
     await page.getByRole("button", { name: "Settings", exact: true }).click();
@@ -339,6 +507,15 @@ try {
       path: path.join(artifacts, `${name}.png`),
       fullPage: true,
     });
+    await page.getByRole("button", { name: "Fullscreen", exact: true }).click();
+    await expect
+      .poll(() => page.evaluate(() => document.fullscreenElement !== null))
+      .toBe(true);
+    await page.evaluate(() => window.layoutFixture.unmount());
+    await expect
+      .poll(() => page.evaluate(() => document.fullscreenElement))
+      .toBeNull();
+    await expect(page.locator(".remote-viewer")).toHaveCount(0);
     assert.deepEqual(errors, []);
     results.push({
       name,
@@ -347,6 +524,9 @@ try {
       stableGeometry: true,
       unchangedScroll: true,
       singleStatus: true,
+      fullscreen: ["native", "unsupported", "rejected"],
+      fullscreenLabels: true,
+      fullscreenUnmount: true,
       errors,
     });
     console.log(

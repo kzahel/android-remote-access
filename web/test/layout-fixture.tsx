@@ -35,6 +35,7 @@ const jpeg = new Uint8Array(
 let failNext = false;
 const trace: string[] = [];
 window.layoutFixture = {
+  unmount: () => rendered.unmount(),
   trace,
   patch: (patch) => Object.assign(state, patch),
   failNext: () => {
@@ -94,7 +95,8 @@ const phone: SavedPhone = {
     viewerSignature: "fixture",
   },
 };
-createRoot(root).render(
+const rendered = createRoot(root);
+rendered.render(
   <AppShell phones={[phone]} current={phone}>
     <main className="connected-viewer">
       <RemoteScreen
@@ -109,6 +111,7 @@ createRoot(root).render(
 declare global {
   interface Window {
     layoutFixture: {
+      unmount: () => void;
       patch: (patch: Partial<ControlState>) => void;
       failNext: () => void;
       trace: string[];

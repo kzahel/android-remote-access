@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import type { RemoteSession } from "./control-session.js";
 import { RemoteControls } from "./remote-controls.js";
 import { TouchInput } from "./touch-input.js";
+import { useViewerFullscreen } from "./use-viewer-fullscreen.js";
 import { VideoDecodeError, VideoRenderer } from "./video-renderer.js";
 import { ViewerHeading } from "./viewer-heading.js";
 import { ViewerWorkspace } from "./viewer-workspace.js";
@@ -41,6 +42,7 @@ export function RemoteScreen({
     { scene: number; width: number; height: number } | undefined
   >(undefined);
   const touch = useRef<TouchInput | undefined>(undefined);
+  const fullscreen = useViewerFullscreen(() => touch.current?.release());
   const [state, setState] = useState(initial);
   const [message, setMessage] = useState("");
   const [actionMessage, setActionMessage] = useState("");
@@ -180,11 +182,14 @@ export function RemoteScreen({
   }
   return (
     <section
+      ref={fullscreen.element}
       className="remote-viewer"
+      data-fullscreen={fullscreen.active || undefined}
       aria-label="Remote screen"
       data-transport={connectionPath}
     >
       <ViewerHeading
+        inline={fullscreen.active}
         name={name || state.phoneName || "Your phone"}
         status={
           notice ||
@@ -203,6 +208,8 @@ export function RemoteScreen({
             quality={() => qualityDialog.current?.showModal()}
             type={() => typingDialog.current?.showModal()}
             disconnect={disconnect}
+            fullscreen={fullscreen.active}
+            toggleFullscreen={() => void fullscreen.toggle()}
           />
         }
       >

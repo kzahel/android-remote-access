@@ -7,9 +7,11 @@ export const HeadingTarget = createContext<HTMLElement | null | undefined>(
 export function ViewerHeading({
   name,
   status,
+  inline = false,
 }: {
   name: string;
   status: string;
+  inline?: boolean;
 }) {
   const target = useContext(HeadingTarget);
   const heading = (
@@ -20,7 +22,7 @@ export function ViewerHeading({
       </p>
     </div>
   );
-  return target === undefined
+  return inline || target === undefined
     ? heading
     : target
       ? createPortal(heading, target)
