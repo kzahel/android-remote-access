@@ -12,7 +12,8 @@ createRoot(root).render(
     <p>Install YepControl on the Android phone you want to reach remotely.</p>
     <p>
       YepControl is available to invited internal beta testers. Accept your test
-      invitation with the Google account you use on this phone before installing.
+      invitation with the Google account you use on this phone before
+      installing.
     </p>
     <a
       className="button-link"
