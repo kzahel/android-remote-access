@@ -32,6 +32,14 @@ type Stored = Grant & {
   accessGeneration?: string;
 };
 type Pending = { id: string; viewer: string; expires: number; offer?: Grant };
+/** Close codes a viewer may act on. Sent only after the viewer proves its pinned key. */
+export const ACCESS_REMOVED = 4010;
+export const ACCESS_PAUSED = 4011;
+class Refusal extends Error {
+  constructor(readonly code: number) {
+    super("Refused");
+  }
+}
 export interface Options {
   origin: string;
   stateDir: string;
@@ -143,12 +151,16 @@ export function createRelay(options: Options) {
     string,
     Partial<Record<"phone" | "viewer", WebSocket>>
   >();
-  const disconnect = (id: string) => {
+  const disconnect = (id: string, viewerCode?: number) => {
     const route = routes.get(id);
     routes.delete(id);
     clearRequest(id);
-    for (const ws of Object.values(route ?? {}))
-      ws.close(4001, "Reconnect with a fresh session");
+    route?.phone?.close(4001, "Reconnect with a fresh session");
+    if (viewerCode === ACCESS_REMOVED)
+      route?.viewer?.close(viewerCode, "Access removed");
+    else if (viewerCode === ACCESS_PAUSED)
+      route?.viewer?.close(viewerCode, "Access paused");
+    else route?.viewer?.close(4001, "Reconnect with a fresh session");
   };
   function admit(req: IncomingMessage): boolean {
     if (unhealthy) return false;
@@ -344,7 +356,7 @@ export function createRelay(options: Options) {
         if (unhealthy) throw new Error("Unavailable");
         existing.revoked = true;
         durable();
-        disconnect(id);
+        disconnect(id, ACCESS_REMOVED);
         push.remove(id);
         reply(200, { state: "revoked" });
         changed(id);
@@ -430,12 +442,15 @@ export function createRelay(options: Options) {
           if (message.role !== "phone" && message.role !== "viewer")
             throw new Error("Invalid role");
           const pair = pairs[message.id];
-          if (!pair || pair.revoked) throw new Error("Unavailable");
+          if (!pair) throw new Error("Unavailable");
+          // Tombstones keep both keys, so only the paired viewer learns why it is refused.
           await verifySignature(
             pair[message.role],
             authBytes(origin, message.id, message.role, nonce),
             message.signature,
           );
+          if (pair.revoked && message.role === "viewer")
+            throw new Refusal(ACCESS_REMOVED);
           if (pair.revoked || ws.readyState !== WebSocket.OPEN || unhealthy)
             throw new Error("Unavailable");
           if (message.mode !== undefined) {
@@ -453,6 +468,8 @@ export function createRelay(options: Options) {
             ws.send(JSON.stringify({ type: "authenticated" }));
             return;
           }
+          if (pair.accessEnabled === false && message.role === "viewer")
+            throw new Refusal(ACCESS_PAUSED);
           if (
             pair.accessEnabled === false ||
             (message.role === "phone" &&
@@ -562,7 +579,10 @@ export function createRelay(options: Options) {
                 pair.accessGeneration = registration.generation;
                 pair.accessEnabled = registration.enabled;
                 durable();
-                disconnect(pair.id);
+                disconnect(
+                  pair.id,
+                  registration.enabled ? undefined : ACCESS_PAUSED,
+                );
                 push.remove(pair.id);
               }
               policyUpdated = true;
@@ -597,8 +617,13 @@ export function createRelay(options: Options) {
             throw new Error("Peer unavailable");
           peer.send(data, { binary: true });
         }
-      } catch {
-        ws.close(4003, "Request rejected");
+      } catch (error) {
+        if (error instanceof Refusal)
+          ws.close(
+            error.code,
+            error.code === ACCESS_REMOVED ? "Access removed" : "Access paused",
+          );
+        else ws.close(4003, "Request rejected");
       }
     });
   });

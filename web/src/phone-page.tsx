@@ -9,6 +9,7 @@ import { RemoteScreen } from "./remote-screen.js";
 import {
   browserIdentity,
   contactedPhone,
+  forgetPhone,
   phoneName,
   type SavedPhone,
 } from "./store.js";
@@ -153,7 +154,16 @@ export function PhonePage({
     },
     [close, target, services, recordContact],
   );
+  const removed = phone.access === "removed";
   useEffect(() => {
+    if (!removed) return;
+    close();
+    setRemote(undefined);
+    setPending(undefined);
+  }, [removed, close]);
+  useEffect(() => {
+    // A removed pairing cannot connect again; don't contact the relay for it.
+    if (metadata.current.access === "removed") return;
     void start("check");
     const restored = (event: PageTransitionEvent) => {
       if (event.persisted) {
@@ -169,6 +179,30 @@ export function PhonePage({
       close();
     };
   }, [start, close]);
+  if (removed)
+    return (
+      <main className="connected-viewer">
+        <ViewerHeading
+          name={phoneName(phone)}
+          status="Access to this phone was removed on the phone."
+        />
+        <p>To connect again, pair this browser with the phone again.</p>
+        <div className="phone-actions">
+          <a className="button-link" href="/pair">
+            Pair again
+          </a>
+          <button
+            type="button"
+            className="secondary"
+            onClick={() =>
+              void forgetPhone(phone.id).then(() => location.assign("/"))
+            }
+          >
+            Forget this phone
+          </button>
+        </div>
+      </main>
+    );
   return (
     <main className="connected-viewer">
       {remote ? (

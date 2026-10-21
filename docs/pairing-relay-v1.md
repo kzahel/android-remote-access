@@ -43,6 +43,15 @@ browser-only grant; re-pair with a fresh QR, never silently replace a pin.
 
 ## Routing and authority
 
+After a viewer's signature verifies against its pinned key, the relay may close
+its socket with 4010 (access removed: the pairing is a revoked tombstone) or 4011
+(access paused by the phone's policy), on a live route when the phone revokes or
+pauses it and on later authentication. A viewer that cannot prove the key gets
+the generic 4003. The website records removed/paused for that exact pairing,
+clears it on the next authenticated connection or re-pairing, and checks saved
+pairings for the public 410 tombstone when the phone list opens.
+
+
 WebSocket clients select a durable pairing ID and role. The relay supplies a
 fresh 32-byte challenge. Authenticate by signing newline fields:
 `ara/relay/auth/v1`, relay origin, pairing ID, role, challenge. Challenges expire

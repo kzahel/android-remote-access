@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { PhoneManagement } from "./phone-management.js";
-import { phoneName, phoneURL, type SavedPhone } from "./store.js";
+import {
+  phoneName,
+  phoneURL,
+  refreshRemoved,
+  type SavedPhone,
+} from "./store.js";
 import { ViewerHeading } from "./viewer-heading.js";
 
 export function LastContact({ at }: { at: number | undefined }) {
@@ -38,6 +43,11 @@ export function PhoneList({
   phones: SavedPhone[];
   error: string;
 }) {
+  const pairings = phones.map((phone) => phone.grant.id).join();
+  // biome-ignore lint/correctness/useExhaustiveDependencies: recheck only when the set of pairings changes
+  useEffect(() => {
+    void refreshRemoved(phones);
+  }, [pairings]);
   return (
     <main className="phone-library">
       <ViewerHeading
@@ -60,7 +70,15 @@ export function PhoneList({
                   {phone.alias && phone.model && (
                     <span className="phone-model">{phone.model}</span>
                   )}
-                  <LastContact at={phone.lastContactAt} />
+                  {phone.access ? (
+                    <span className="phone-access">
+                      {phone.access === "removed"
+                        ? "Access removed on the phone"
+                        : "Access paused on the phone"}
+                    </span>
+                  ) : (
+                    <LastContact at={phone.lastContactAt} />
+                  )}
                 </div>
                 <div className="phone-actions">
                   <a

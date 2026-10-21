@@ -60,7 +60,10 @@ export interface SavedPhone {
   alias?: string;
   model?: string;
   lastContactAt?: number;
+  /** What the relay last reported after this browser proved its key; cleared on success or re-pairing. */
+  access?: PhoneAccess;
 }
+export type PhoneAccess = "removed" | "paused";
 export const phoneName = (phone: SavedPhone) =>
   phone.alias || phone.model || "Your phone";
 export const phoneURL = (id: string) => `/phones/${id}`;
@@ -157,13 +160,17 @@ export async function rememberPhone(
   alias?: string,
 ): Promise<string> {
   const id = await phoneId(grant.phone);
-  await updatePhone(id, (previous) => ({
-    ...previous,
-    id,
-    grant,
-    pairedAt: Date.now(),
-    ...(alias?.trim() ? { alias: alias.trim().slice(0, 60) } : {}),
-  }));
+  await updatePhone(id, (previous) => {
+    const next: SavedPhone = {
+      ...previous,
+      id,
+      grant,
+      pairedAt: Date.now(),
+      ...(alias?.trim() ? { alias: alias.trim().slice(0, 60) } : {}),
+    };
+    delete next.access;
+    return next;
+  });
   return id;
 }
 export function renamePhone(id: string, alias: string): Promise<void> {
@@ -188,3 +195,33 @@ export function contactedPhone(id: string, model?: string): Promise<void> {
   );
 }
 export const forgetPhone = (id: string) => updatePhone(id, () => undefined);
+/** Records the relay's verdict for this exact pairing; a newer pairing of the same phone is untouched. */
+export async function setPhoneAccess(
+  grant: Grant,
+  access: PhoneAccess | undefined,
+): Promise<void> {
+  const id = await phoneId(grant.phone);
+  const current = (await savedPhones()).find((phone) => phone.id === id);
+  if (current?.grant.id !== grant.id || current.access === access) return;
+  await updatePhone(id, (phone) => {
+    if (phone?.grant.id !== grant.id) return phone;
+    const next = { ...phone };
+    if (access) next.access = access;
+    else delete next.access;
+    return next;
+  });
+}
+/** A revoked pairing answers 410 to its ID; pause stays private to the authenticated socket. */
+export async function refreshRemoved(phones: SavedPhone[]): Promise<void> {
+  await Promise.all(
+    phones
+      .filter((phone) => phone.access !== "removed")
+      .map(async (phone) => {
+        try {
+          const response = await fetch(`/api/pair/${phone.grant.id}`);
+          if (response.status === 410)
+            await setPhoneAccess(phone.grant, "removed");
+        } catch {}
+      }),
+  );
+}

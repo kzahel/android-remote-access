@@ -14,6 +14,18 @@ import {
   keyBytes,
 } from "@remote/protocol/enrollment";
 import { type PhoneFeatures, parseFeatures } from "@remote/protocol/features";
+import type { PhoneAccess } from "./store.js";
+
+// Loaded lazily: the store opens IndexedDB, which this transport must not require.
+const recordAccess = (grant: Grant, access: PhoneAccess | undefined) =>
+  void import("./store.js")
+    .then((store) => store.setPhoneAccess(grant, access))
+    .catch(() => {});
+/** Relay close codes, sent only after this browser proved its pinned key. */
+const ACCESS_CLOSE: Record<number, [PhoneAccess, string]> = {
+  4010: ["removed", "Access to this phone was removed on the phone."],
+  4011: ["paused", "Access is paused on the phone."],
+};
 
 /** One ordered cryptographic lane. Callers serialize send/read and own teardown. */
 export async function openEncryptedSession(
@@ -32,6 +44,7 @@ export async function openEncryptedSession(
   let queuedBytes = 0;
   let wake: (() => void) | undefined;
   let channel: Channel | undefined;
+  let refusal: string | undefined;
   const close = () => {
     active = false;
     channel?.close();
@@ -59,7 +72,14 @@ export async function openEncryptedSession(
       close();
     }
   };
-  ws.onclose = close;
+  ws.onclose = (event) => {
+    const access = ACCESS_CLOSE[event.code];
+    if (access) {
+      refusal = access[1];
+      recordAccess(grant, access[0]);
+    }
+    close();
+  };
   ws.onerror = close;
   async function receive(timeout: number): Promise<Frame | undefined> {
     const deadline = Date.now() + timeout;
@@ -71,7 +91,8 @@ export async function openEncryptedSession(
           resolve();
         };
       });
-    if (!active) throw new Error("Connection ended. Reconnect to continue.");
+    if (!active)
+      throw new Error(refusal ?? "Connection ended. Reconnect to continue.");
     const value = queue.shift();
     if (value instanceof Uint8Array) queuedBytes -= value.byteLength;
     else if (value) queuedBytes -= JSON.stringify(value).length;
@@ -115,6 +136,7 @@ export async function openEncryptedSession(
       )
         throw new Error("Invalid relay state");
       ready = value.type === "ready";
+      if (value.type === "authenticated") recordAccess(grant, undefined);
       if (value.type === "contacting")
         report?.(
           value.delivery === "coalesced"

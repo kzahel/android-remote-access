@@ -608,6 +608,10 @@ a {
   font-size: 0.8125rem;
   color: var(--muted);
 }
+.phone-description > .phone-access {
+  color: light-dark(#8a4b00, #f2c27a);
+  font-weight: 600;
+}
 .phone-actions {
   flex-shrink: 0;
   display: flex;

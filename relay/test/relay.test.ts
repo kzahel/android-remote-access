@@ -342,6 +342,30 @@ it("persists authority across restart and retains revoked tombstones", async () 
   const rejected = client();
   await expect(rejected.login(phone, "phone")).rejects.toThrow();
 });
+it("tells only the paired viewer that access was removed", async () => {
+  await enroll();
+  const live = client();
+  expect((await live.login(viewer, "viewer")).type).toBe("authenticated");
+  const ended = once(live.socket, "close");
+  expect(
+    (
+      await api("/revoke", {
+        signature: b64(await phone.sign(revokeBytes(origin, invitation.id))),
+      })
+    ).status,
+  ).toBe(200);
+  expect((await ended)[0]).toBe(4010);
+  const later = client();
+  const refused = once(later.socket, "close");
+  await expect(later.login(viewer, "viewer")).rejects.toThrow();
+  expect((await refused)[0]).toBe(4010);
+  const stranger = client();
+  const rejected = once(stranger.socket, "close");
+  await expect(
+    stranger.login(await createIdentity(), "viewer"),
+  ).rejects.toThrow();
+  expect((await rejected)[0]).toBe(4003);
+});
 it("refuses viewer revocation and duplicate sockets without displacing the original", async () => {
   await enroll();
   expect(
@@ -645,9 +669,11 @@ it("phone policy cancels pending sessions, persists pause and rejects old genera
   await v.login(viewer, "viewer");
   const closed = once(v.socket, "close");
   await setAccess(false, "11".repeat(16));
-  await closed;
+  expect((await closed)[0]).toBe(4011);
   const disabled = client();
+  const paused = once(disabled.socket, "close");
   await expect(disabled.login(viewer, "viewer")).rejects.toThrow();
+  expect((await paused)[0]).toBe(4011);
   await relay.close();
   await start();
   const persisted = client();
