@@ -207,7 +207,6 @@ export async function controlAcceptance(f: Fixture) {
   try {
     await startNative();
     await page.goto(`${f.origin}/pair`);
-    await page.getByRole("button", { name: "Create pairing code" }).click();
     const qr = PNG.sync.read(
       await page
         .getByRole("img", { name: "Scan to pair this browser" })

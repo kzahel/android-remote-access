@@ -328,7 +328,6 @@ try {
     });
     const page = await context.newPage();
     await page.goto(`${origin}/pair`);
-    await page.getByRole("button", { name: "Create pairing code" }).click();
     const qr = page.getByRole("img", { name: "Scan to pair this browser" });
     await qr.waitFor();
     const image = await qr.screenshot({ path: path.join(state, "qr.png") });

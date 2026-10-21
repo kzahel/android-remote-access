@@ -228,6 +228,13 @@ svg {
   max-width: 100%;
   height: auto;
 }
+.pairing-code {
+  text-align: center;
+}
+.pairing-code svg {
+  display: block;
+  margin: 0 auto 16px;
+}
 h2 {
   font-size: 1.15rem;
   margin: 0 0 12px;

@@ -429,9 +429,6 @@ try {
       });
   });
   await other.getByRole("link", { name: "Add phone", exact: true }).click();
-  await other
-    .getByRole("button", { name: "Create pairing code", exact: true })
-    .click();
   const qr = PNG.sync.read(
     await other
       .getByRole("img", { name: "Scan to pair this browser" })

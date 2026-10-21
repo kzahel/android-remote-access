@@ -127,7 +127,6 @@ export async function mobileAcceptance(f: Fixture) {
     contexts.push(context);
     const page = await context.newPage();
     await page.goto(`${f.origin}/pair`);
-    await page.getByRole("button", { name: "Create pairing code" }).click();
     const qr = await page
       .getByRole("img", { name: "Scan to pair this browser" })
       .screenshot();

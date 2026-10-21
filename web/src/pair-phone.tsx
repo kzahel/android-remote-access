@@ -8,7 +8,7 @@ import {
   type Invitation,
   verifyOffer,
 } from "@remote/protocol/enrollment";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { encode } from "uqr";
 import { browserName } from "./browser-name.js";
 import { browserIdentity, phoneURL, rememberPhone } from "./store.js";
@@ -40,22 +40,62 @@ async function api(
   return response.json() as Promise<{ state: string; grant?: Grant }>;
 }
 export function PairPhone() {
-  const [alias, setAlias] = useState("");
   const [invitation, setInvitation] = useState<Invitation>();
-  const [status, setStatus] = useState(
-    "On the phone, choose Add browser or Set up sharing, then scan the code.",
-  );
-  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState("Creating a pairing code…");
+  const steps =
+    "Open Android Remote Access, tap Set up sharing or Add device, then Scan pairing code.";
+  const [failed, setFailed] = useState(false);
+  const pair = useCallback(async () => {
+    setFailed(false);
+    try {
+      const identity = await browserIdentity();
+      const i: Invitation = {
+        v: 1,
+        origin: location.origin,
+        id: hex(crypto.getRandomValues(new Uint8Array(16))),
+        viewer: b64(identity.publicKey),
+        secret: hex(crypto.getRandomValues(new Uint8Array(32))),
+        expires: Math.floor(Date.now() / 1000) + 300,
+        name: browserName(),
+      };
+      await api(i.id, "", {
+        viewer: i.viewer,
+        expires: i.expires,
+        signature: b64(await identity.sign(createBytes(i.origin, i))),
+      });
+      setInvitation(i);
+      setStatus("Scan this code with your phone");
+    } catch (error) {
+      setInvitation(undefined);
+      setFailed(true);
+      setStatus(error instanceof Error ? error.message : "Pairing failed");
+    }
+  }, []);
+  // The code is the whole page; create it straight away.
+  useEffect(() => {
+    void pair();
+  }, [pair]);
   useEffect(() => {
     if (!invitation) return;
     const abort = new AbortController();
     const stopped = () => abort.signal.aborted;
+    // Renew while someone is looking; otherwise wait for them to return.
+    const expired = () => {
+      if (document.visibilityState === "visible") void pair();
+      else {
+        setInvitation(undefined);
+        setFailed(true);
+        setStatus("This code expired.");
+      }
+    };
     void (async () => {
       let seen = "waiting";
       try {
         while (!stopped()) {
-          if (Date.now() >= invitation.expires * 1000)
-            throw new Error("Code expired. Create a new code.");
+          if (Date.now() >= invitation.expires * 1000) {
+            expired();
+            return;
+          }
           const asked = Date.now();
           const result = await api(invitation.id, "", undefined, {
             seen,
@@ -75,7 +115,7 @@ export function PairPhone() {
             if (stopped()) return;
             if (accepted.state !== "paired") throw new Error("Pairing failed");
             const paired: Grant = { ...g, viewerSignature };
-            const id = await rememberPhone(paired, alias);
+            const id = await rememberPhone(paired);
             location.assign(phoneURL(id));
             return;
           }
@@ -85,70 +125,26 @@ export function PairPhone() {
             await new Promise((resolve) => setTimeout(resolve, 1000));
         }
       } catch (error) {
-        if (!stopped()) {
+        if (stopped()) return;
+        // A held poll can outlast the code; the relay then no longer knows it.
+        if (Date.now() >= invitation.expires * 1000 - 1000) expired();
+        else {
           setInvitation(undefined);
+          setFailed(true);
           setStatus(error instanceof Error ? error.message : "Pairing failed");
         }
       }
     })();
     return () => abort.abort();
-  }, [invitation, alias]);
-  async function pair() {
-    setBusy(true);
-    try {
-      const identity = await browserIdentity();
-      const i: Invitation = {
-        v: 1,
-        origin: location.origin,
-        id: hex(crypto.getRandomValues(new Uint8Array(16))),
-        viewer: b64(identity.publicKey),
-        secret: hex(crypto.getRandomValues(new Uint8Array(32))),
-        expires: Math.floor(Date.now() / 1000) + 300,
-        name: browserName(),
-      };
-      await api(i.id, "", {
-        viewer: i.viewer,
-        expires: i.expires,
-        signature: b64(await identity.sign(createBytes(i.origin, i))),
-      });
-      setInvitation(i);
-      setStatus(
-        "On your phone, open Set up sharing or Add browser, tap Scan pairing code, then approve this browser.",
-      );
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Pairing failed");
-    } finally {
-      setBusy(false);
-    }
-  }
+  }, [invitation, pair]);
   const qr = invitation
     ? encode(encodeInvitation(invitation), { ecc: "M" })
     : undefined;
   return (
     <main>
       <ViewerHeading name="Add phone" status={status} />
-      <p>Pair each phone once. Your other saved phones will stay available.</p>
-      {!invitation && (
-        <label>
-          Phone name (optional)
-          <input
-            value={alias}
-            disabled={busy}
-            maxLength={60}
-            placeholder="For example, Travel phone"
-            onChange={(event) => setAlias(event.target.value)}
-          />
-        </label>
-      )}
-      <button
-        disabled={busy || !!invitation}
-        type="button"
-        onClick={() => void pair()}
-      >
-        Create pairing code
-      </button>
       {qr && invitation && (
-        <section aria-label="Pairing code">
+        <section className="pairing-code" aria-label="Pairing code">
           <svg
             role="img"
             aria-label="Scan to pair this browser"
@@ -173,20 +169,14 @@ export function PairPhone() {
                 .join("")}
             />
           </svg>
-          <p>
-            This code expires after five minutes. Share it only with your phone.
-          </p>
-          <button
-            className="secondary"
-            type="button"
-            onClick={() => {
-              setInvitation(undefined);
-              setStatus("Create a fresh code when ready.");
-            }}
-          >
-            Cancel
-          </button>
+          <p>{steps}</p>
+          <p className="hint">A new code appears every five minutes.</p>
         </section>
+      )}
+      {failed && (
+        <button type="button" onClick={() => void pair()}>
+          New code
+        </button>
       )}
     </main>
   );
