@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { ControlIcon } from "./control-icon.js";
 import { usePhoneActivity } from "./phone-activity.js";
+import { LastContact } from "./phone-list.js";
 import { PhoneManagement } from "./phone-management.js";
 import { SettingsPanel } from "./settings-panel.js";
 import { phoneName, phoneURL, type SavedPhone } from "./store.js";
@@ -81,14 +82,25 @@ export function AppShell({
                   aria-current={phone.id === current?.id ? "page" : undefined}
                 >
                   <ControlIcon name="phone" />
-                  <span className="sidebar-phone-name">
-                    {phoneName(phone)}
-                    {activity.has(phone.id) && (
-                      <span className="phone-use">
-                        <span className="activity-dot" />
-                        In use
-                      </span>
-                    )}
+                  {/* Always two lines, so selecting or using a phone never resizes its row. */}
+                  <span className="sidebar-phone-text">
+                    <span className="sidebar-phone-name">
+                      {phoneName(phone)}
+                    </span>
+                    <span className="sidebar-phone-status">
+                      {activity.has(phone.id) ? (
+                        <>
+                          <span className="activity-dot" />
+                          In use
+                        </>
+                      ) : phone.access === "removed" ? (
+                        "Access removed"
+                      ) : phone.access === "paused" ? (
+                        "Access paused"
+                      ) : (
+                        <LastContact at={phone.lastContactAt} />
+                      )}
+                    </span>
                   </span>
                 </a>
                 <PhoneManagement

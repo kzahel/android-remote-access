@@ -113,6 +113,22 @@ try {
       await expect(
         page.getByRole("button", { name: "Toggle navigation" }),
       ).toHaveCount(0);
+      // Becoming "In use" must not resize the selected phone's row.
+      const row = page.locator(".sidebar-phone-row").first();
+      const idle = await row.boundingBox();
+      await page.evaluate(() => {
+        void navigator.locks.request(
+          `remote-access-phone:${"a".repeat(64)}`,
+          () => new Promise(() => {}),
+        );
+        new BroadcastChannel("remote-access-activity").postMessage("change");
+      });
+      await expect(row.getByText("In use")).toBeVisible();
+      assert.deepEqual(
+        await row.boundingBox(),
+        idle,
+        "Phone row keeps its size",
+      );
     } else {
       await page.getByRole("button", { name: "Toggle navigation" }).click();
       await expect(

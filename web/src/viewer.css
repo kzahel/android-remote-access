@@ -135,15 +135,27 @@ h1 {
   min-width: 0;
   padding-right: 0;
 }
-.sidebar-phone-name {
+.sidebar-phone-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.sidebar-phone-name,
+.sidebar-phone-status {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.phone-use {
+.sidebar-phone-status > time {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sidebar-phone-status {
   display: flex;
   align-items: center;
   gap: 5px;
+  height: 1.4em;
   font-size: 0.6875rem;
   color: var(--muted);
 }
