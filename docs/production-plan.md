@@ -184,7 +184,8 @@ or has enough capacity for production video.
 - Public HTTPS/WSS through Caddy, with the application listener on loopback.
   This serves the fallback and WebRTC signaling; direct media travels between
   endpoints. Review signaling/STUN dependencies when selecting the WebRTC
-  library; no TURN service is planned.
+  library; no TURN service is planned. Self-hosted and Cloudflare TURN are
+  recorded as a [potential future direction](hosting-and-turn.md).
 - A separately supervised service with its own identity, configuration, state
   and resource limits. Keep it independent of the other products' services and
   pairing records.
@@ -343,7 +344,8 @@ emulator screenshots.
 
 ## Open owner decisions
 
-- Listing identity and domain. The name, YepControl, was decided on 2026-10-21.
+- Listing identity and hosting. The name, YepControl, was decided and
+  yepcontrol.com registered on 2026-10-21; see [hosting options](hosting-and-turn.md).
 - First audience: spare-phone owners, owners of remote Android workloads, or
   broader remote support.
 - Saved-PIN unlock and smooth video are included by the owner’s completion request;

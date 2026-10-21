@@ -50,8 +50,8 @@ integrations.
   support both experiences with separate permissions and credential custody.
 
 Manual phone access remains useful on its own. Module extraction, sibling
-integration, desktop rebranding, domain registration, listing identity and
-publication remain future work. See the [product direction](docs/product.md#product-direction-yepcontrol)
+integration, desktop rebranding, DNS/hosting on yepcontrol.com (registered
+2026-10-21), listing identity and publication remain future work. See the [product direction](docs/product.md#product-direction-yepcontrol)
 and [sibling relationships](docs/sibling-repositories.md#yepcontrol-relationship).
 
 ## Develop
@@ -193,6 +193,7 @@ later slices. The crypto composition has not had independent security review.
 - [Continuous touch and smooth-view experiment](docs/touch-spike.md)
 - [Product inspiration, use cases and open decisions](docs/product.md)
 - [Production plan: gates, architecture and phases toward a Play release](docs/production-plan.md)
+- [Hosting and TURN options (potential future direction)](docs/hosting-and-turn.md)
 - [Android capabilities, unlock, wake and background reliability](docs/android-platform.md)
 - [Competitors and alternatives](docs/competitors.md)
 - [Competitor implementations: unlock, screen power, capture and recovery](docs/competitor-implementations.md)

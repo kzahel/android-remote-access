@@ -24,9 +24,10 @@ remain proposals, not a repository merger or integration.
 **YepControl — Remote Phone** is a candidate first Play listing name. Broader
 branding leaves room for computer/device control as those product experiences
 are implemented and qualified. Existing Machine Control repository and command
-names can remain compatible during a partial public rebrand. Domain acquisition,
-final listing identity and any desktop rebrand are still open; the naming
-discussion did not register a domain or authorize publication.
+names can remain compatible during a partial public rebrand. The owner
+registered yepcontrol.com on 2026-10-21; DNS and service use,
+final listing identity and any desktop rebrand are still open; none of this
+authorizes publication.
 
 ### Shared Android capabilities
 
