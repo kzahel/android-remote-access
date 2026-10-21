@@ -308,11 +308,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun devices(layout: LinearLayout) {
-        if (store.snapshot.devices.isEmpty()) text(layout, "No paired devices yet.")
-        store.snapshot.devices.forEach { device ->
+        // A removed device is refused locally at once; telling the relay finishes in the background.
+        val devices = store.snapshot.devices.filter { !it.revoked }
+        if (devices.isEmpty()) text(layout, "No paired devices yet.")
+        devices.forEach { device ->
             val summary =
                 when {
-                    device.revoked -> "Access removed · Finishing removal"
                     !device.enabled -> "Access paused"
                     !store.snapshot.settings.armed -> "Allowed · Remote access is off"
                     HostSessions.current.get()?.deviceId == device.id -> "Connected"
@@ -596,16 +597,11 @@ class MainActivity : ComponentActivity() {
 
     private fun device(layout: LinearLayout) {
         val device =
-            deviceId?.let(store::device) ?: run {
-                text(layout, "Device removed")
+            deviceId?.let(store::device)?.takeIf { !it.revoked } ?: run {
+                handler.post { if (page == "device") goBack() }
                 return
             }
         text(layout, "Paired ${time(device.pairedAt)}\n${lastConnected(device)}", 14f)
-        if (device.revoked) {
-            text(layout, "This device can no longer connect. Connect this phone to the internet to finish removing it.")
-            button(layout, "Retry removal", R.id.remove_device) { change { } }
-            return
-        }
         toggle(layout, "Allow this device", device.enabled, R.id.device_toggle) { enabled -> change { it.enable(device.id, enabled) } }
         toggle(
             layout,
@@ -639,7 +635,9 @@ class MainActivity : ComponentActivity() {
             AlertDialog.Builder(
                 this,
             ).setTitle("Remove ${device.nickname}?").setMessage("Its access will be revoked. To connect again, pair this device again.")
-                .setNegativeButton("Cancel", null).setPositiveButton("Remove") { _, _ -> change { it.revoke(device.id) } }.show()
+                .setNegativeButton("Cancel", null).setPositiveButton("Remove") { _, _ ->
+                    change(saved = { if (page == "device") goBack() }) { it.revoke(device.id) }
+                }.show()
         }
     }
 
@@ -718,15 +716,18 @@ class MainActivity : ComponentActivity() {
         button(layout, "Cancel") { navigate("home") }
     }
 
-    private fun change(work: (HostStore) -> Unit) {
+    private fun change(
+        saved: () -> Unit = {},
+        work: (HostStore) -> Unit,
+    ) {
         if (changing) return
         changing = true
         notice = null
         render()
-        HostRuntime.change(this, work, finished = { saved ->
+        HostRuntime.change(this, work, finished = { ok ->
             runOnUiThread {
                 changing = false
-                if (!saved) notice = "Couldn’t save the change. Check the current access setting and try again."
+                if (ok) saved() else notice = "Couldn’t save the change. Check the current access setting and try again."
                 render()
             }
         })
