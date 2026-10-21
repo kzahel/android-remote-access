@@ -27,6 +27,8 @@ val devSharingWebsite =
     providers.gradleProperty("devSharingWebsite").orNull ?: localProperties.getProperty("devSharingWebsite", "")
 if (devSharingWebsite.isNotEmpty()) requireOrigin(devSharingWebsite)
 
+val releaseVersion = Properties().apply { rootProject.file("version.properties").reader().use { load(it) } }
+
 android {
     namespace = "dev.remoteaccess.app"
     compileSdk = 36
@@ -35,8 +37,8 @@ android {
         applicationId = "com.yepcontrol.app"
         minSdk = 30
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.6.0"
+        versionCode = releaseVersion.getProperty("VERSION_CODE").toInt()
+        versionName = releaseVersion.getProperty("VERSION_NAME")
         buildConfigField("String", "SHARING_WEBSITE", "\"$sharingWebsite\"")
         buildConfigField("String", "DEV_SHARING_WEBSITE", "\"\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

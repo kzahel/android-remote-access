@@ -7,7 +7,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <queries><intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent></queries>
-    <application android:name=".RemoteApplication" android:label="@string/app_name" android:icon="@android:drawable/ic_lock_lock" android:allowBackup="false" android:fullBackupContent="false" android:dataExtractionRules="@xml/backup_rules" android:supportsRtl="true" android:theme="@style/Theme.RemoteAccess.Light">
+    <application android:name=".RemoteApplication" android:label="@string/app_name" android:icon="@mipmap/ic_launcher" android:allowBackup="false" android:fullBackupContent="false" android:dataExtractionRules="@xml/backup_rules" android:supportsRtl="true" android:theme="@style/Theme.RemoteAccess.Light">
         <receiver android:name=".RestartRecovery" android:enabled="false" android:exported="true">
             <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /><action android:name="android.intent.action.MY_PACKAGE_REPLACED" /></intent-filter>
         </receiver>

@@ -690,6 +690,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun about(layout: LinearLayout) {
+        row(layout, "Privacy policy", "How YepControl handles your data", R.id.privacy_policy) {
+            startActivity(Intent(Intent.ACTION_VIEW, (BuildConfig.SHARING_WEBSITE + "/privacy/").toUri()))
+        }
         text(layout, "YepControl ${BuildConfig.VERSION_NAME}", 14f)
         text(layout, "Pair devices to view and control this phone securely.", 14f)
         text(

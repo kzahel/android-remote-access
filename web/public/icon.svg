@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 108 108">
+  <title>YepControl</title>
+  <defs><linearGradient id="green" x2="1" y2="1"><stop stop-color="#22c55e"/><stop offset="1" stop-color="#16a34a"/></linearGradient></defs>
+  <rect width="108" height="108" fill="url(#green)"/>
+  <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="35" y="23" width="38" height="62" rx="7" stroke-width="3.2"/>
+    <path d="M48 29h12M45 45l8 10 13-14M53 55v17" stroke-width="4.8"/>
+  </g>
+</svg>

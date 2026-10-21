@@ -1,0 +1,101 @@
+name: Android release artifacts
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: android-release
+  cancel-in-progress: false
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      version_code: ${{ steps.source.outputs.version_code }}
+      version_name: ${{ steps.source.outputs.version_name }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require passing exact-source checks and tracked version
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/verify_android_release.py
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: pnpm
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
+      - run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0' 'build-tools;36.0.0'
+      - uses: gradle/actions/setup-gradle@0b6dd653ba04f4f93bf581ec31e66cbd7dcb644d
+      - run: pnpm install --frozen-lockfile
+      - name: Verify publication regressions and build the real release variant
+        run: |
+          python3 -m unittest discover -s scripts -p 'test_android_publishing.py'
+          ./android/gradlew -p android :app:lintRelease :app:bundleRelease
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: android-unsigned
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 2
+          if-no-files-found: error
+  sign:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: android-release
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: android-unsigned
+          path: ${{ runner.temp }}/unsigned
+      - name: Sign, verify and receipt the exact built bytes
+        env:
+          UPLOAD_KEY: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          YEPCONTROL_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_PASSWORD }}
+          YEPCONTROL_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_PASSWORD }}
+          YEPCONTROL_UPLOAD_KEYSTORE: ${{ runner.temp }}/upload.p12
+          RELEASE_CODE: ${{ needs.build.outputs.version_code }}
+          RELEASE_NAME: ${{ needs.build.outputs.version_name }}
+        run: |
+          umask 077
+          python3 - <<'PY'
+          import base64, os
+          from pathlib import Path
+          raw = os.environ['UPLOAD_KEY']
+          if not raw:
+              raise SystemExit('Missing project upload key')
+          Path(os.environ['YEPCONTROL_UPLOAD_KEYSTORE']).write_bytes(base64.b64decode(raw, validate=True))
+          PY
+          bash scripts/sign_android_bundle.sh "$RUNNER_TEMP/unsigned/app-release.aab" "$RUNNER_TEMP/signed/yepcontrol.aab"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          receipt = {key: os.environ[key] for key in ('GITHUB_SHA', 'GITHUB_RUN_ID', 'RELEASE_CODE', 'RELEASE_NAME')}
+          Path(os.environ['RUNNER_TEMP'], 'signed', 'build.json').write_text(json.dumps(receipt, indent=2) + '\n')
+          PY
+      - name: Remove private upload key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/upload.p12"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: yepcontrol-play-${{ needs.build.outputs.version_code }}
+          path: ${{ runner.temp }}/signed/
+          retention-days: 14
+          if-no-files-found: error

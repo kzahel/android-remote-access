@@ -45,4 +45,5 @@
     <item name="save_pin_value" type="id" />
     <item name="save_pin_confirm" type="id" />
     <item name="restore_setup" type="id" />
+    <item name="privacy_policy" type="id" />
 </resources>

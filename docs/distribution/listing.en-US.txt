@@ -1,0 +1,43 @@
+Name: YepControl – Remote Phone
+Package: com.yepcontrol.app
+Category: Tools
+Target audience: 13–15, 16–17, 18+
+Pricing: Free installation
+Ads: No
+Account: Not required
+Website: https://yepcontrol.com
+Privacy: https://yepcontrol.com/privacy/
+Support: graehlarts@gmail.com
+
+Short description:
+Reach your Android phone from a browser, with encrypted viewing and control.
+
+Full description:
+
+Keep an Android phone within reach, even when you are somewhere else.
+
+YepControl lets you pair a browser with your own Android phone, view its screen and control it remotely. Check an app on a spare phone, maintain a dedicated device, or recover an app that needs your attention.
+
+PAIR WITH A QR CODE
+Open yepcontrol.com in a browser, scan its pairing code in the Android app, then approve the connection. No YepControl account is required.
+
+VIEW AND CONTROL
+See the screen, tap, swipe, type and use Android navigation from your paired browser. Smooth video is available after Android screen-sharing consent. Connections try a direct route and use the encrypted relay when needed.
+
+YOU CHOOSE WHO CONNECTS
+Name paired browsers, pause an individual browser or all remote access, and remove devices from the phone. Optional background requests use Firebase Cloud Messaging to contact the app when Android permits.
+
+ENCRYPTED BETWEEN YOUR DEVICES
+Screen content, controls and typed text are encrypted between the phone and your paired browser. No ads or analytics SDK. The service retains connection metadata needed for pairing, access and optional background requests; details are in the privacy policy.
+
+OPTIONAL REMOTE UNLOCK
+Allow unlocking separately for each paired browser. You can enter a PIN remotely or explicitly save one encrypted on the phone. A failed attempt requires local recovery. After restarting the phone, its first unlock must be performed locally.
+
+ANDROID PERMISSIONS
+YepControl uses Android's AccessibilityService API, with your explicit consent, to capture the screen and perform the taps, gestures and typing you request from an approved browser. It is for human-directed control, and does not independently choose actions. Video uses Android's separate screen-sharing permission. You can stop access in the app or Android settings.
+
+BETA LIMITS
+Protected apps and sensitive screens may block capture or input. Video may need fresh consent after locking or restarting. Android, the network and device power management can delay background connections. Use the beta with devices you own or are authorized to manage; unattended recovery is not guaranteed.
+
+Learn more: https://yepcontrol.com
+Privacy policy: https://yepcontrol.com/privacy/

@@ -109,6 +109,9 @@ export function AppShell({
         )}
       </div>
       <div className="sidebar-footer">
+        <a className="sidebar-link" href="/privacy/">
+          Privacy policy
+        </a>
         <button className="sidebar-link" type="button" onClick={showSettings}>
           <ControlIcon name="settings" />
           <span>Settings</span>

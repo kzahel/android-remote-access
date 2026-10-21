@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/privacy/privacy.css">
+  <title>Privacy policy · YepControl</title>
+</head>
+<body>
+<main>
+  <a href="/" class="brand">YepControl</a>
+  <h1>Privacy policy</h1>
+  <p class="updated">Effective October 21, 2026</p>
+  <p>YepControl is operated by Graehl Arts (Kyle Graehl). It lets you pair a browser with an Android phone you control, then request access to that phone. No account is required. We do not include advertising, advertising identifiers, marketing analytics or an analytics SDK.</p>
+  <h2>Your screen and controls</h2>
+  <p>Screen images, video, text, control actions, device details and any PIN you enter remotely are encrypted between your phone and paired browser. Our relay forwards encrypted records when a direct connection is unavailable. The relay does not have the session keys needed to decrypt those records, and does not save screen recordings or control content.</p>
+  <p>The phone and your paired browser can read the content you deliberately share. Only pair browsers and devices you trust. Android can restrict protected screens and sensitive fields. Screen sharing and control require the relevant Android permissions and your approval.</p>
+  <h2>Connection information we handle</h2>
+  <p>Our relay stores random pairing identifiers, public cryptographic keys, signed pairing receipts, access settings and revocation records so it can authenticate paired devices and enforce your choices. These are connection metadata, not the contents of your screen. Browser nicknames, phone names, local activity history, private identity keys and saved PINs are not uploaded as readable relay data.</p>
+  <p>Like other network services, the relay receives your IP address and can observe connection times and encrypted traffic sizes. IP addresses are used temporarily in memory for request limits. We do not run a website analytics beacon or configure routine web-access logging for YepControl. Operational error logs may contain technical network information; we do not intentionally log pairing secrets or screen/control payloads.</p>
+  <h2>Optional background connections</h2>
+  <p>If you enable background connection requests, the app uses Google's Firebase Cloud Messaging and Firebase Installations. An installation identifier is registered with our relay so it can ask Google to wake this app when an authorized browser requests a connection. A push contains connection-request identifiers and expiry information, never your screen, typed text, PIN or a command to control the phone.</p>
+  <p>Google processes installation and service metadata needed to operate Firebase. Direct WebRTC connections also use Google's public STUN service to discover network routes; that service can see network addresses, not the encrypted remote session. See <a href="https://firebase.google.com/support/privacy">Firebase privacy information</a> and <a href="https://policies.google.com/privacy">Google's privacy policy</a>. We do not enable Google Analytics or Firebase message-delivery export to BigQuery.</p>
+  <h2>Information kept on your devices</h2>
+  <p>The Android app keeps paired-device settings, private identity keys and activity history locally. Activity records describe connection and settings events, not screenshots or typed content, and are limited to 30 days or 10,000 entries. An optional saved PIN is encrypted on the phone, excluded from Android backup and removable locally. It is not sent to the relay or your browser as a saved credential.</p>
+  <p>Your browser uses local storage and IndexedDB for appearance preferences, pairing keys, saved phones and contact history. These are functional storage, not advertising or tracking cookies. Removing a phone from a browser deletes that browser's saved entry; revoke the browser in the phone app to remove its permission to connect.</p>
+  <h2>Retention and your choices</h2>
+  <p>You can turn off remote access, disable background requests, remove a paired device and forget a saved PIN in the app. Changes that need to reach our relay take effect there when the phone can connect. Removing a paired device revokes its access and removes its background-wake address from the active registry.</p>
+  <p>We retain revoked pairing identifiers, public keys and receipts to prevent reuse of old grants. Encrypted authority backups contain pairing metadata and revocation records, not screen content, private keys, PINs or wake addresses. We do not currently apply a fixed expiration to revocation records or authority backups. Google controls retention of data within Firebase under its own policies.</p>
+  <p>For questions or a request concerning identifiable connection metadata, email <a href="mailto:graehlarts@gmail.com">graehlarts@gmail.com</a>. We may need a pairing or installation identifier and proof that you control the relevant device. Do not email PINs, pairing secrets, private keys or screenshots containing private information. There is no YepControl account to delete.</p>
+  <h2>Sharing and international processing</h2>
+  <p>We do not sell data or share it for advertising. Connection metadata is processed only to provide, secure and operate the service, including through infrastructure providers and Google where described above. Service providers may process data in countries other than yours. We may disclose information when legally required.</p>
+  <h2>Children and policy changes</h2>
+  <p>YepControl is intended for people aged 13 and older and is not directed to children under 13. Contact us if you believe a child has supplied identifiable information to the service. We will update this page when our practices change and show the effective date above.</p>
+  <footer><a href="/">Open YepControl</a> · <a href="https://github.com/kzahel/android-remote-access">Source code</a> · <a href="mailto:graehlarts@gmail.com">Contact</a></footer>
+</main>
+</body>
+</html>

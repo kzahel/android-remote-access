@@ -60,6 +60,9 @@ Requirements: Node 22+, pnpm 10.30.3, JDK 17 and Android SDK platform 36 / build
 tools 35.0.0 or 36.0.0. Set `ANDROID_HOME` to the SDK. Gradle is supplied by the
 committed wrapper with a pinned distribution checksum.
 
+The [Android beta release workflow](docs/distribution/android-beta.md) builds,
+signs and manually publishes verified CI artifacts to internal testing.
+
 The public Android Firebase client configuration is checked in at
 `android/app/google-services.json`, so ordinary builds include remote wake.
 The relay's private Firebase service-account credentials are provisioned

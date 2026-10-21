@@ -73,8 +73,18 @@ test("video requires the current native grant and is withheld while locked",asyn
     video.write(JSON.stringify({type:"hello",role:"video",token:f.app.token,generation:"fixture"})+"\n");
     const frame={type:"video",key:true,codec:"avc1.42c028",data:"AA==",timestamp:1,width:720,height:1600};
     const received=once(viewer,"message");video.write(JSON.stringify(frame)+"\n");assert.equal(JSON.parse((await received)[0]).type,"video");
-    f.state.locked=true;f.phone.write(JSON.stringify({type:"state",state:f.state})+"\n");await new Promise(r=>setTimeout(r,20));
-    let leaked=false;viewer.on("message",()=>{leaked=true;});video.write(JSON.stringify({...frame,timestamp:2})+"\n");await new Promise(r=>setTimeout(r,50));assert.equal(leaked,false);
+    f.state.locked=true;f.phone.write(JSON.stringify({type:"state",state:f.state})+"\n");
+    // Control and video are independent TCP sockets. Wait for the server's
+    // actual lock state, rather than racing a 20 ms sleep on a busy CI host.
+    for(let i=0;i<200&&!f.app.status().state.locked;i++)await new Promise(r=>setTimeout(r,10));
+    assert.equal(f.app.status().state.locked,true);
+    // Closing the video stream produces an ordered WebSocket pause message:
+    // any leaked frame would arrive before it. This is a processing barrier,
+    // rather than a negative assertion before the frame was even handled.
+    const withheld=once(viewer,"message");
+    video.end(JSON.stringify({...frame,timestamp:2})+"\n");
+    assert.equal(JSON.parse((await withheld)[0]).type,"videoPaused");
+    assert.equal(f.app.status().live.videoFrames,2);
     viewer.terminate();
   }finally{video?.destroy();await f.app.close();}
 });

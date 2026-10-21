@@ -38,6 +38,7 @@ jobs:
           "$(go env GOPATH)/bin/gitleaks" git . --redact --log-opts=--all
   build-and-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa
@@ -58,6 +59,7 @@ jobs:
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm test
+      - run: python3 -m unittest discover -s scripts -p 'test_android_publishing.py'
       - run: pnpm build:android
       - run: npm --prefix spike ci --ignore-scripts
       - run: pnpm test:spike

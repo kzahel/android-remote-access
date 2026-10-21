@@ -22,3 +22,8 @@ __pycache__/
 google-services.json
 !android/app/google-services.json
 *service-account*.json
+
+# Release signing and short-lived cloud authentication
+*.p12
+*.pfx
+gha-creds-*.json

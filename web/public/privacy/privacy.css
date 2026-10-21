@@ -1,0 +1,46 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, sans-serif;
+  line-height: 1.65;
+  color: light-dark(#203a2e, #e0ebe4);
+  background: light-dark(#f6f8f7, #141a18);
+}
+body {
+  margin: 0;
+}
+main {
+  max-width: 760px;
+  margin: 32px auto;
+  padding: 24px;
+}
+a {
+  color: light-dark(#16583f, #95d7b4);
+  text-underline-offset: 3px;
+}
+.brand {
+  font-size: 1.1rem;
+  font-weight: 650;
+  text-decoration: none;
+}
+h1 {
+  font-size: 2rem;
+  line-height: 1.2;
+}
+h2 {
+  margin-top: 2rem;
+  font-size: 1.25rem;
+}
+.updated {
+  opacity: 0.7;
+}
+footer {
+  margin-top: 3rem;
+  padding-top: 1rem;
+  border-top: 1px solid light-dark(#d4dfd7, #3a4a40);
+}
+@media (max-width: 480px) {
+  main {
+    margin: 12px auto;
+    padding: 20px;
+  }
+}

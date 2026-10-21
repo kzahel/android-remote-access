@@ -26,5 +26,8 @@ createRoot(root).render(
       Already installed? Open YepControl and scan the code from inside the app.
     </p>
     <a href="/">Open YepControl in this browser</a>
+    <p>
+      <a href="/privacy/">Privacy policy</a>
+    </p>
   </main>,
 );
