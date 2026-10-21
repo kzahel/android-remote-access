@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /** Visible-app reachability needs no notification, accessibility or capture permission. */
 internal object ForegroundAccess {
-    private class Entry(val browser: Browser) {
+    private class Entry(val device: Device) {
         val active = AtomicBoolean(true)
         lateinit var connection: RelayConnection
 
@@ -68,11 +68,11 @@ internal object ForegroundAccess {
     fun listening(id: String): Boolean = entries[id]?.let { it.active.get() && it.ready } == true
 
     @Synchronized
-    fun acquireWorker(browser: Browser): HostSessions.Lease? {
-        val entry = entries[browser.id]
+    fun acquireWorker(device: Device): HostSessions.Lease? {
+        val entry = entries[device.id]
         if (entry?.lease != null) return null
         if (entry != null) end(entry)
-        return HostSessions.acquire(browser)
+        return HostSessions.acquire(device)
     }
 
     @Synchronized
@@ -82,12 +82,12 @@ internal object ForegroundAccess {
     }
 
     private fun valid(entry: Entry): Boolean =
-        (visible || entry.control) && entry.active.get() && store.allowed(entry.browser.id, entry.browser.generation) &&
+        (visible || entry.control) && entry.active.get() && store.allowed(entry.device.id, entry.device.generation) &&
             (entry.lease?.active?.get() != false) && System.currentTimeMillis() < entry.expires
 
     private fun admit(entry: Entry): Boolean {
         if (!valid(entry)) return false
-        val lease = HostSessions.acquire(entry.browser) ?: return false
+        val lease = HostSessions.acquire(entry.device) ?: return false
         entry.lease = lease
         lease.connection = entry.connection
         if (!valid(entry)) {
@@ -95,11 +95,11 @@ internal object ForegroundAccess {
             return false
         }
         entry.expires = System.currentTimeMillis() + 65000
-        store.record("Connection requested", entry.browser.id)
+        store.record("Connection requested", entry.device.id)
         handler.postDelayed({
             HostRuntime.io.execute {
                 synchronized(this) {
-                    if (entries[entry.browser.id] === entry && !entry.control) {
+                    if (entries[entry.device.id] === entry && !entry.control) {
                         end(entry)
                         reconcile()
                     }
@@ -114,21 +114,21 @@ internal object ForegroundAccess {
         entries.values.toList().filter { !valid(it) }.forEach { end(it) }
         if (!visible) return
         var delay = Long.MAX_VALUE
-        for (browser in store.snapshot.browsers) {
-            if (!browser.synced || !store.allowed(browser.id, browser.generation) || entries.containsKey(browser.id)) continue
-            if (HostSessions.current.get()?.browserId == browser.id) continue
-            val remaining = (retryAfter[browser.id] ?: 0) - System.currentTimeMillis()
+        for (device in store.snapshot.devices) {
+            if (!device.synced || !store.allowed(device.id, device.generation) || entries.containsKey(device.id)) continue
+            if (HostSessions.current.get()?.deviceId == device.id) continue
+            val remaining = (retryAfter[device.id] ?: 0) - System.currentTimeMillis()
             if (remaining > 0) {
                 delay = minOf(delay, remaining)
                 continue
             }
-            val entry = Entry(browser)
-            entries[browser.id] = entry
+            val entry = Entry(device)
+            entries[device.id] = entry
             entry.connection =
                 RelayConnection(
-                    KeystoreIdentity.loadOrCreate("phone-identity-v1"), browser.authority(),
+                    KeystoreIdentity.loadOrCreate("phone-identity-v1"), device.authority(),
                     { state -> HostRuntime.io.execute { report(entry, state) } },
-                    accessGeneration = browser.generation,
+                    accessGeneration = device.generation,
                     current = { valid(entry) }, admit = { admit(entry) },
                     features = { PhoneFeatures.report(app) }, context = app,
                     onControl = {
@@ -147,19 +147,19 @@ internal object ForegroundAccess {
         entry: Entry,
         state: String,
     ) {
-        if (entries[entry.browser.id] !== entry || !entry.active.get()) return
+        if (entries[entry.device.id] !== entry || !entry.active.get()) return
         entry.lease?.status = state
         when (state) {
-            "Waiting for your browser" -> entry.ready = true
-            "Encrypted session established" -> store.connected(entry.browser.id)
-            "Remote control connected" -> store.record("Remote control started", entry.browser.id)
+            "Waiting for your device" -> entry.ready = true
+            "Encrypted session established" -> store.connected(entry.device.id)
+            "Remote control connected" -> store.record("Remote control started", entry.device.id)
             "Encrypted connection passed" -> {
                 entry.passed = true
-                store.record("Connection check completed", entry.browser.id)
+                store.record("Connection check completed", entry.device.id)
                 handler.postDelayed({
                     HostRuntime.io.execute {
                         synchronized(this) {
-                            if (entries[entry.browser.id] === entry) {
+                            if (entries[entry.device.id] === entry) {
                                 end(entry, graceful = true)
                                 reconcile()
                             }
@@ -182,12 +182,12 @@ internal object ForegroundAccess {
         reconnectDelay: Long = 500,
     ) {
         if (!entry.active.compareAndSet(true, false)) return
-        entries.remove(entry.browser.id, entry)
-        retryAfter[entry.browser.id] = System.currentTimeMillis() + reconnectDelay
+        entries.remove(entry.device.id, entry)
+        retryAfter[entry.device.id] = System.currentTimeMillis() + reconnectDelay
         entry.connection.close(graceful)
         entry.lease?.let {
             HostSessions.release(it)
-            store.record("Connection ended", entry.browser.id)
+            store.record("Connection ended", entry.device.id)
         }
     }
 

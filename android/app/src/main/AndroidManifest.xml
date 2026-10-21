@@ -20,7 +20,7 @@
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-requested, authenticated remote screen viewing and control." />
         </service>
         <service android:name=".control.SessionService" android:exported="false" android:foregroundServiceType="specialUse">
-            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-requested remote viewing and control by an authenticated paired browser, with a visible disconnect notification." />
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-requested remote viewing and control by an authenticated paired device, with a visible disconnect notification." />
         </service>
         <service android:name=".control.ScreenAccessService" android:exported="true" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" android:label="@string/screen_access_label">
             <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>

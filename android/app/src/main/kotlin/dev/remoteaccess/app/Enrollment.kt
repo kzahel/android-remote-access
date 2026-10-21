@@ -78,13 +78,13 @@ internal fun request(
     }
 }
 
-internal fun validBrowserName(name: String) = name == name.trim() && name.length in 1..40 && name.none { it.isISOControl() }
+internal fun validDeviceName(name: String) = name == name.trim() && name.length in 1..40 && name.none { it.isISOControl() }
 
 internal class Enrollment(uri: String) {
     private val invite: JSONObject
     val origin: String
 
-    /** Browser-chosen label; shown to the owner as a convenience, never as proof of identity. */
+    /** Device-chosen label; shown to the owner as a convenience, never as proof of identity. */
     val name: String?
 
     init {
@@ -98,7 +98,7 @@ internal class Enrollment(uri: String) {
                 url.rawQuery == null && url.rawFragment == null && url.rawPath.isEmpty(),
         )
         name = if (invite.has("name")) invite.getString("name") else null
-        require(name == null || validBrowserName(name))
+        require(name == null || validDeviceName(name))
         unhex(invite.getString("id"), 16)
         unhex(invite.getString("secret"), 32)
         Crypto.publicKey(decoded(invite.getString("viewer")))
@@ -138,6 +138,6 @@ internal class Enrollment(uri: String) {
             }
             Thread.sleep(750)
         }
-        error("Browser did not confirm. Create a fresh code.")
+        error("Device did not confirm. Create a fresh code.")
     }
 }

@@ -16,7 +16,7 @@ import androidx.core.view.isVisible
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
 
-/** Public website navigation is deliberately separate from approving a browser's secret pairing QR. */
+/** Public website navigation is deliberately separate from approving a device's secret pairing QR. */
 internal object SharingSetup {
     fun show(
         activity: Activity,
@@ -90,15 +90,15 @@ internal object SharingSetup {
         content.addView(qr, content.indexOfChild(show) + 1, LinearLayout.LayoutParams(-1, dp(220)))
         text(
             if (first) {
-                "Create a pairing code on the website. Scan that code with this phone to approve the browser."
+                "Create a pairing code on the website. Scan that code with this phone to approve the device."
             } else {
-                "A paired browser can connect without scanning again. " +
-                    "To add another browser, create a pairing code there and scan it below."
+                "A paired device can connect without scanning again. " +
+                    "To add another device, create a pairing code there and scan it below."
             },
         )
         val dialog =
             AlertDialog.Builder(activity)
-                .setTitle(if (first) "Set up sharing" else "Add browser")
+                .setTitle(if (first) "Set up sharing" else "Add device")
                 .setView(ScrollView(activity).apply { addView(content) })
                 .setNegativeButton("Close", null)
                 .create()

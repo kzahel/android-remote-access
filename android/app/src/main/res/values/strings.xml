@@ -2,10 +2,10 @@
     <string name="navigation_heading">Remote access</string>
     <string name="how_to_connect">How to connect</string>
     <string name="app_name">Android Remote Access</string>
-    <string name="grant_browser">Allow</string>
-    <string name="remove_browser">Remove browser</string>
+    <string name="grant_device">Allow</string>
+    <string name="remove_device">Remove device</string>
     <string name="screen_access_label">Remote screen access</string>
-    <string name="screen_access_description">Let browsers you pair view this phone’s screen and perform actions you request. Screen content and actions are encrypted between the phone and browser. Turn off remote access in the app to stop connections.</string>
-    <string name="unlock_pin_explanation">Save this phone’s PIN for remote unlocking. It stays encrypted on this phone and is available while locked after the first local unlock following a restart. Allow unlocking separately for each browser. A failed attempt requires local recovery.</string>
+    <string name="screen_access_description">Let devices you pair view this phone’s screen and perform actions you request. Screen content and actions are encrypted between this phone and your device. Turn off remote access in the app to stop connections.</string>
+    <string name="unlock_pin_explanation">Save this phone’s PIN for remote unlocking. It stays encrypted on this phone and is available while locked after the first local unlock following a restart. Allow unlocking separately for each device. A failed attempt requires local recovery.</string>
     <string name="remote_access_requested">Remote access requested</string>
 </resources>

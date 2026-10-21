@@ -126,7 +126,7 @@ export async function controlAcceptance(f: Fixture) {
       if (action === "stop" && raw === "stopped") return true;
       const value = JSON.parse(raw) as {
         action: string;
-        browsers: { id: string }[];
+        devices: { id: string }[];
       };
       return value.action === action ? value : undefined;
     });
@@ -218,7 +218,7 @@ export async function controlAcceptance(f: Fixture) {
     privateWrite("hosted-pair-uri", decoded.data);
     const paired = await command("pair");
     assert.ok(typeof paired !== "boolean");
-    const id = paired.browsers[0]?.id;
+    const id = paired.devices[0]?.id;
     assert.ok(id);
     await command("enable-screen-access");
     if (process.env.HOSTED_UNLOCK === "1") {

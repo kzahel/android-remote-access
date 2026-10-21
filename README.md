@@ -137,11 +137,11 @@ See [browser phone management](docs/browser-phones.md). Run
 `pnpm test:viewer-phones` for isolated browser migration, multi-phone/tab and
 responsive acceptance; no Android device or relay is selected.
 
-The Android app has a fixed title bar and a drawer for **Home**, **Activity** and
-**Settings**. Home keeps the access switch, current connection and **Connect from
-another device**, which opens the website link, Copy/Share, optional website QR
-and **Scan pairing code**. **Settings → Manage access** holds paired browsers and
-per-browser permissions. **Settings → Appearance** offers System/Light/Dark with
+The Android app has a fixed title bar and a drawer for **Home**, **Devices**,
+**Activity** and **Settings**. Home keeps the access switch, current connection and
+**Connect from another device**, which opens the website link, Copy/Share,
+optional website QR and **Scan pairing code**. **Devices** lists paired clients
+(browsers today) with per-device permissions. **Settings → Appearance** offers System/Light/Dark with
 a green accent. Approval works before Android permissions; **Finish setup** is a
 skippable checklist of switches that show Android's actual state, the same
 checklist that heads Settings.

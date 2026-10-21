@@ -35,7 +35,7 @@ internal object WakeSupport {
     fun allowed(context: Context): Boolean {
         val store = HostStore.get(context)
         return store.snapshot.settings.armed && store.snapshot.settings.automatic &&
-            store.snapshot.browsers.any { store.allowed(it.id, it.generation, automatic = true) } && notificationsAllowed(context)
+            store.snapshot.devices.any { store.allowed(it.id, it.generation, automatic = true) } && notificationsAllowed(context)
     }
 
     fun notificationsAllowed(context: Context): Boolean =

@@ -92,7 +92,7 @@ internal object UnlockSetup {
             activity,
         ).setTitle(
             "Forget saved PIN?",
-        ).setMessage("Remote sessions will end. Manual PIN entry stays available to browsers allowed to unlock.")
+        ).setMessage("Remote sessions will end. Manual PIN entry stays available to devices allowed to unlock.")
             .setNegativeButton("Cancel", null).setPositiveButton("Forget") { _, _ ->
                 HostSessions.stop()
                 HostRuntime.io.execute {

@@ -21,7 +21,7 @@ type State = {
   action: string;
   armed: boolean;
   active?: string;
-  browsers: {
+  devices: {
     id: string;
     nickname: string;
     enabled: boolean;
@@ -100,7 +100,7 @@ export async function mobileAcceptance(f: Fixture) {
         throw new FixtureExited("Native fixture exited; see mobile-native.log");
       const raw = adb("shell", "run-as", app, "cat", "files/hosted-stage");
       if (action === "stop" && raw === "stopped")
-        return { action, browsers: [], armed: false };
+        return { action, devices: [], armed: false };
       const state = JSON.parse(raw) as State;
       return state.action === action ? state : undefined;
     });
@@ -142,7 +142,7 @@ export async function mobileAcceptance(f: Fixture) {
     privateWrite("hosted-pair-uri", decoded.data);
     enrolled = true;
     const state = await command("pair");
-    assert.ok(state.browsers.find((b) => b.id === invitation.id));
+    assert.ok(state.devices.find((b) => b.id === invitation.id));
     await page
       .getByRole("button", { name: "Connect to phone", exact: true })
       .waitFor();
@@ -379,14 +379,14 @@ export async function mobileAcceptance(f: Fixture) {
     await startNative();
     const restored = await command("home");
     assert.deepEqual(
-      restored.browsers.map((x) => x.nickname),
+      restored.devices.map((x) => x.nickname),
       ["Work laptop", "Home desktop"],
     );
-    assert.ok(restored.browsers.every((x) => x.lastConnected > 0));
+    assert.ok(restored.devices.every((x) => x.lastConnected > 0));
     await command("connect", { id: a.id });
     await probe(a.page);
     await until(async () => (await probeState(a.page)).ready);
-    const beforeGlobal = restored.browsers.map((x) => x.generation);
+    const beforeGlobal = restored.devices.map((x) => x.generation);
     await command("global", { enabled: false });
     await until(async () => (await probeState(a.page)).closed);
     await check(b.page, false);
@@ -398,7 +398,7 @@ export async function mobileAcceptance(f: Fixture) {
     await check(b.page, false);
     const rearmed = await command("global", { enabled: true });
     assert.ok(
-      rearmed.browsers.every((x, i) => x.generation !== beforeGlobal[i]),
+      rearmed.devices.every((x, i) => x.generation !== beforeGlobal[i]),
     );
     await command("enable", { id: a.id, enabled: false });
     await check(a.page, false);

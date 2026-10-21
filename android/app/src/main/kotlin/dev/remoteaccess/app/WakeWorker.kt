@@ -17,12 +17,12 @@ class WakeWorker(context: Context, parameters: WorkerParameters) : Worker(contex
         val automatic = !inputData.getBoolean("manual", false)
         val expires = inputData.getLong("expires", 0)
         if (automatic && inputData.getString("requestId")?.matches(Regex("[0-9a-f]{32}")) != true) return Result.success()
-        val browser = store.browser(id) ?: return Result.success()
+        val device = store.device(id) ?: return Result.success()
         if (!store.allowed(id, generation, automatic) || expires <= System.currentTimeMillis() / 1000) return Result.success()
         if (automatic && !WakeSupport.notificationsAllowed(applicationContext)) return Result.success()
         // Synchronize policy before the advanced manual fallback opens a session.
-        if (!browser.synced && !syncBrowser(store, browser)) return Result.success()
-        val lease = ForegroundAccess.acquireWorker(browser)
+        if (!device.synced && !syncDevice(store, device)) return Result.success()
+        val lease = ForegroundAccess.acquireWorker(device)
         if (lease == null) {
             store.record("Session blocked: phone busy", id)
             return Result.success()
@@ -40,7 +40,7 @@ class WakeWorker(context: Context, parameters: WorkerParameters) : Worker(contex
         val connection =
             RelayConnection(
                 KeystoreIdentity.loadOrCreate("phone-identity-v1"),
-                browser.authority(),
+                device.authority(),
                 { state ->
                     lease.status = state
                     if (current()) {
@@ -105,47 +105,47 @@ class WakeWorker(context: Context, parameters: WorkerParameters) : Worker(contex
 
     private fun synchronize(store: HostStore): Result {
         var failed = false
-        for (browser in store.snapshot.browsers) {
+        for (device in store.snapshot.devices) {
             if (isStopped) break
-            if (browser.revoked) {
+            if (device.revoked) {
                 try {
-                    val grant = browser.authority()
+                    val grant = device.authority()
                     val identity = KeystoreIdentity.loadOrCreate("phone-identity-v1")
-                    val signature = identity.sign(fields("ara/pair/revoke/v1", grant.getString("origin"), browser.id))
-                    request(grant.getString("origin"), browser.id, "revoke", org.json.JSONObject().put("signature", encoded(signature)))
-                    store.removed(browser.id)
+                    val signature = identity.sign(fields("ara/pair/revoke/v1", grant.getString("origin"), device.id))
+                    request(grant.getString("origin"), device.id, "revoke", org.json.JSONObject().put("signature", encoded(signature)))
+                    store.removed(device.id)
                 } catch (_: Exception) {
                     failed = true
                 }
-            } else if (!syncBrowser(store, browser)) {
+            } else if (!syncDevice(store, device)) {
                 failed = true
             }
         }
         WakeSupport.preferences(applicationContext).save {
             putString(
                 "wakeState",
-                if (failed) "Some browser settings could not be synchronized. Retry in Settings." else "Browser settings synchronized",
+                if (failed) "Some device settings could not be synchronized. Retry in Settings." else "Device settings synchronized",
             )
         }
         store.listeners.forEach { it() }
         return Result.success()
     }
 
-    private fun syncBrowser(
+    private fun syncDevice(
         store: HostStore,
-        browser: Browser,
+        device: Device,
     ): Boolean {
         val preferences = WakeSupport.preferences(applicationContext)
-        val enabled = store.allowed(browser.id, browser.generation)
+        val enabled = store.allowed(device.id, device.generation)
         val push = enabled && store.snapshot.settings.automatic && WakeSupport.notificationsAllowed(applicationContext)
         val fid = if (push) preferences.getString("fid", null) else null
         val expected = if (fid != null) "Remote wake ready" else "Remote wake disabled"
         val done = CountDownLatch(1)
         val passed = AtomicBoolean(false)
-        val current = { !isStopped && store.browser(browser.id)?.let { !it.revoked && it.generation == browser.generation } == true }
+        val current = { !isStopped && store.device(device.id)?.let { !it.revoked && it.generation == device.generation } == true }
         val connection =
             RelayConnection(
-                KeystoreIdentity.loadOrCreate("phone-identity-v1"), browser.authority(),
+                KeystoreIdentity.loadOrCreate("phone-identity-v1"), device.authority(),
                 { state ->
                     if (state == expected) {
                         passed.set(true)
@@ -155,20 +155,20 @@ class WakeWorker(context: Context, parameters: WorkerParameters) : Worker(contex
                     }
                 },
                 fid = fid, registrationOnly = true, removePush = fid == null,
-                accessGeneration = browser.generation, accessEnabled = enabled, current = current,
+                accessGeneration = device.generation, accessEnabled = enabled, current = current,
             )
         return try {
             connection.connect()
             val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(20)
             while (current() && System.nanoTime() < deadline && !done.await(100, TimeUnit.MILLISECONDS)) Unit
             if (passed.get() && current()) {
-                store.synced(browser.id, browser.generation, wakeReady = fid != null)
+                store.synced(device.id, device.generation, wakeReady = fid != null)
             } else {
-                store.record("Wake setup failed", browser.id)
+                store.record("Wake setup failed", device.id)
             }
             passed.get() && current()
         } catch (_: Exception) {
-            store.record("Wake setup failed", browser.id)
+            store.record("Wake setup failed", device.id)
             false
         } finally {
             connection.close(graceful = passed.get())

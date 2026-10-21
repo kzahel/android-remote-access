@@ -65,7 +65,10 @@ plain native views, AndroidX back handling and a scrollable status/list rather
 than the earlier HTML mockups. Up to 32 independently pinned browser grants can
 be retained; owners can rename, pause, disconnect and remove each one. Settings
 separates automatic requests from global permission. Activity is local, loads history in batches, and is pruned at startup/read/write to 30 days/10,000 rows. Room schemas are
-exported for future migrations. Database/preferences/files are explicitly
+exported and every version has a hand-written migration tested with
+`MigrationTestHelper`. Version 3 renames the `browsers` table to `devices`, the
+activity columns to `deviceId`/`deviceName`, and rewrites stored "Browser …"
+history entries as "Device …". Database/preferences/files are explicitly
 excluded from cloud backup and device transfer; signing keys remain in Keystore.
 
 `pnpm test:mobile` requires the normal Android build with the operator's ignored
@@ -220,12 +223,15 @@ while connection/readiness updates refresh page content.
   count, then optional Save PIN on this phone. Each switch shows Android's actual
   state; a tap starts the change (disclosure, permission prompt or system page)
   and the switch follows once Android reports it. Connection details holds
-  notification status, unused-app status and Retry setup. Manage access,
-  Appearance and About follow. Paired browsers, nicknames, per-browser
-  access/unlock switches, disconnect and confirmed removal live under Manage
-  access. Existing grant defaults and authority checks are unchanged.
+  notification status, unused-app status and Retry setup. Appearance and About
+  follow.
+- Devices is a top-level drawer page. Paired clients are called devices because
+  later clients need not be browsers; each entry's name says what it is
+  ("Chrome on macOS"). Nicknames, per-device access/unlock switches, disconnect
+  and confirmed removal live there. Existing grant defaults and authority checks
+  are unchanged.
 - Pairing still works before Android permissions. The skippable post-pairing
-  Finish setup page shows the same checklist plus the new browser's unlock
+  Finish setup page shows the same checklist plus the new device's unlock
   permission. There is one control for each preference.
 - Activity remains bounded, local history with event/browser/time entries. The
   redesign does not extend retention, capture screen content or make history a

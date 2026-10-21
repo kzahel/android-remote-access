@@ -2,6 +2,7 @@
     <item name="navigation_menu" type="id" />
     <item name="page_title" type="id" />
     <item name="open_home" type="id" />
+    <item name="open_devices" type="id" />
     <item name="manage_access" type="id" />
     <item name="screen_access" type="id" />
     <item name="app_settings" type="id" />
@@ -22,23 +23,23 @@
     <item name="scan_pairing_code" type="id" />
     <item name="open_features" type="id" />
     <item name="skip_features" type="id" />
-    <item name="grant_browser" type="id"/>
+    <item name="grant_device" type="id"/>
     <item name="review_settings" type="id" />
     <item name="unused_app_status" type="id" />
     <item name="unused_app_settings" type="id" />
-    <item name="remove_browser" type="id"/>
+    <item name="remove_device" type="id"/>
     <item name="enable_wake" type="id" />
     <item name="navigate_back" type="id" />
     <item name="access_toggle" type="id" />
     <item name="host_status" type="id" />
-    <item name="pair_browser" type="id" />
+    <item name="pair_device" type="id" />
     <item name="open_activity" type="id" />
     <item name="open_settings" type="id" />
     <item name="notification_settings" type="id" />
     <item name="retry_setup" type="id" />
-    <item name="browser_toggle" type="id" />
-    <item name="rename_browser" type="id" />
-    <item name="disconnect_browser" type="id" />
+    <item name="device_toggle" type="id" />
+    <item name="rename_device" type="id" />
+    <item name="disconnect_device" type="id" />
     <item name="allow_unlock" type="id" />
     <item name="save_pin" type="id" />
     <item name="save_pin_value" type="id" />

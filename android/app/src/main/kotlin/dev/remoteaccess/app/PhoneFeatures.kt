@@ -13,7 +13,7 @@ internal object PhoneFeatures {
                 !state.settings.automatic -> "off"
                 FirebaseApp.getApps(context).isEmpty() -> "unavailable"
                 !WakeSupport.notificationsAllowed(context) -> "notifications-needed"
-                state.browsers.any { !it.revoked && it.enabled && !it.wakeReady } -> "setup-needed"
+                state.devices.any { !it.revoked && it.enabled && !it.wakeReady } -> "setup-needed"
                 else -> "enabled"
             }
         val screenAccess = if (dev.remoteaccess.app.control.ScreenAccessService.current != null) "enabled" else "permission-needed"

@@ -17,8 +17,8 @@ import org.json.JSONObject
 import java.util.UUID
 import java.util.concurrent.CopyOnWriteArraySet
 
-@Entity(tableName = "browsers")
-internal data class Browser(
+@Entity(tableName = "devices")
+internal data class Device(
     @PrimaryKey val id: String,
     val grant: String,
     val nickname: String,
@@ -47,21 +47,21 @@ internal data class HostSettings(
 internal data class ActivityEvent(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val at: Long,
-    val browserId: String?,
-    val browserName: String?,
+    val deviceId: String?,
+    val deviceName: String?,
     val kind: String,
 )
 
 @Dao
 internal interface HostDao {
-    @Query("SELECT * FROM browsers ORDER BY pairedAt, id")
-    fun browsers(): List<Browser>
+    @Query("SELECT * FROM devices ORDER BY pairedAt, id")
+    fun devices(): List<Device>
 
     @Query("SELECT * FROM settings WHERE id = 1")
     fun settings(): HostSettings?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun put(browser: Browser)
+    fun put(device: Device)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun put(settings: HostSettings)
@@ -75,16 +75,16 @@ internal interface HostDao {
     @Query("SELECT * FROM activity ORDER BY id DESC LIMIT :limit")
     fun events(limit: Int): List<ActivityEvent>
 
-    @Query("DELETE FROM browsers WHERE id = :id")
-    fun deleteBrowser(id: String)
+    @Query("DELETE FROM devices WHERE id = :id")
+    fun deleteDevice(id: String)
 }
 
-@Database(entities = [Browser::class, HostSettings::class, ActivityEvent::class], version = 2, exportSchema = true)
+@Database(entities = [Device::class, HostSettings::class, ActivityEvent::class], version = 3, exportSchema = true)
 internal abstract class HostDatabase : RoomDatabase() {
     abstract fun dao(): HostDao
 }
 
-internal data class HostSnapshot(val settings: HostSettings = HostSettings(armed = false), val browsers: List<Browser> = emptyList())
+internal data class HostSnapshot(val settings: HostSettings = HostSettings(armed = false), val devices: List<Device> = emptyList())
 
 /** All disk operations run off the UI thread; record authority reads use an immutable snapshot. */
 internal class HostStore private constructor(private val legacy: android.content.SharedPreferences, internal val database: HostDatabase) {
@@ -104,16 +104,16 @@ internal class HostStore private constructor(private val legacy: android.content
                 dao.put(HostSettings(automatic = legacy.getBoolean("wakeEnabled", false)))
                 legacy.getString("grant", null)?.let { raw ->
                     val grant = JSONObject(raw)
-                    val browser =
-                        Browser(
+                    val device =
+                        Device(
                             grant.getString("id"),
                             raw,
-                            "Paired browser",
+                            "Paired device",
                             System.currentTimeMillis(),
                             revoked = legacy.getBoolean("revoked", false),
                         )
-                    dao.put(browser)
-                    append("Previous pairing imported", browser)
+                    dao.put(device)
+                    append("Previous pairing imported", device)
                 }
             }
         }
@@ -126,11 +126,11 @@ internal class HostStore private constructor(private val legacy: android.content
     }
 
     private fun publish() {
-        snapshot = HostSnapshot(requireNotNull(dao.settings()), dao.browsers())
+        snapshot = HostSnapshot(requireNotNull(dao.settings()), dao.devices())
         listeners.forEach { it() }
     }
 
-    fun browser(id: String) = snapshot.browsers.find { it.id == id }
+    fun device(id: String) = snapshot.devices.find { it.id == id }
 
     fun allowed(
         id: String,
@@ -138,34 +138,34 @@ internal class HostStore private constructor(private val legacy: android.content
         automatic: Boolean = false,
     ): Boolean {
         val state = snapshot
-        val browser = state.browsers.find { it.id == id } ?: return false
+        val device = state.devices.find { it.id == id } ?: return false
         return state.settings.armed && (!automatic || state.settings.automatic) &&
-            browser.enabled && !browser.revoked && browser.generation == generation
+            device.enabled && !device.revoked && device.generation == generation
     }
 
     @Synchronized
     fun pair(
         grant: JSONObject,
         name: String? = null,
-    ): Browser {
+    ): Device {
         load()
-        check(snapshot.browsers.size < 32) { "Remove an unused browser before adding another" }
+        check(snapshot.devices.size < 32) { "Remove an unused device before adding another" }
         val id = grant.getString("id")
-        check(browser(id) == null) { "Browser already paired" }
-        val taken = snapshot.browsers.map { it.nickname }.toSet()
+        check(device(id) == null) { "Device already paired" }
+        val taken = snapshot.devices.map { it.nickname }.toSet()
         val nickname =
             if (name != null && name !in taken) {
                 name
             } else {
-                generateSequence(if (name == null) 1 else 2) { it + 1 }.map { "${name ?: "Browser"} $it" }.first { it !in taken }
+                generateSequence(if (name == null) 1 else 2) { it + 1 }.map { "${name ?: "Device"} $it" }.first { it !in taken }
             }
-        val browser = Browser(id, grant.toString(), nickname, System.currentTimeMillis())
+        val device = Device(id, grant.toString(), nickname, System.currentTimeMillis())
         database.runInTransaction {
-            dao.put(browser)
-            append("Browser paired", browser)
+            dao.put(device)
+            append("Device paired", device)
         }
         publish()
-        return browser
+        return device
     }
 
     @Synchronized
@@ -175,10 +175,10 @@ internal class HostStore private constructor(private val legacy: android.content
     ) {
         val name = value.trim()
         require(name.isNotEmpty() && name.length <= 60 && name.none { it.isISOControl() }) { "Use a name between 1 and 60 characters" }
-        val browser = requireNotNull(browser(id))
+        val device = requireNotNull(device(id))
         database.runInTransaction {
-            dao.put(browser.copy(nickname = name))
-            append("Browser renamed", browser.copy(nickname = name))
+            dao.put(device.copy(nickname = name))
+            append("Device renamed", device.copy(nickname = name))
         }
         publish()
     }
@@ -192,7 +192,7 @@ internal class HostStore private constructor(private val legacy: android.content
         if (before.armed == armed && before.automatic == automatic) return
         database.runInTransaction {
             dao.put(HostSettings(armed = armed, automatic = automatic))
-            snapshot.browsers.forEach { dao.put(it.copy(generation = generation(), synced = false, wakeReady = false)) }
+            snapshot.devices.forEach { dao.put(it.copy(generation = generation(), synced = false, wakeReady = false)) }
             if (before.armed != armed) append(if (armed) "Remote access enabled" else "Remote access disabled")
             if (before.automatic != automatic) append(if (automatic) "Automatic requests enabled" else "Automatic requests disabled")
         }
@@ -204,33 +204,33 @@ internal class HostStore private constructor(private val legacy: android.content
         id: String,
         enabled: Boolean,
     ) {
-        val browser = requireNotNull(browser(id))
-        if (browser.enabled == enabled || browser.revoked) return
+        val device = requireNotNull(device(id))
+        if (device.enabled == enabled || device.revoked) return
         database.runInTransaction {
-            dao.put(browser.copy(enabled = enabled, generation = generation(), synced = false, wakeReady = false))
-            append(if (enabled) "Browser enabled" else "Browser disabled", browser)
+            dao.put(device.copy(enabled = enabled, generation = generation(), synced = false, wakeReady = false))
+            append(if (enabled) "Device enabled" else "Device disabled", device)
         }
         publish()
     }
 
     @Synchronized
     fun revoke(id: String) {
-        val browser = requireNotNull(browser(id))
-        if (browser.revoked) return
+        val device = requireNotNull(device(id))
+        if (device.revoked) return
         database.runInTransaction {
-            dao.put(browser.copy(revoked = true, enabled = false, generation = generation(), synced = false, wakeReady = false))
-            append("Browser removed locally", browser)
+            dao.put(device.copy(revoked = true, enabled = false, generation = generation(), synced = false, wakeReady = false))
+            append("Device removed locally", device)
         }
         publish()
     }
 
     @Synchronized
     fun removed(id: String) {
-        val browser = browser(id) ?: return
-        check(browser.revoked)
+        val device = device(id) ?: return
+        check(device.revoked)
         database.runInTransaction {
-            dao.deleteBrowser(id)
-            append("Browser removal confirmed", browser)
+            dao.deleteDevice(id)
+            append("Device removal confirmed", device)
         }
         publish()
     }
@@ -241,9 +241,9 @@ internal class HostStore private constructor(private val legacy: android.content
         generation: String,
         wakeReady: Boolean,
     ) {
-        val browser = browser(id) ?: return
-        if (browser.generation != generation || browser.revoked) return
-        dao.put(browser.copy(synced = true, wakeReady = wakeReady))
+        val device = device(id) ?: return
+        if (device.generation != generation || device.revoked) return
+        dao.put(device.copy(synced = true, wakeReady = wakeReady))
         publish()
     }
 
@@ -252,22 +252,22 @@ internal class HostStore private constructor(private val legacy: android.content
         id: String,
         enabled: Boolean,
     ) {
-        val browser = requireNotNull(browser(id))
-        check(!browser.revoked)
-        if (browser.unlockAllowed == enabled) return
+        val device = requireNotNull(device(id))
+        check(!device.revoked)
+        if (device.unlockAllowed == enabled) return
         database.runInTransaction {
-            dao.put(browser.copy(unlockAllowed = enabled, generation = generation(), synced = false, wakeReady = false))
-            append("Browser unlock access changed", browser)
+            dao.put(device.copy(unlockAllowed = enabled, generation = generation(), synced = false, wakeReady = false))
+            append("Device unlock access changed", device)
         }
         publish()
     }
 
     @Synchronized
     fun connected(id: String) {
-        val browser = browser(id) ?: return
+        val device = device(id) ?: return
         database.runInTransaction {
-            dao.put(browser.copy(lastConnected = System.currentTimeMillis()))
-            append("Browser connected", browser)
+            dao.put(device.copy(lastConnected = System.currentTimeMillis()))
+            append("Device connected", device)
         }
         publish()
     }
@@ -278,16 +278,16 @@ internal class HostStore private constructor(private val legacy: android.content
         id: String? = null,
     ) {
         require(kind in EVENT_KINDS)
-        database.runInTransaction { append(kind, id?.let(::browser)) }
+        database.runInTransaction { append(kind, id?.let(::device)) }
         listeners.forEach { it() }
     }
 
     private fun append(
         kind: String,
-        browser: Browser? = null,
+        device: Device? = null,
     ) {
         val now = System.currentTimeMillis()
-        dao.event(ActivityEvent(at = now, browserId = browser?.id, browserName = browser?.nickname, kind = kind))
+        dao.event(ActivityEvent(at = now, deviceId = device?.id, deviceName = device?.nickname, kind = kind))
         dao.prune(now - 30L * 24 * 60 * 60 * 1000)
     }
 
@@ -302,7 +302,7 @@ internal class HostStore private constructor(private val legacy: android.content
             setOf(
                 "Connection requested",
                 "Remote control started",
-                "Browser unlock access changed",
+                "Device unlock access changed",
                 "Unlock requested",
                 "Phone unlocked",
                 "Unlock needs local recovery",
@@ -325,6 +325,17 @@ internal class HostStore private constructor(private val legacy: android.content
                 }
             }
 
+        /** Paired clients are devices, not only browsers; history keeps its entries under the new wording. */
+        val MIGRATION_2_3 =
+            object : Migration(2, 3) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL("ALTER TABLE browsers RENAME TO devices")
+                    db.execSQL("ALTER TABLE activity RENAME COLUMN browserId TO deviceId")
+                    db.execSQL("ALTER TABLE activity RENAME COLUMN browserName TO deviceName")
+                    db.execSQL("UPDATE activity SET kind = 'Device' || substr(kind, 8) WHERE kind GLOB 'Browser *'")
+                }
+            }
+
         @Volatile private var instance: HostStore? = null
 
         fun get(context: Context): HostStore =
@@ -332,7 +343,7 @@ internal class HostStore private constructor(private val legacy: android.content
                 instance ?: HostStore(
                     WakeSupport.preferences(context.applicationContext),
                     Room.databaseBuilder(context.applicationContext, HostDatabase::class.java, "remote-access.db")
-                        .addMigrations(MIGRATION_1_2).build(),
+                        .addMigrations(MIGRATION_1_2, MIGRATION_2_3).build(),
                 ).also {
                     instance = it
                 }

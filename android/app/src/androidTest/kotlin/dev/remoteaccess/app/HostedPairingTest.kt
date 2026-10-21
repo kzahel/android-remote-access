@@ -18,7 +18,7 @@ import java.io.File
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-/** Normal pairing/deep link and native controls, coordinated with isolated real browsers. */
+/** Normal pairing/deep link and native controls, coordinated with isolated real devices. */
 @RunWith(AndroidJUnit4::class)
 class HostedPairingTest {
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
@@ -58,7 +58,7 @@ class HostedPairingTest {
     }
 
     private fun click(id: String) {
-        if (id in setOf("open_settings", "open_activity")) tap(By.res("${context.packageName}:id/navigation_menu"))
+        if (id in setOf("open_settings", "open_activity", "open_devices")) tap(By.res("${context.packageName}:id/navigation_menu"))
         tap(By.res("${context.packageName}:id/$id"))
     }
 
@@ -68,9 +68,10 @@ class HostedPairingTest {
         section?.let { click(it) }
     }
 
-    private fun openBrowser(id: String) {
-        settings("manage_access")
-        tap(By.descStartsWith(requireNotNull(store.browser(id)).nickname + ". "))
+    private fun openDevice(id: String) {
+        start()
+        click("open_devices")
+        tap(By.descStartsWith(requireNotNull(store.device(id)).nickname + ". "))
     }
 
     private fun start(uri: String? = null) {
@@ -81,12 +82,12 @@ class HostedPairingTest {
         }
         context.startActivity(intent)
         InstrumentationRegistry.getInstrumentation().waitForIdleSync()
-        val control = if (uri == null) "host_status" else "grant_browser"
+        val control = if (uri == null) "host_status" else "grant_device"
         assertTrue(device.wait(Until.hasObject(By.res("${context.packageName}:id/$control")), 15000))
     }
 
-    private fun browser() {
-        openBrowser(store.snapshot.browsers.first { !it.revoked }.id)
+    private fun pairedDevice() {
+        openDevice(store.snapshot.devices.first { !it.revoked }.id)
     }
 
     @Test
@@ -99,16 +100,16 @@ class HostedPairingTest {
         val pairing = uri.exists()
         start(if (pairing) uri.readText().also { uri.delete() } else null)
         if (pairing) {
-            click("grant_browser")
-            waitFor(90000) { store.snapshot.browsers.any { !it.revoked } }
+            click("grant_device")
+            waitFor(90000) { store.snapshot.devices.any { !it.revoked } }
             click("skip_features")
         }
         val before = KeystoreIdentity.loadOrCreate("phone-identity-v1").publicKey
         assertTrue(before.contentEquals(KeystoreIdentity.loadOrCreate("phone-identity-v1").publicKey))
-        browser()
-        waitFor { store.snapshot.browsers.first().synced }
-        HostRuntime.connect(context, store.snapshot.browsers.first { !it.revoked }.id)
-        waitFor { HostSessions.current.get()?.status == "Waiting for your browser" }
+        pairedDevice()
+        waitFor { store.snapshot.devices.first().synced }
+        HostRuntime.connect(context, store.snapshot.devices.first { !it.revoked }.id)
+        waitFor { HostSessions.current.get()?.status == "Waiting for your device" }
         stage.writeText("connected")
         waitFor(120000) { command.exists() }
         when (command.readText()) {
@@ -117,14 +118,14 @@ class HostedPairingTest {
                 if (!store.snapshot.settings.automatic) click("enable_wake")
                 val allow = device.wait(Until.findObject(By.res("com.android.permissioncontroller:id/permission_allow_button")), 2000)
                 allow?.click()
-                waitFor(60000) { store.snapshot.browsers.all { it.wakeReady } }
+                waitFor(60000) { store.snapshot.devices.all { it.wakeReady } }
                 device.pressHome()
                 stage.writeText("wake-ready")
             }
             "revoke" -> {
-                click("remove_browser")
+                click("remove_device")
                 assertNotNull(device.wait(Until.findObject(By.res("android:id/button1")), 10000)).click()
-                waitFor { store.snapshot.browsers.isEmpty() }
+                waitFor { store.snapshot.devices.isEmpty() }
                 stage.writeText("revoked")
             }
         }
@@ -133,7 +134,7 @@ class HostedPairingTest {
 
     /** Management mutations use the real UI; manual transport admission is a fixture-only helper. */
     @Test
-    fun manageMultipleBrowsers() {
+    fun manageMultipleDevices() {
         val stage = File(context.filesDir, "hosted-stage")
         val command = File(context.filesDir, "hosted-command")
         val uriFile = File(context.filesDir, "hosted-pair-uri")
@@ -155,13 +156,13 @@ class HostedPairingTest {
                     return
                 }
                 "pair" -> {
-                    val before = store.snapshot.browsers.size
+                    val before = store.snapshot.devices.size
                     val uri = uriFile.readText()
                     uriFile.delete()
                     start(uri)
-                    click("grant_browser")
-                    waitFor(90000) { store.snapshot.browsers.size == before + 1 }
-                    waitFor { store.snapshot.browsers.all { it.synced } }
+                    click("grant_device")
+                    waitFor(90000) { store.snapshot.devices.size == before + 1 }
+                    waitFor { store.snapshot.devices.all { it.synced } }
                     assertTrue(device.wait(Until.hasObject(By.res("${context.packageName}:id/skip_features")), 10000))
                     click("skip_features")
                     assertTrue(device.wait(Until.hasObject(By.res("${context.packageName}:id/host_status")), 10000))
@@ -207,7 +208,7 @@ class HostedPairingTest {
                     val value = dev.remoteaccess.app.unlock.PinVault(context).read()
                     assertTrue(value.contentEquals("314159".toCharArray()))
                     value.fill('\u0000')
-                    waitFor(60000) { store.snapshot.browsers.all { it.synced && it.wakeReady } }
+                    waitFor(60000) { store.snapshot.devices.all { it.synced && it.wakeReady } }
                 }
                 "assert-unlock-blocked" -> {
                     assertTrue(device.executeShellCommand("getprop ro.kernel.qemu").trim() == "1")
@@ -270,7 +271,7 @@ class HostedPairingTest {
                 }
                 "setup" -> {
                     start()
-                    click("pair_browser")
+                    click("pair_device")
                     val scan = assertNotNull(device.wait(Until.findObject(By.res("${context.packageName}:id/scan_pairing_code")), 10000))
                     assertTrue(scan.isEnabled)
                     click("copy_website")
@@ -292,7 +293,7 @@ class HostedPairingTest {
                 }
                 "skip-setup" -> start()
                 "deny-feature-permission" -> {
-                    val paired = store.snapshot.browsers.map { it.id }
+                    val paired = store.snapshot.devices.map { it.id }
                     start()
                     settings()
                     click("enable_wake")
@@ -301,7 +302,7 @@ class HostedPairingTest {
                     waitFor { store.snapshot.settings.automatic }
                     assertTrue(!WakeSupport.notificationsAllowed(context))
                     start()
-                    assertTrue(store.snapshot.browsers.map { it.id } == paired)
+                    assertTrue(store.snapshot.devices.map { it.id } == paired)
                 }
                 "foreground" -> {
                     start()
@@ -348,7 +349,7 @@ class HostedPairingTest {
                     assertTrue(
                         device.wait(Until.hasObject(By.text("Notifications are off. Turn them on to receive connection requests.")), 15000),
                     )
-                    waitFor { store.snapshot.browsers.all { !it.wakeReady } }
+                    waitFor { store.snapshot.devices.all { !it.wakeReady } }
                     context.startActivity(
                         Intent(android.provider.Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
                             .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
@@ -361,7 +362,7 @@ class HostedPairingTest {
                     waitFor { WakeSupport.notificationsAllowed(context) }
                     device.pressBack()
                     assertTrue(device.wait(Until.hasObject(By.text("Notifications are on")), 15000))
-                    waitFor { store.snapshot.browsers.all { it.wakeReady } }
+                    waitFor { store.snapshot.devices.all { it.wakeReady } }
                 }
                 "notification-state" -> {
                     start()
@@ -375,13 +376,13 @@ class HostedPairingTest {
                             "Notifications are off. Turn them on to receive connection requests."
                         }
                     assertTrue(device.wait(Until.hasObject(By.text(message)), 15000))
-                    waitFor { store.snapshot.browsers.all { it.wakeReady == allowed } }
+                    waitFor { store.snapshot.devices.all { it.wakeReady == allowed } }
                 }
                 "global" -> {
                     start()
                     if (store.snapshot.settings.armed != task.getBoolean("enabled")) click("access_toggle")
                     waitFor { store.snapshot.settings.armed == task.getBoolean("enabled") }
-                    waitFor { store.snapshot.browsers.all { it.synced } }
+                    waitFor { store.snapshot.devices.all { it.synced } }
                 }
                 "automatic" -> {
                     start()
@@ -390,46 +391,46 @@ class HostedPairingTest {
                     device.wait(Until.findObject(By.res("com.android.permissioncontroller:id/permission_allow_button")), 2000)?.click()
                     waitFor(60000) {
                         store.snapshot.settings.automatic == task.getBoolean("enabled") &&
-                            store.snapshot.browsers.all {
+                            store.snapshot.devices.all {
                                 it.wakeReady == task.getBoolean("enabled")
                             }
                     }
                 }
                 else -> {
                     start()
-                    openBrowser(id)
+                    openDevice(id)
                     when (action) {
                         "details" -> Unit
                         "rename" -> {
-                            click("rename_browser")
+                            click("rename_device")
                             val nameField = assertNotNull(device.wait(Until.findObject(By.clazz("android.widget.EditText")), 10000))
                             nameField.text = task.getString("name")
                             assertNotNull(device.findObject(By.res("android:id/button1"))).click()
-                            waitFor { store.browser(id)?.nickname == task.getString("name") }
+                            waitFor { store.device(id)?.nickname == task.getString("name") }
                         }
                         "allow-unlock" -> {
-                            if (store.browser(id)?.unlockAllowed != task.getBoolean("enabled")) click("allow_unlock")
-                            waitFor { store.browser(id)?.unlockAllowed == task.getBoolean("enabled") }
-                            waitFor { store.snapshot.browsers.all { it.synced } }
+                            if (store.device(id)?.unlockAllowed != task.getBoolean("enabled")) click("allow_unlock")
+                            waitFor { store.device(id)?.unlockAllowed == task.getBoolean("enabled") }
+                            waitFor { store.snapshot.devices.all { it.synced } }
                         }
                         "enable" -> {
-                            if (store.browser(id)?.enabled != task.getBoolean("enabled")) click("browser_toggle")
-                            waitFor { store.browser(id)?.enabled == task.getBoolean("enabled") && store.browser(id)?.synced == true }
+                            if (store.device(id)?.enabled != task.getBoolean("enabled")) click("device_toggle")
+                            waitFor { store.device(id)?.enabled == task.getBoolean("enabled") && store.device(id)?.synced == true }
                         }
                         "connect" -> {
                             HostRuntime.connect(context, id)
                             waitFor {
-                                HostSessions.current.get()?.let { it.browserId == id && it.status == "Waiting for your browser" } == true
+                                HostSessions.current.get()?.let { it.deviceId == id && it.status == "Waiting for your device" } == true
                             }
                         }
                         "disconnect" -> {
-                            click("disconnect_browser")
+                            click("disconnect_device")
                             waitFor { HostSessions.current.get() == null }
                         }
                         "remove" -> {
-                            click("remove_browser")
+                            click("remove_device")
                             assertNotNull(device.wait(Until.findObject(By.res("android:id/button1")), 10000)).click()
-                            waitFor { store.browser(id) == null }
+                            waitFor { store.device(id) == null }
                         }
                         else -> error("Unknown fixture action")
                     }
@@ -437,9 +438,9 @@ class HostedPairingTest {
             }
             val result =
                 JSONObject().put("action", action).put(
-                    "browsers",
+                    "devices",
                     org.json.JSONArray(
-                        store.snapshot.browsers.map {
+                        store.snapshot.devices.map {
                             JSONObject().put(
                                 "id",
                                 it.id,
@@ -447,7 +448,7 @@ class HostedPairingTest {
                                 .put("lastConnected", it.lastConnected).put("wakeReady", it.wakeReady)
                         },
                     ),
-                ).put("armed", store.snapshot.settings.armed).put("active", HostSessions.current.get()?.browserId)
+                ).put("armed", store.snapshot.settings.armed).put("active", HostSessions.current.get()?.deviceId)
             stage.writeText(result.toString())
         }
         error("Management fixture timed out")
@@ -458,15 +459,15 @@ class HostedPairingTest {
         assertTrue(File(context.filesDir, "hosted-stage").exists(), "Not an enrolled acceptance fixture")
         HostSessions.stop()
         androidx.work.WorkManager.getInstance(context).cancelAllWork()
-        for (browser in store.snapshot.browsers) {
-            store.revoke(browser.id)
-            val grant = browser.authority()
+        for (pairedDevice in store.snapshot.devices) {
+            store.revoke(pairedDevice.id)
+            val grant = pairedDevice.authority()
             val signature =
                 KeystoreIdentity.loadOrCreate(
                     "phone-identity-v1",
-                ).sign(fields("ara/pair/revoke/v1", grant.getString("origin"), browser.id))
-            request(grant.getString("origin"), browser.id, "revoke", JSONObject().put("signature", encoded(signature)))
-            store.removed(browser.id)
+                ).sign(fields("ara/pair/revoke/v1", grant.getString("origin"), pairedDevice.id))
+            request(grant.getString("origin"), pairedDevice.id, "revoke", JSONObject().put("signature", encoded(signature)))
+            store.removed(pairedDevice.id)
         }
     }
 }

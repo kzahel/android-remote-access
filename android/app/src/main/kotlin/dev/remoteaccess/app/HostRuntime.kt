@@ -9,7 +9,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** Process-owned sessions, separate from activity navigation. Policy is checked again per record. */
 internal object HostSessions {
-    class Lease(val browserId: String, val generation: String) {
+    class Lease(val deviceId: String, val generation: String) {
         val active = AtomicBoolean(true)
 
         @Volatile var status = "Connecting"
@@ -24,8 +24,8 @@ internal object HostSessions {
 
     val current = AtomicReference<Lease?>(null)
 
-    fun acquire(browser: Browser): Lease? {
-        val lease = Lease(browser.id, browser.generation)
+    fun acquire(device: Device): Lease? {
+        val lease = Lease(device.id, device.generation)
         return if (current.compareAndSet(null, lease)) lease else null
     }
 
@@ -36,7 +36,7 @@ internal object HostSessions {
 
     fun stop(id: String? = null) {
         val lease = current.get() ?: return
-        if (id == null || lease.browserId == id) {
+        if (id == null || lease.deviceId == id) {
             if (current.compareAndSet(lease, null)) lease.close()
         }
     }
@@ -57,14 +57,14 @@ internal object HostRuntime {
                 val store = HostStore.get(app).load()
                 work(store)
                 HostSessions.current.get()?.let {
-                    if (!store.allowed(it.browserId, it.generation)) {
+                    if (!store.allowed(it.deviceId, it.generation)) {
                         HostSessions.stop()
-                        store.record("Access stopped on phone", it.browserId)
+                        store.record("Access stopped on phone", it.deviceId)
                     }
                 }
-                store.snapshot.browsers.forEach { browser ->
-                    if (!store.allowed(browser.id, browser.generation)) {
-                        WorkManager.getInstance(app).cancelUniqueWork("remote-wake-${browser.id}")
+                store.snapshot.devices.forEach { device ->
+                    if (!store.allowed(device.id, device.generation)) {
+                        WorkManager.getInstance(app).cancelUniqueWork("remote-wake-${device.id}")
                     }
                 }
                 WakeSupport.register(app)
@@ -82,11 +82,11 @@ internal object HostRuntime {
     ) {
         io.execute {
             val store = HostStore.get(context).load()
-            val browser = store.browser(id) ?: return@execute
-            if (!store.allowed(id, browser.generation)) return@execute
+            val device = store.device(id) ?: return@execute
+            if (!store.allowed(id, device.generation)) return@execute
             WakeSupport.enqueue(
                 context,
-                Data.Builder().putString("pairingId", id).putString("generation", browser.generation)
+                Data.Builder().putString("pairingId", id).putString("generation", device.generation)
                     .putBoolean("manual", true).putLong("expires", System.currentTimeMillis() / 1000 + 65).build(),
             )
         }

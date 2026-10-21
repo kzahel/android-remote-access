@@ -95,7 +95,7 @@ internal class RelayConnection(
                     } else {
                         sendRegistration(webSocket)
                     }
-                    report("Waiting for your browser")
+                    report("Waiting for your device")
                 }
                 "accessUpdated" -> {
                     if (removePush) {
@@ -110,7 +110,7 @@ internal class RelayConnection(
                     check(!ready)
                     check(admit())
                     ready = true
-                    report("Browser connected; securing session")
+                    report("Device connected; securing session")
                 }
                 else -> error("Invalid relay message")
             }

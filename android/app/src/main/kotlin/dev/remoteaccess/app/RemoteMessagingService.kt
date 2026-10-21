@@ -25,7 +25,7 @@ class RemoteMessagingService : FirebaseMessagingService() {
             val store = HostStore.get(this).load()
             if (!WakeSupport.allowed(this) || !store.allowed(id, generation, automatic = true)) return@execute
             // A hint selects a locally pinned grant; it is never authority itself.
-            WakeSupport.notify(this, "Your paired browser is contacting this phone")
+            WakeSupport.notify(this, "Your paired device is contacting this phone")
             WakeSupport.preferences(this).save { putLong("lastPushReceipt", System.currentTimeMillis()) }
             WakeSupport.enqueue(
                 this,

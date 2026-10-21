@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 /** One authenticated session owns one ordered command stream. Never retry input. */
 internal class ControlSession(
     private val context: Context,
-    private val browserId: String,
+    private val deviceId: String,
     private val current: () -> Boolean,
     private val send: (ByteArray) -> Unit,
     private val offerDirect: ((String, (String?) -> Unit) -> Unit)? = null,
@@ -68,7 +68,7 @@ internal class ControlSession(
             state.put("phoneName", android.os.Build.MODEL.take(80)).put(
                 "unlockSupported",
                 true,
-            ).put("unlockAllowed", HostStore.get(context).browser(browserId)?.unlockAllowed == true)
+            ).put("unlockAllowed", HostStore.get(context).device(deviceId)?.unlockAllowed == true)
                 .put("savedPin", vault.saved()).put("unlockBlocked", vault.guard.blocked())
             reply(1, state.toString().toByteArray())
         } else {
@@ -79,11 +79,11 @@ internal class ControlSession(
                 val permitted = {
                     active.get() && current() && (
                         command.op !in listOf(13, 14) ||
-                            HostStore.get(context).browser(browserId)?.unlockAllowed == true
+                            HostStore.get(context).device(deviceId)?.unlockAllowed == true
                     )
                 }
                 if (command.op in listOf(13, 14) && permitted()) {
-                    HostRuntime.io.execute { HostStore.get(context).record("Unlock requested", browserId) }
+                    HostRuntime.io.execute { HostStore.get(context).record("Unlock requested", deviceId) }
                 }
                 service.execute(command, this, permitted) { kind, payload ->
                     if (command.op in listOf(13, 14) && kind == 2 && payload.size == 1) {
@@ -93,7 +93,7 @@ internal class ControlSession(
                                 9 -> "Unlock needs local recovery"
                                 else -> null
                             }
-                        if (event != null) HostRuntime.io.execute { HostStore.get(context).record(event, browserId) }
+                        if (event != null) HostRuntime.io.execute { HostStore.get(context).record(event, deviceId) }
                     }
                     reply(kind, payload)
                 }

@@ -40,43 +40,43 @@ class HostStoreTest {
         val raw = grant("a").toString()
         legacy.edit().putString("grant", raw).putBoolean("revoked", true).putBoolean("wakeEnabled", true).commit()
         store.load()
-        val browser = store.snapshot.browsers.single()
-        assertEquals(raw, browser.grant)
-        assertTrue(browser.revoked)
+        val pairedDevice = store.snapshot.devices.single()
+        assertEquals(raw, pairedDevice.grant)
+        assertTrue(pairedDevice.revoked)
         assertTrue(store.snapshot.settings.automatic)
-        assertFalse(store.allowed(browser.id, browser.generation))
+        assertFalse(store.allowed(pairedDevice.id, pairedDevice.generation))
         assertFalse(legacy.contains("grant"))
         // Simulate a crash between the database commit and preference cleanup.
         legacy.edit().putString("grant", grant("b").toString()).commit()
         val reopened = HostStore.fixture(context, db).load()
-        assertEquals(listOf("a"), reopened.snapshot.browsers.map { it.id })
+        assertEquals(listOf("a"), reopened.snapshot.devices.map { it.id })
         assertEquals(1, reopened.events().count { it.kind == "Previous pairing imported" })
     }
 
     @Test
-    fun multipleBrowsersKeepSeparateAuthorityAndOldGenerationsNeverReturn() {
+    fun multipleDevicesKeepSeparateAuthorityAndOldGenerationsNeverReturn() {
         store.load()
         val a = store.pair(grant("a"))
         val b = store.pair(grant("b"))
         store.rename(a.id, "Work laptop")
-        assertEquals(a.grant, store.browser(a.id)?.grant)
+        assertEquals(a.grant, store.device(a.id)?.grant)
         store.enable(a.id, false)
         assertFalse(store.allowed(a.id, a.generation))
         assertTrue(store.allowed(b.id, b.generation))
         store.enable(a.id, true)
         assertFalse(store.allowed(a.id, a.generation))
-        assertTrue(store.allowed(a.id, requireNotNull(store.browser(a.id)).generation))
-        val before = requireNotNull(store.browser(b.id)).generation
+        assertTrue(store.allowed(a.id, requireNotNull(store.device(a.id)).generation))
+        val before = requireNotNull(store.device(b.id)).generation
         store.settings(armed = false)
         assertFalse(store.allowed(b.id, before))
         store.settings(armed = true)
         assertFalse(store.allowed(b.id, before))
         store.revoke(a.id)
-        assertFalse(store.allowed(a.id, requireNotNull(store.browser(a.id)).generation))
-        assertEquals("Work laptop", store.browser(a.id)?.nickname)
+        assertFalse(store.allowed(a.id, requireNotNull(store.device(a.id)).generation))
+        assertEquals("Work laptop", store.device(a.id)?.nickname)
         store.removed(a.id)
-        assertEquals(listOf(b.id), store.snapshot.browsers.map { it.id })
-        assertEquals("Browser removed locally", store.events().first { it.kind == "Browser removed locally" }.kind)
+        assertEquals(listOf(b.id), store.snapshot.devices.map { it.id })
+        assertEquals("Device removed locally", store.events().first { it.kind == "Device removed locally" }.kind)
     }
 
     @Test
@@ -85,10 +85,10 @@ class HostStoreTest {
         db.runInTransaction {
             repeat(10005) {
                 db.dao().event(
-                    ActivityEvent(at = System.currentTimeMillis(), browserId = null, browserName = null, kind = "Connection ended"),
+                    ActivityEvent(at = System.currentTimeMillis(), deviceId = null, deviceName = null, kind = "Connection ended"),
                 )
             }
-            db.dao().event(ActivityEvent(at = 1, browserId = null, browserName = null, kind = "Too old"))
+            db.dao().event(ActivityEvent(at = 1, deviceId = null, deviceName = null, kind = "Too old"))
         }
         assertEquals(9999, store.events(10000).size)
         assertFailsWith<IllegalArgumentException> { store.record("sensitive remote payload") }

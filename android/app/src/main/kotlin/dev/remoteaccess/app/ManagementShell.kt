@@ -105,6 +105,7 @@ internal class ManagementShell(
         )
         sidebar.addView(heading)
         link("home", "Home", R.id.open_home, R.drawable.ic_home)
+        link("devices", "Devices", R.id.open_devices, R.drawable.ic_devices)
         link("activity", "Activity", R.id.open_activity, R.drawable.ic_activity)
         link("settings", "Settings", R.id.open_settings, R.drawable.ic_settings)
         sidebar.addView(View(activity), LinearLayout.LayoutParams(-1, 0, 1f))
@@ -132,7 +133,7 @@ internal class ManagementShell(
         activity.window.insetsController?.setSystemBarsAppearance(if (Appearance.dark(activity)) 0 else flags, flags)
     }
 
-    private fun isTopLevel() = current in setOf("home", "activity", "settings")
+    private fun isTopLevel() = current in setOf("home", "devices", "activity", "settings")
 
     fun closeDrawer(): Boolean {
         if (!drawer.isDrawerOpen(GravityCompat.START)) return false
@@ -154,6 +155,7 @@ internal class ManagementShell(
             when (page) {
                 "home", "features", "grant" -> "home"
                 "activity" -> "activity"
+                "devices", "device" -> "devices"
                 else -> "settings"
             }
         links.forEach { (key, link) ->

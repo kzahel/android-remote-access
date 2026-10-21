@@ -47,7 +47,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var shell: ManagementShell
     private val backStack = mutableListOf<String>()
     private var page = "home"
-    private var browserId: String? = null
+    private var deviceId: String? = null
     private var pending: Enrollment? = null
     private var sharingDialog: AlertDialog? = null
     private val foregroundOwner = Any()
@@ -87,7 +87,7 @@ class MainActivity : ComponentActivity() {
             },
         )
         page = savedInstanceState?.getString("page") ?: "home"
-        browserId = savedInstanceState?.getString("browserId")
+        deviceId = savedInstanceState?.getString("deviceId")
         if (page == "grant") page = "home" // Never persist QR secrets in activity state.
         backStack.addAll(savedInstanceState?.getStringArrayList("navigation") ?: emptyList())
         shell = ManagementShell(this, ::goBack, { navigate(it) }, ::showSharingSetup)
@@ -152,8 +152,8 @@ class MainActivity : ComponentActivity() {
 
     private fun sessionStatus(status: String): String =
         when (status) {
-            "Connecting", "Browser connected; securing session" -> "Connecting…"
-            "Waiting for your browser" -> "Waiting for browser"
+            "Connecting", "Device connected; securing session" -> "Connecting…"
+            "Waiting for your device" -> "Waiting for device"
             "Encrypted session established" -> "Connected securely"
             "Encrypted connection passed" -> "Connection verified"
             "Remote control connected" -> "Viewing and control connected"
@@ -183,7 +183,7 @@ class MainActivity : ComponentActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putStringArrayList("navigation", ArrayList(backStack))
         outState.putString("page", page)
-        outState.putString("browserId", browserId)
+        outState.putString("deviceId", deviceId)
         outState.putBoolean("sharing", sharingDialog?.isShowing == true)
         super.onSaveInstanceState(outState)
     }
@@ -208,13 +208,13 @@ class MainActivity : ComponentActivity() {
         value: String,
         id: String? = null,
     ) {
-        if (value in setOf("home", "activity", "settings")) {
+        if (value in setOf("home", "devices", "activity", "settings")) {
             backStack.clear()
         } else if (page != value) {
             backStack.add(page)
         }
         page = value
-        browserId = id
+        deviceId = id
         notice = null
         if (value != "grant") pending = null
         render()
@@ -228,12 +228,12 @@ class MainActivity : ComponentActivity() {
                 "settings" -> "Settings"
                 "features" -> "Finish setup"
                 "activity" -> "Activity"
-                "browsers" -> "Manage access"
-                "browser" -> browserId?.let(store::browser)?.nickname ?: "Browser"
+                "devices" -> "Devices"
+                "device" -> deviceId?.let(store::device)?.nickname ?: "Device"
                 "background" -> "Connection details"
                 "appearance" -> "Appearance"
                 "about" -> "About"
-                "grant" -> "Allow this browser?"
+                "grant" -> "Allow this device?"
                 else -> "Home"
             },
         )
@@ -247,8 +247,8 @@ class MainActivity : ComponentActivity() {
             "settings" -> settings(layout)
             "features" -> features(layout)
             "activity" -> activity(layout)
-            "browsers" -> browsers(layout)
-            "browser" -> browser(layout)
+            "devices" -> devices(layout)
+            "device" -> device(layout)
             "background" -> backgroundSettings(layout)
             "appearance" -> appearance(layout)
             "about" -> about(layout)
@@ -260,17 +260,17 @@ class MainActivity : ComponentActivity() {
     private fun home(layout: LinearLayout) {
         val state = store.snapshot
         val live = HostSessions.current.get()
-        val browsers = state.browsers.filter { !it.revoked }
+        val devices = state.devices.filter { !it.revoked }
         val status =
             when {
                 !state.settings.armed -> "Remote access is off"
-                browsers.isEmpty() -> "Connect from another device to get started"
-                live != null -> "${store.browser(live.browserId)?.nickname ?: "Browser"} · ${sessionStatus(live.status)}"
-                browsers.none { it.enabled } -> "Access is paused for all paired browsers"
+                devices.isEmpty() -> "Connect from another device to get started"
+                live != null -> "${store.device(live.deviceId)?.nickname ?: "Device"} · ${sessionStatus(live.status)}"
+                devices.none { it.enabled } -> "Access is paused for all paired devices"
                 !state.settings.automatic -> "Available while this app is open"
                 com.google.firebase.FirebaseApp.getApps(this).isEmpty() -> "Background connections need attention"
                 !WakeSupport.notificationsAllowed(this) -> "Background connections need notifications"
-                browsers.any { it.enabled && (!it.synced || !it.wakeReady) } -> "Updating connection setup…"
+                devices.any { it.enabled && (!it.synced || !it.wakeReady) } -> "Updating connection setup…"
                 else -> "Ready for connection requests"
             }
         val access = section(layout)
@@ -282,51 +282,50 @@ class MainActivity : ComponentActivity() {
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         }
         if (live != null) {
-            button(access, "Stop connection", R.id.disconnect_browser) { HostRuntime.disconnect(this, live.browserId) }
+            button(access, "Stop connection", R.id.disconnect_device) { HostRuntime.disconnect(this, live.deviceId) }
         }
-        if (state.settings.armed && browsers.any { it.enabled }) {
+        if (state.settings.armed && devices.any { it.enabled }) {
             if (ScreenAccessService.current == null) {
                 row(layout, "Screen access is off", "Review to enable viewing and control", R.id.review_settings) { navigate("settings") }
             }
             if (state.settings.automatic && (
                     !WakeSupport.notificationsAllowed(this) ||
-                        browsers.any { it.enabled && (!it.synced || !it.wakeReady) }
+                        devices.any { it.enabled && (!it.synced || !it.wakeReady) }
                 )
             ) {
                 row(layout, "Background connections", "Review connection setup", R.id.background_settings) { navigate("background") }
             }
         }
-        if (state.settings.armed && browsers.isNotEmpty() && browsers.none { it.enabled }) {
-            row(layout, "Manage access", "Choose which browsers can connect", R.id.manage_access) { navigate("browsers") }
+        if (state.settings.armed && devices.isNotEmpty() && devices.none { it.enabled }) {
+            row(layout, "Devices", "Choose which devices can connect", R.id.manage_access) { navigate("devices") }
         }
-        button(layout, "Connect from another device", R.id.pair_browser) { showSharingSetup() }
+        button(layout, "Connect from another device", R.id.pair_device) { showSharingSetup() }
         text(
             layout,
-            "Open the website on another device, then pair it with this phone. Paired browsers can reconnect without scanning again.",
+            "Open the website on another device, then pair it with this phone. Paired devices can reconnect without scanning again.",
             14f,
         )
     }
 
-    private fun browsers(layout: LinearLayout) {
-        text(layout, "Browsers you have paired can reach this phone. Open an entry to rename it, change permissions or remove access.", 14f)
-        if (store.snapshot.browsers.isEmpty()) text(layout, "No paired browsers yet.")
-        store.snapshot.browsers.forEach { browser ->
+    private fun devices(layout: LinearLayout) {
+        if (store.snapshot.devices.isEmpty()) text(layout, "No paired devices yet.")
+        store.snapshot.devices.forEach { device ->
             val summary =
                 when {
-                    browser.revoked -> "Access removed · Finishing removal"
-                    !browser.enabled -> "Access paused"
+                    device.revoked -> "Access removed · Finishing removal"
+                    !device.enabled -> "Access paused"
                     !store.snapshot.settings.armed -> "Allowed · Remote access is off"
-                    HostSessions.current.get()?.browserId == browser.id -> "Connected"
-                    else -> lastConnected(browser)
+                    HostSessions.current.get()?.deviceId == device.id -> "Connected"
+                    else -> lastConnected(device)
                 }
-            row(layout, browser.nickname, summary) { navigate("browser", browser.id) }
+            row(layout, device.nickname, summary) { navigate("device", device.id) }
         }
-        button(layout, "Add browser", R.id.pair_browser) { showSharingSetup() }
+        button(layout, "Add device", R.id.pair_device) { showSharingSetup() }
     }
 
     private fun showSharingSetup() {
         if (sharingDialog?.isShowing == true) return
-        sharingDialog = SharingSetup.show(this, store.snapshot.browsers.none { !it.revoked }) { scanPairingCode() }
+        sharingDialog = SharingSetup.show(this, store.snapshot.devices.none { !it.revoked }) { scanPairingCode() }
     }
 
     private fun scanPairingCode() {
@@ -339,16 +338,16 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun features(layout: LinearLayout) {
-        val browser = browserId?.let(store::browser)
-        text(layout, "${browser?.nickname ?: "The browser"} is paired. Turn these on so remote access works well.")
-        setupChecklist(layout, browser)
+        val device = deviceId?.let(store::device)
+        text(layout, "${device?.nickname ?: "The device"} is paired. Turn these on so remote access works well.")
+        setupChecklist(layout, device)
         button(layout, "Done", R.id.skip_features) { navigate("home") }
     }
 
     /** What remote access needs, as switches showing Android's actual state; a tap starts the change. */
     private fun setupChecklist(
         layout: LinearLayout,
-        browser: Browser?,
+        device: Device?,
     ) {
         val screen = ScreenAccessService.current != null
         val automatic = store.snapshot.settings.automatic
@@ -370,7 +369,7 @@ class MainActivity : ComponentActivity() {
         check(
             list,
             "Screen and control",
-            if (screen) "Paired browsers can view and control" else "Needed to see and control the screen",
+            if (screen) "Paired devices can view and control" else "Needed to see and control the screen",
             screen,
             R.id.screen_access,
         ) { screenAccess(screen) }
@@ -378,7 +377,7 @@ class MainActivity : ComponentActivity() {
             list,
             "Connect while the app is closed",
             when {
-                wake -> "Paired browsers can wake this phone"
+                wake -> "Paired devices can wake this phone"
                 automatic -> "Needs notifications to work"
                 else -> "Only while this app is open"
             },
@@ -409,15 +408,15 @@ class MainActivity : ComponentActivity() {
         }
         val optional = section(layout)
         text(optional, "Optional · Unlocking", 14f)
-        if (browser != null) {
+        if (device != null) {
             check(
                 optional,
-                "Unlock from ${browser.nickname}",
+                "Unlock from ${device.nickname}",
                 "Each unlock is still your explicit action",
-                browser.unlockAllowed,
+                device.unlockAllowed,
                 R.id.allow_unlock,
             ) {
-                change { it.allowUnlock(browser.id, !browser.unlockAllowed) }
+                change { it.allowUnlock(device.id, !device.unlockAllowed) }
             }
         }
         val saved = PinVault(this).saved()
@@ -434,7 +433,7 @@ class MainActivity : ComponentActivity() {
         if (enabled) {
             AlertDialog.Builder(this).setTitle("Turn off screen access?")
                 .setMessage(
-                    "Paired browsers will no longer see or control the screen. Turning it back on takes a few steps in Android settings.",
+                    "Paired devices will no longer see or control the screen. Turning it back on takes a few steps in Android settings.",
                 )
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Turn off") { _, _ ->
@@ -446,10 +445,10 @@ class MainActivity : ComponentActivity() {
         AlertDialog.Builder(this).setTitle("Allow remote screen access?")
             .setMessage(
                 "Android Remote Access uses accessibility to capture this phone’s screen, read the focused field, " +
-                    "and perform taps, gestures and typing that you request from a paired browser. " +
-                    "Screen content and actions are encrypted between this phone and your browser " +
+                    "and perform taps, gestures and typing that you request from a paired device. " +
+                    "Screen content and actions are encrypted between this phone and your device " +
                     "and pass through our relay when needed. " +
-                    "They are not stored in Activity. Only enable this if you want paired browsers to view and control this phone. " +
+                    "They are not stored in Activity. Only enable this if you want paired devices to view and control this phone. " +
                     "You can stop access in the app or Android settings.",
             )
             .setNegativeButton("Cancel", null)
@@ -468,7 +467,7 @@ class MainActivity : ComponentActivity() {
     private fun connectionRequests(layout: LinearLayout) {
         text(
             layout,
-            "Paired browsers can contact this phone while the app is closed when that is on in Settings. " +
+            "Paired devices can contact this phone while the app is closed when that is on in Settings. " +
                 "Delivery depends on Android and network availability.",
             14f,
         )
@@ -491,7 +490,6 @@ class MainActivity : ComponentActivity() {
     private fun settings(layout: LinearLayout) {
         setupChecklist(layout, null)
         row(layout, "Connection details", "Notifications and connection setup", R.id.background_settings) { navigate("background") }
-        row(layout, "Manage access", "Paired browsers and their permissions", R.id.manage_access) { navigate("browsers") }
         row(
             layout,
             "Appearance",
@@ -588,7 +586,7 @@ class MainActivity : ComponentActivity() {
 
     private fun about(layout: LinearLayout) {
         text(layout, "Android Remote Access ${BuildConfig.VERSION_NAME}", 14f)
-        text(layout, "Pair browsers to view and control this phone securely.", 14f)
+        text(layout, "Pair devices to view and control this phone securely.", 14f)
         text(
             layout,
             "After a restart, unlock the phone locally once. Activity is stored only on this phone for up to 30 days or 10,000 entries.",
@@ -596,45 +594,45 @@ class MainActivity : ComponentActivity() {
         )
     }
 
-    private fun browser(layout: LinearLayout) {
-        val browser =
-            browserId?.let(store::browser) ?: run {
-                text(layout, "Browser removed")
+    private fun device(layout: LinearLayout) {
+        val device =
+            deviceId?.let(store::device) ?: run {
+                text(layout, "Device removed")
                 return
             }
-        text(layout, "Paired ${time(browser.pairedAt)}\n${lastConnected(browser)}", 14f)
-        if (browser.revoked) {
-            text(layout, "This browser can no longer connect. Connect this phone to the internet to finish removing it.")
-            button(layout, "Retry removal", R.id.remove_browser) { change { } }
+        text(layout, "Paired ${time(device.pairedAt)}\n${lastConnected(device)}", 14f)
+        if (device.revoked) {
+            text(layout, "This device can no longer connect. Connect this phone to the internet to finish removing it.")
+            button(layout, "Retry removal", R.id.remove_device) { change { } }
             return
         }
-        toggle(layout, "Allow this browser", browser.enabled, R.id.browser_toggle) { enabled -> change { it.enable(browser.id, enabled) } }
+        toggle(layout, "Allow this device", device.enabled, R.id.device_toggle) { enabled -> change { it.enable(device.id, enabled) } }
         toggle(
             layout,
             "Allow unlocking",
-            browser.unlockAllowed,
+            device.unlockAllowed,
             R.id.allow_unlock,
-        ) { enabled -> change { it.allowUnlock(browser.id, enabled) } }
-        text(layout, "Lets this browser submit a PIN or request the PIN saved on this phone. Each unlock is an explicit action.", 14f)
-        button(layout, "Rename", R.id.rename_browser) {
+        ) { enabled -> change { it.allowUnlock(device.id, enabled) } }
+        text(layout, "Lets this device submit a PIN or request the PIN saved on this phone. Each unlock is an explicit action.", 14f)
+        button(layout, "Rename", R.id.rename_device) {
             val input =
                 EditText(this).apply {
-                    setText(browser.nickname)
+                    setText(device.nickname)
                     isSingleLine = true
                     filters = arrayOf(android.text.InputFilter.LengthFilter(60))
                 }
-            AlertDialog.Builder(this).setTitle("Browser nickname").setView(input).setNegativeButton("Cancel", null)
-                .setPositiveButton("Save") { _, _ -> perform { store.rename(browser.id, input.text.toString()) } }.show()
+            AlertDialog.Builder(this).setTitle("Device nickname").setView(input).setNegativeButton("Cancel", null)
+                .setPositiveButton("Save") { _, _ -> perform { store.rename(device.id, input.text.toString()) } }.show()
         }
         val live = HostSessions.current.get()
-        text(layout, if (live?.browserId == browser.id) sessionStatus(live.status) else "Not connected")
-        val disconnect = button(layout, "Disconnect", R.id.disconnect_browser) { HostRuntime.disconnect(this, browser.id) }
-        disconnect.isEnabled = live?.browserId == browser.id
-        button(layout, getString(R.string.remove_browser), R.id.remove_browser) {
+        text(layout, if (live?.deviceId == device.id) sessionStatus(live.status) else "Not connected")
+        val disconnect = button(layout, "Disconnect", R.id.disconnect_device) { HostRuntime.disconnect(this, device.id) }
+        disconnect.isEnabled = live?.deviceId == device.id
+        button(layout, getString(R.string.remove_device), R.id.remove_device) {
             AlertDialog.Builder(
                 this,
-            ).setTitle("Remove ${browser.nickname}?").setMessage("Its access will be revoked. To connect again, pair this browser again.")
-                .setNegativeButton("Cancel", null).setPositiveButton("Remove") { _, _ -> change { it.revoke(browser.id) } }.show()
+            ).setTitle("Remove ${device.nickname}?").setMessage("Its access will be revoked. To connect again, pair this device again.")
+                .setNegativeButton("Cancel", null).setPositiveButton("Remove") { _, _ -> change { it.revoke(device.id) } }.show()
         }
     }
 
@@ -659,7 +657,7 @@ class MainActivity : ComponentActivity() {
                         },
                         16f,
                     )
-                    text(entry, "${time(event.at)}${event.browserName?.let { " · $it" } ?: ""}", 14f)
+                    text(entry, "${time(event.at)}${event.deviceName?.let { " · $it" } ?: ""}", 14f)
                 }
                 shell.restoreScroll()
                 if (events.size == activityLimit && activityLimit < 10000) {
@@ -682,7 +680,7 @@ class MainActivity : ComponentActivity() {
             notice = null
             render()
         } catch (_: Exception) {
-            notice = "Invalid or expired pairing code. Create a new code in your browser."
+            notice = "Invalid or expired pairing code. Create a new code on your other device."
             render()
         }
     }
@@ -693,20 +691,20 @@ class MainActivity : ComponentActivity() {
                 navigate("home")
                 return
             }
-        text(layout, invitation.name ?: "Unnamed browser", 20f)
+        text(layout, invitation.name ?: "Unnamed device", 20f)
         if (invitation.origin != Website.current(this)) text(layout, invitation.origin.removePrefix("https://"), 14f)
-        text(layout, "Only allow a browser you just opened yourself.", 14f)
-        button(layout, getString(R.string.grant_browser), R.id.grant_browser) {
+        text(layout, "Only allow a code you just created yourself.", 14f)
+        button(layout, getString(R.string.grant_device), R.id.grant_device) {
             perform(network = true) {
                 val accepted = invitation.grant(KeystoreIdentity.loadOrCreate("phone-identity-v1"))
-                val browser = store.pair(accepted, invitation.name)
+                val device = store.pair(accepted, invitation.name)
                 WakeSupport.enqueue(this, androidx.work.Data.EMPTY, registration = true)
                 runOnUiThread {
                     pending = null
                     backStack.clear()
                     backStack.add("home")
                     page = "features"
-                    browserId = browser.id
+                    deviceId = device.id
                 }
             }
         }
@@ -845,7 +843,7 @@ class MainActivity : ComponentActivity() {
             text = label
             isAllCaps = false
             minHeight = dp(52)
-            val primary = resource in setOf(R.id.pair_browser, R.id.grant_browser, R.id.skip_features, R.id.save_pin)
+            val primary = resource in setOf(R.id.pair_device, R.id.grant_device, R.id.skip_features, R.id.save_pin)
             backgroundTintList = ColorStateList.valueOf(color(if (primary) android.R.attr.colorAccent else R.attr.accentSurfaceColor))
             setTextColor(color(if (primary) R.attr.onAccentColor else android.R.attr.textColorPrimary))
             isEnabled = !busy || resource == R.id.navigate_back
@@ -907,12 +905,12 @@ class MainActivity : ComponentActivity() {
 
     private fun time(value: Long) = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(value))
 
-    private fun lastConnected(browser: Browser) =
-        if (browser.lastConnected == 0L) {
+    private fun lastConnected(device: Device) =
+        if (device.lastConnected == 0L) {
             "Never connected"
         } else {
             "Last connected ${time(
-                browser.lastConnected,
+                device.lastConnected,
             )}"
         }
 }
