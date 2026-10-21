@@ -107,6 +107,17 @@ for unlock/reboot tests. The attached Pixel 7a remains authorized for ordinary
 host/accessibility/capture/FCM tests, not physical PIN entry, reboot or lock/debugging
 changes. Play publication is not authorized.
 
+## Initial development: no backward compatibility
+
+YepControl is not live and has no non-debug builds (owner statement,
+2026-10-21). During initial development, do not maintain backward
+compatibility: change protocols, stored formats, databases and APIs directly,
+require new fields instead of making them optional, and reinstall or re-pair
+test devices when formats change. Do not add schema migrations, version
+negotiation or fallbacks for older app, website or relay versions. The Room
+migrations written so far were practice and are not a policy. Revisit this
+before the first public or release build.
+
 ## Research discipline
 
 - Prefer official Android/Firebase documentation, official vendor help, and
