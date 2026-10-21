@@ -38,6 +38,12 @@ the other acts. Holds are bounded (1,000 total, 4 per pairing). Relays without
 this answer at once and clients fall back to their earlier poll interval.
 The browser holds the QR secret only until completion/expiration. A completed
 receipt can be fetched by ID but contains only public keys and signatures.
+The phone's offer also carries its device report sealed with the QR secret:
+HKDF-SHA256(secret, salt = pairing ID, info `ara/pair/device/v1`) to AES-256-GCM
+with that info and ID as associated data (`protocol/vectors/device-v1.json`).
+The relay passes it to the browser opaquely in the `offered` reply and never
+stores it. A new pairing's first enabled access policy leaves open routes alone,
+so the browser's check right after pairing is not cut off.
 Phone confirmation polls are bounded. Losing the final receipt may leave a
 browser-only grant; re-pair with a fresh QR, never silently replace a pin.
 

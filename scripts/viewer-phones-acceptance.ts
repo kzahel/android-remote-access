@@ -300,6 +300,14 @@ try {
         screenViewing: "permission-needed",
         touchControl: "unavailable",
         connectionRequests: "notifications-needed",
+        device: {
+          manufacturer: "Google",
+          model: "Pixel 9",
+          name: "Fixture phone",
+          android: "17",
+          sdk: 37,
+          app: "0.6.0",
+        },
       };
       window.phonesFixture.finishCheck();
     });
@@ -364,6 +372,14 @@ try {
         screenViewing: "enabled",
         touchControl: "enabled",
         connectionRequests: "enabled",
+        device: {
+          manufacturer: "Google",
+          model: "Pixel 9",
+          name: "Fixture phone",
+          android: "17",
+          sdk: 37,
+          app: "0.6.0",
+        },
       };
       window.phonesFixture.finishCheck();
     });

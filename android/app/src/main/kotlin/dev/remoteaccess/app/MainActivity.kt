@@ -694,7 +694,7 @@ class MainActivity : ComponentActivity() {
                 navigate("home")
                 return
             }
-        val name = invitation.name ?: "Unnamed device"
+        val name = invitation.name
         text(layout, name, 20f)
         if (invitation.origin != Website.current(this)) text(layout, invitation.origin.removePrefix("https://"), 14f)
         if (granting === invitation) {
@@ -724,7 +724,10 @@ class MainActivity : ComponentActivity() {
         HostRuntime.network.execute {
             val paired =
                 try {
-                    val accepted = invitation.grant(KeystoreIdentity.loadOrCreate("phone-identity-v1")) { granting !== invitation }
+                    val accepted =
+                        invitation.grant(KeystoreIdentity.loadOrCreate("phone-identity-v1"), DeviceInfo.report(this)) {
+                            granting !== invitation
+                        }
                     store.pair(accepted, invitation.name).also {
                         WakeSupport.enqueue(this, androidx.work.Data.EMPTY, registration = true)
                     }

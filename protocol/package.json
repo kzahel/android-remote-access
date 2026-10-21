@@ -22,6 +22,10 @@
     "./framing": {
       "types": "./dist/framing.d.ts",
       "import": "./dist/framing.js"
+    },
+    "./device": {
+      "types": "./dist/device.d.ts",
+      "import": "./dist/device.js"
     }
   },
   "scripts": {

@@ -8,6 +8,14 @@ const report = {
   screenViewing: "unavailable",
   touchControl: "permission-needed",
   connectionRequests: "notifications-needed",
+  device: {
+    manufacturer: "Google",
+    model: "Pixel 9",
+    name: "Pixel 9",
+    android: "17",
+    sdk: 37,
+    app: "0.6.0",
+  },
 };
 describe("authenticated phone feature report decoding", () => {
   it("keeps capability states independent and drops remote display text", () => {
@@ -24,6 +32,7 @@ describe("authenticated phone feature report decoding", () => {
     { ...report, screenViewing: true },
     { ...report, touchControl: "granted" },
     { ...report, connectionRequests: "" },
+    { ...report, device: undefined },
   ])("rejects invalid reports: %j", (value) => {
     expect(() => parseFeatures(utf8(JSON.stringify(value)))).toThrow();
   });

@@ -15,22 +15,31 @@ inventory is introduced.
 - Ordinary links support bookmarks, Back/Forward and opening separate tabs.
   Unknown IDs explain that this browser needs pairing; they never select a
   different saved phone. URLs carry no pairing secret, private key or grant.
-- IndexedDB `remote-access-v1`, schema 2, retains the non-exportable browser key
+- IndexedDB `remote-access-v1`, schema 3, retains the non-exportable browser key
   in `state` and stores records keyed by phone ID in `phones`. Each has its pinned
-  grant, most recent pairing time, optional local alias/model and contact time.
-  Concurrent transactions merge metadata rather than replacing a shared array.
-- The original single `state.grant` migrates once, atomically with its removal,
-  retaining the grant and browser identity. Existing contact time is unknown.
-  Re-pairing the same phone replaces its grant and retains alias/model/history;
-  an active tab using the old grant is closed. An older tab blocking the database
-  upgrade must be closed and the page reloaded, as the error guidance explains.
+  grant, pairing time, optional local alias, the phone's latest device report
+  (manufacturer, model, the phone's own device name, Android version and API
+  level, YepControl app version) with when it was reported, contact time, access
+  state and this browser's own history (latest 200 events). Concurrent
+  transactions merge metadata rather than replacing a shared array.
+- Schema 3 discards earlier phone records instead of migrating them (initial
+  development keeps no compatibility); pair again after the upgrade.
+  Re-pairing the same phone replaces its grant and device report and retains
+  alias, contact time and history; an active tab using the old grant is closed.
+- The device report arrives sealed inside the pairing offer, so a new phone is
+  named immediately, and refreshes on every authenticated check and control
+  state. The displayed name is the local alias, else the phone's device name,
+  else its model. History records pairing, renames, explicit checks and control
+  sessions, access removed/paused/allowed, and changes in the reported Android
+  version, app version or device name. `/phones/<id>/details` shows the report,
+  pairing/contact/access state and history, with rename, open and forget.
 
 ## Contact and tab behavior
 
 Only an authenticated successful check or control state response advances
 `lastContactAt`. Successful Connect operations and automatic checks update it.
 The connected viewer throttles background status recording to once every
-15 seconds (or immediately when a new model is learned); it does not timestamp
+15 seconds; it does not timestamp
 page loads, failed connections, raw relay responses or accepted push requests.
 The list shows relative time with the exact local timestamp on hover and does
 not poll/wake all phones or infer global online status. Clearing site storage

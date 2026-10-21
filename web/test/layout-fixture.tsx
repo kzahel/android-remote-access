@@ -9,7 +9,14 @@ import "../src/viewer.css";
 const state: ControlState = {
   type: "state",
   v: 1,
-  phoneName: "Test phone",
+  device: {
+    manufacturer: "Google",
+    model: "Pixel 9",
+    name: "Test phone",
+    android: "17",
+    sdk: 37,
+    app: "0.6.0",
+  },
   accessibility: true,
   locked: true,
   width: 1080,
@@ -83,8 +90,10 @@ const root = document.getElementById("root");
 if (!root) throw Error("Missing fixture root");
 const phone: SavedPhone = {
   id: "a".repeat(64),
-  model: "Test phone",
   pairedAt: 1,
+  device: state.device,
+  deviceAt: 1,
+  history: [],
   grant: {
     id: "b".repeat(32),
     phone: "fixture",

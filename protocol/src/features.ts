@@ -1,3 +1,4 @@
+import { type DeviceInfo, parseDevice } from "./device.js";
 import type { Bytes } from "./index.js";
 
 export type FeatureState = "unavailable" | "permission-needed" | "enabled";
@@ -13,6 +14,7 @@ export interface PhoneFeatures {
   screenViewing: FeatureState;
   touchControl: FeatureState;
   connectionRequests: RequestState;
+  device: DeviceInfo;
 }
 
 /** Only an authenticated record from the phone may populate viewer capability state. */
@@ -46,5 +48,6 @@ export function parseFeatures(data: Bytes): PhoneFeatures {
     screenViewing: f.screenViewing,
     touchControl: f.touchControl,
     connectionRequests: f.connectionRequests,
+    device: parseDevice(f.device),
   };
 }

@@ -1,6 +1,7 @@
 package dev.remoteaccess.app
 
 import dev.remoteaccess.protocol.Crypto
+import dev.remoteaccess.protocol.DeviceSeal
 import dev.remoteaccess.protocol.Identity
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -87,8 +88,8 @@ internal class Enrollment(uri: String) {
     private val invite: JSONObject
     val origin: String
 
-    /** Device-chosen label; shown to the owner as a convenience, never as proof of identity. */
-    val name: String?
+    /** Label chosen by the pairing device (e.g. "Chrome on macOS"); a convenience, never proof of identity. */
+    val name: String
 
     init {
         require(uri.startsWith("ara-pair://enroll#") && uri.length < 4096)
@@ -100,8 +101,8 @@ internal class Enrollment(uri: String) {
             url.scheme == "https" && url.host != null && url.rawUserInfo == null &&
                 url.rawQuery == null && url.rawFragment == null && url.rawPath.isEmpty(),
         )
-        name = if (invite.has("name")) invite.getString("name") else null
-        require(name == null || validDeviceName(name))
+        name = invite.getString("name")
+        require(validDeviceName(name))
         unhex(invite.getString("id"), 16)
         unhex(invite.getString("secret"), 32)
         Crypto.publicKey(decoded(invite.getString("viewer")))
@@ -115,6 +116,7 @@ internal class Enrollment(uri: String) {
 
     fun grant(
         identity: Identity,
+        device: JSONObject,
         cancelled: () -> Boolean = { false },
     ): JSONObject {
         checkTime()
@@ -131,7 +133,9 @@ internal class Enrollment(uri: String) {
                 doFinal(data).joinToString("") { "%02x".format(it) }
             }
         grant.put("phoneSignature", encoded(identity.sign(data))).put("mac", mac)
-        request(origin, id, "offer", grant)
+        // The device report travels sealed with the QR secret, so the relay cannot read it.
+        val sealed = DeviceSeal.seal(unhex(invite.getString("secret"), 32), unhex(id, 16), device.toString().toByteArray())
+        request(origin, id, "offer", JSONObject(grant.toString()).put("device", sealed))
         val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(90)
         var seen = "offered"
         while (System.nanoTime() < deadline) {

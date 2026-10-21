@@ -1,4 +1,5 @@
 import { b64 } from "@remote/protocol";
+import { openDevice } from "@remote/protocol/device";
 import {
   createBytes,
   encodeInvitation,
@@ -37,7 +38,11 @@ async function api(
     throw new Error(
       "Pairing expired, revoked, or unavailable. Try a new code.",
     );
-  return response.json() as Promise<{ state: string; grant?: Grant }>;
+  return response.json() as Promise<{
+    state: string;
+    grant?: Grant;
+    device?: string;
+  }>;
 }
 export function PairPhone() {
   const [invitation, setInvitation] = useState<Invitation>();
@@ -104,6 +109,11 @@ export function PairPhone() {
           if (result.state === "offered" && result.grant) {
             const g = result.grant;
             await verifyOffer(invitation, g);
+            const device = await openDevice(
+              invitation.secret,
+              invitation.id,
+              result.device ?? "",
+            );
             const identity = await browserIdentity();
             const viewerSignature = b64(
               await identity.sign(grantBytes(invitation.origin, g)),
@@ -115,7 +125,7 @@ export function PairPhone() {
             if (stopped()) return;
             if (accepted.state !== "paired") throw new Error("Pairing failed");
             const paired: Grant = { ...g, viewerSignature };
-            const id = await rememberPhone(paired);
+            const id = await rememberPhone(paired, device);
             location.assign(phoneURL(id));
             return;
           }

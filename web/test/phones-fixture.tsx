@@ -6,6 +6,14 @@ import type { RemoteSession } from "../src/control-session.js";
 import type { ViewerServices } from "../src/phone-page.js";
 import { ViewerApp } from "../src/viewer-app.js";
 import "../src/viewer.css";
+const fixtureDevice = (name: string) => ({
+  manufacturer: "Google",
+  model: "Pixel 9",
+  name,
+  android: "17",
+  sdk: 37,
+  app: "0.6.0",
+});
 
 const models = (await (await fetch("/fixture-models")).json()) as Record<
   string,
@@ -38,6 +46,7 @@ window.phonesFixture = {
     screenViewing: "enabled",
     touchControl: "enabled",
     connectionRequests: "enabled",
+    device: fixtureDevice("Fixture phone"),
   },
 };
 async function deferred(
@@ -69,7 +78,7 @@ const services: ViewerServices = {
     const state: ControlState = {
       type: "state",
       v: 1,
-      phoneName: models[grant.phone] ?? "Fixture phone",
+      device: fixtureDevice(models[grant.phone] ?? "Fixture phone"),
       accessibility: true,
       locked: false,
       width: 1080,

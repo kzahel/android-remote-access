@@ -49,8 +49,11 @@ const api = (
   suffix = "",
   body?: unknown,
   headers: Record<string, string> = {},
-) =>
-  fetch(
+) => {
+  // Offers carry the phone's sealed device report, which the relay passes on opaquely.
+  if (suffix === "/offer" && body && typeof body === "object")
+    body = { device: "c2VhbGVkIGRldmljZQ==", ...body };
+  return fetch(
     `${base}/api/pair/${invitation.id}${suffix}`,
     body === undefined
       ? { headers }
@@ -60,6 +63,7 @@ const api = (
           body: JSON.stringify(body),
         },
   );
+};
 async function create() {
   return api("", {
     viewer: invitation.viewer,
@@ -168,6 +172,7 @@ beforeEach(async () => {
     viewer: b64(viewer.publicKey),
     expires: Math.floor(Date.now() / 1000) + 120,
     secret: hex(crypto.getRandomValues(new Uint8Array(32))),
+    name: "Test browser",
   };
 });
 afterEach(async () => {
@@ -193,7 +198,10 @@ it("answers held pairing polls when the other endpoint acts", async () => {
   const g = await offer();
   expect((await api("/offer", g)).status).toBe(202);
   const offered = await browserWait;
-  expect(await offered.json()).toMatchObject({ state: "offered" });
+  expect(await offered.json()).toMatchObject({
+    state: "offered",
+    device: "c2VhbGVkIGRldmljZQ==",
+  });
   const phoneWait = api("", undefined, { "Pair-Wait": "offered" });
   await new Promise((resolve) => setTimeout(resolve, 100));
   const viewerSignature = b64(await viewer.sign(grantBytes(origin, g)));
@@ -664,6 +672,21 @@ async function setAccess(enabled: boolean, generation: string) {
   expect((await manager.json()).type).toBe("accessUpdated");
   manager.socket.close();
 }
+it("keeps the first check open when a new pairing publishes its first policy", async () => {
+  await enroll();
+  const v = client();
+  expect((await v.login(viewer, "viewer")).type).toBe("authenticated");
+  let closed = false;
+  v.socket.on("close", () => {
+    closed = true;
+  });
+  await setAccess(true, "11".repeat(16));
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  expect(closed).toBe(false);
+  const ended = once(v.socket, "close");
+  await setAccess(true, "22".repeat(16));
+  expect((await ended)[0]).toBe(4001);
+});
 it("phone policy cancels pending sessions, persists pause and rejects old generations after re-enable", async () => {
   await enroll();
   const v = client();

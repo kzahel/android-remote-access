@@ -190,7 +190,7 @@ export function RemoteScreen({
     >
       <ViewerHeading
         inline={fullscreen.active}
-        name={name || state.phoneName || "Your phone"}
+        name={name || state.device.name}
         status={
           notice ||
           actionMessage ||
@@ -225,8 +225,8 @@ export function RemoteScreen({
             <div className="screen-panel">
               <h2>Enable screen access</h2>
               <p>
-                On the phone, open Feature setup → Screen access settings to
-                enable viewing and touch. Pairing stays saved.
+                On the phone, open YepControl › Settings and turn on Screen and
+                control to enable viewing and touch. Pairing stays saved.
               </p>
             </div>
           </div>

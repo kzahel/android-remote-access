@@ -31,7 +31,14 @@ type Stored = Grant & {
   accessEnabled?: boolean;
   accessGeneration?: string;
 };
-type Pending = { id: string; viewer: string; expires: number; offer?: Grant };
+type Pending = {
+  id: string;
+  viewer: string;
+  expires: number;
+  offer?: Grant;
+  /** The phone's device report, sealed with the QR secret; opaque to the relay. */
+  device?: string;
+};
 /** Close codes a viewer may act on. Sent only after the viewer proves its pinned key. */
 export const ACCESS_REMOVED = 4010;
 export const ACCESS_PAUSED = 4011;
@@ -134,7 +141,9 @@ export function createRelay(options: Options) {
     if (p && p.expires * 1000 > Date.now())
       return [
         200,
-        p.offer ? { state: "offered", grant: p.offer } : { state: "waiting" },
+        p.offer
+          ? { state: "offered", grant: p.offer, device: p.device }
+          : { state: "waiting" },
       ];
     return [404, { error: "Unavailable" }];
   };
@@ -310,6 +319,13 @@ export function createRelay(options: Options) {
           mac: text("mac"),
         };
         fromHex(grant.mac, 32);
+        const device = body.device;
+        if (
+          typeof device !== "string" ||
+          device.length > 1600 ||
+          !/^[A-Za-z0-9+/]+={0,2}$/.test(device)
+        )
+          throw new Error("Invalid device report");
         await verifySignature(
           grant.phone,
           grantBytes(origin, grant),
@@ -324,6 +340,7 @@ export function createRelay(options: Options) {
         )
           throw new Error("Unavailable");
         p.offer = grant;
+        p.device = device;
         reply(202, { state: "offered" });
         changed(id);
       } else if (action === "complete") {
@@ -576,14 +593,19 @@ export function createRelay(options: Options) {
                 pair.accessGeneration !== registration.generation ||
                 pair.accessEnabled !== registration.enabled
               ) {
+                // A new pairing's first enabled policy changes nothing for routes
+                // already open, such as the browser's check right after pairing.
+                const first = pair.accessGeneration === undefined;
                 pair.accessGeneration = registration.generation;
                 pair.accessEnabled = registration.enabled;
                 durable();
-                disconnect(
-                  pair.id,
-                  registration.enabled ? undefined : ACCESS_PAUSED,
-                );
-                push.remove(pair.id);
+                if (!first || !registration.enabled) {
+                  disconnect(
+                    pair.id,
+                    registration.enabled ? undefined : ACCESS_PAUSED,
+                  );
+                  push.remove(pair.id);
+                }
               }
               policyUpdated = true;
               ws.send(JSON.stringify({ type: "accessUpdated" }));

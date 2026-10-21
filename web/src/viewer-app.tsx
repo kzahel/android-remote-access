@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { AppShell } from "./app-shell.js";
 import { PairPhone } from "./pair-phone.js";
+import { PhoneDetails } from "./phone-details.js";
 import { PhoneList } from "./phone-list.js";
 import {
   PhonePage,
@@ -23,7 +24,9 @@ export function ViewerApp({
   const [phones, setPhones] = useState<SavedPhone[]>();
   const [error, setError] = useState("");
   const route = location.pathname;
-  const id = /^\/phones\/([a-f0-9]{64})\/?$/.exec(route)?.[1];
+  const match = /^\/phones\/([a-f0-9]{64})(\/details)?\/?$/.exec(route);
+  const id = match?.[1];
+  const details = !!match?.[2];
   const phone = phones?.find((entry) => entry.id === id);
   useEffect(() => {
     document.title = `${phone ? phoneName(phone) : route === "/pair" ? "Add phone" : "Your phones"} · YepControl`;
@@ -67,6 +70,7 @@ export function ViewerApp({
   else if (route === "/" || route === "/viewer.html")
     content = <PhoneList phones={phones} error={error} />;
   else if (route === "/pair" && !error) content = <PairPhone />;
+  else if (phone && !error && details) content = <PhoneDetails phone={phone} />;
   else if (phone && !error)
     content = (
       <PhonePage

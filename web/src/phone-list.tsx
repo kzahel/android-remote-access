@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ForgetPhone, PhoneName } from "./phone-management.js";
 import {
+  phoneDetailsURL,
   phoneName,
   phoneURL,
   refreshRemoved,
@@ -72,7 +73,7 @@ export function PhoneList({
                   </PhoneName>
                   {/* One detail line, so renaming never changes the card's height. */}
                   <span className="phone-meta">
-                    {phone.alias && phone.model && `${phone.model} · `}
+                    {`${phone.device.manufacturer} ${phone.device.model} · Android ${phone.device.android} · `}
                     {phone.access ? (
                       <span className="phone-access">
                         {phone.access === "removed"
@@ -85,6 +86,13 @@ export function PhoneList({
                   </span>
                 </div>
                 <div className="phone-actions">
+                  <a
+                    className="text-action"
+                    href={phoneDetailsURL(phone.id)}
+                    aria-label={`Details for ${phoneName(phone)}`}
+                  >
+                    Details
+                  </a>
                   <ForgetPhone phone={phone} />
                 </div>
               </li>

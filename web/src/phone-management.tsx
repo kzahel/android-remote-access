@@ -7,7 +7,7 @@ import {
   type SavedPhone,
 } from "./store.js";
 
-/** The phone's name with an inline pencil edit. Blank restores the reported model. */
+/** The phone's name with an inline pencil edit. Blank restores the phone's own name. */
 export function PhoneName({
   phone,
   children,
@@ -42,7 +42,7 @@ export function PhoneName({
           className="phone-name-input"
           aria-label="Phone name"
           value={value}
-          placeholder={phone.model || "Your phone"}
+          placeholder={phone.device.name}
           maxLength={60}
           onChange={(event) => setValue(event.target.value)}
           onBlur={() => void save()}

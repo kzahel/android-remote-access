@@ -8,7 +8,7 @@ export interface Invitation {
   expires: number;
   secret: string;
   /** Browser-chosen label such as "Chrome on macOS"; shown to the phone owner, never trusted. */
-  name?: string;
+  name: string;
 }
 export interface Grant {
   id: string;
@@ -120,8 +120,7 @@ export function decodeInvitation(uri: string): Invitation {
   fromHex(i.id, 16);
   fromHex(i.secret, 32);
   keyBytes(i.viewer);
-  if (i.name !== undefined && !validBrowserName(i.name))
-    throw new Error("Invalid browser name");
+  if (!validBrowserName(i.name)) throw new Error("Invalid browser name");
   if (
     !Number.isSafeInteger(i.expires) ||
     i.expires * 1000 <= Date.now() ||

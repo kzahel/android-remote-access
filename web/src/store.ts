@@ -1,13 +1,15 @@
 import { type Identity, identityFromKeys } from "@remote/protocol";
+import type { DeviceInfo } from "@remote/protocol/device";
 import { type Grant, keyBytes } from "@remote/protocol/enrollment";
 
 const database = new Promise<IDBDatabase>((resolve, reject) => {
-  const request = indexedDB.open("remote-access-v1", 2);
+  const request = indexedDB.open("remote-access-v1", 3);
   request.onupgradeneeded = () => {
     const db = request.result;
     if (!db.objectStoreNames.contains("state")) db.createObjectStore("state");
-    if (!db.objectStoreNames.contains("phones"))
-      db.createObjectStore("phones", { keyPath: "id" });
+    // Initial development keeps no compatibility: a new phone format starts over.
+    if (db.objectStoreNames.contains("phones")) db.deleteObjectStore("phones");
+    db.createObjectStore("phones", { keyPath: "id" });
   };
   request.onsuccess = () => {
     request.result.onversionchange = () => request.result.close();
@@ -53,20 +55,29 @@ export function browserIdentity(): Promise<Identity> {
   })();
   return cached;
 }
+/** This browser's own record of a phone event; never read from the phone. */
+export interface PhoneEvent {
+  at: number;
+  text: string;
+}
 export interface SavedPhone {
   id: string;
   grant: Grant;
   pairedAt: number;
   alias?: string;
-  model?: string;
+  /** The phone's latest self-report; refreshed on every authenticated contact. */
+  device: DeviceInfo;
+  deviceAt: number;
   lastContactAt?: number;
   /** What the relay last reported after this browser proved its key; cleared on success or re-pairing. */
   access?: PhoneAccess;
+  history: PhoneEvent[];
 }
 export type PhoneAccess = "removed" | "paused";
 export const phoneName = (phone: SavedPhone) =>
-  phone.alias || phone.model || "Your phone";
+  phone.alias || phone.device.name || phone.device.model;
 export const phoneURL = (id: string) => `/phones/${id}`;
+export const phoneDetailsURL = (id: string) => `/phones/${id}/details`;
 export async function phoneId(key: string): Promise<string> {
   const digest = new Uint8Array(
     await crypto.subtle.digest("SHA-256", keyBytes(key)),
@@ -96,38 +107,7 @@ export function watchPhones(listener: () => void): () => void {
     document.removeEventListener("visibilitychange", listener);
   };
 }
-// Hashing cannot run inside an IDB transaction. Recheck the legacy value in the
-// write transaction so simultaneous first loads migrate once without overwrites.
-const migrated = (async () => {
-  const legacy = await read<Grant>("grant");
-  if (!legacy) return;
-  const id = await phoneId(legacy.phone);
-  const db = await database;
-  await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(["state", "phones"], "readwrite");
-    const state = tx.objectStore("state");
-    const phones = tx.objectStore("phones");
-    const current = state.get("grant");
-    current.onsuccess = () => {
-      if ((current.result as Grant | undefined)?.id !== legacy.id) return;
-      const existing = phones.get(id);
-      existing.onsuccess = () => {
-        if (!existing.result)
-          phones.put({
-            id,
-            grant: legacy,
-            pairedAt: Date.now(),
-          } satisfies SavedPhone);
-        state.delete("grant");
-      };
-    };
-    tx.oncomplete = () => resolve();
-    tx.onabort = () => reject(tx.error);
-  });
-  changed();
-})();
 export async function savedPhones(): Promise<SavedPhone[]> {
-  await migrated;
   const db = await database;
   return new Promise((resolve, reject) => {
     const request = db.transaction("phones").objectStore("phones").getAll();
@@ -139,7 +119,6 @@ async function updatePhone(
   id: string,
   update: (phone: SavedPhone | undefined) => SavedPhone | undefined,
 ): Promise<void> {
-  await migrated;
   const db = await database;
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction("phones", "readwrite");
@@ -155,20 +134,46 @@ async function updatePhone(
   });
   changed();
 }
+const historyLimit = 200;
+const logged = (phone: SavedPhone, ...text: string[]): PhoneEvent[] =>
+  [...text.map((t) => ({ at: Date.now(), text: t })), ...phone.history].slice(
+    0,
+    historyLimit,
+  );
+/** Notable changes between two self-reports, worth keeping in this browser's history. */
+function deviceChanges(before: DeviceInfo, after: DeviceInfo): string[] {
+  const changes: string[] = [];
+  if (before.android !== after.android)
+    changes.push(`Android updated to ${after.android}`);
+  if (before.app !== after.app)
+    changes.push(`YepControl updated to ${after.app}`);
+  if (before.name !== after.name)
+    changes.push(`Phone renamed itself “${after.name}”`);
+  return changes;
+}
 export async function rememberPhone(
   grant: Grant,
-  alias?: string,
+  device: DeviceInfo,
 ): Promise<string> {
   const id = await phoneId(grant.phone);
   await updatePhone(id, (previous) => {
+    const now = Date.now();
     const next: SavedPhone = {
-      ...previous,
       id,
       grant,
-      pairedAt: Date.now(),
-      ...(alias?.trim() ? { alias: alias.trim().slice(0, 60) } : {}),
+      pairedAt: now,
+      device,
+      deviceAt: now,
+      history: [],
+      ...(previous?.alias ? { alias: previous.alias } : {}),
+      ...(previous?.lastContactAt
+        ? { lastContactAt: previous.lastContactAt }
+        : {}),
     };
-    delete next.access;
+    next.history = logged(
+      { ...next, history: previous?.history ?? [] },
+      previous ? "Paired again" : "Paired",
+    );
     return next;
   });
   return id;
@@ -176,23 +181,36 @@ export async function rememberPhone(
 export function renamePhone(id: string, alias: string): Promise<void> {
   const name = alias.trim().slice(0, 60);
   return updatePhone(id, (phone) => {
-    if (!phone) return;
+    if (!phone || name === (phone.alias ?? "")) return phone;
     const next = { ...phone };
     if (name) next.alias = name;
     else delete next.alias;
+    next.history = logged(
+      phone,
+      name ? `Renamed to “${name}”` : "Name reset to the phone’s own",
+    );
     return next;
   });
 }
-export function contactedPhone(id: string, model?: string): Promise<void> {
-  return updatePhone(id, (phone) =>
-    phone
-      ? {
-          ...phone,
-          lastContactAt: Math.max(phone.lastContactAt ?? 0, Date.now()),
-          ...(model ? { model } : {}),
-        }
-      : undefined,
-  );
+/** Records an authenticated contact. `event` is logged; routine refreshes pass none. */
+export function contactedPhone(
+  id: string,
+  device: DeviceInfo,
+  event?: string,
+): Promise<void> {
+  return updatePhone(id, (phone) => {
+    if (!phone) return undefined;
+    const now = Date.now();
+    const notes = [...deviceChanges(phone.device, device)];
+    if (event) notes.unshift(event);
+    return {
+      ...phone,
+      device,
+      deviceAt: now,
+      lastContactAt: Math.max(phone.lastContactAt ?? 0, now),
+      history: notes.length ? logged(phone, ...notes) : phone.history,
+    };
+  });
 }
 export const forgetPhone = (id: string) => updatePhone(id, () => undefined);
 /** Records the relay's verdict for this exact pairing; a newer pairing of the same phone is untouched. */
@@ -208,6 +226,14 @@ export async function setPhoneAccess(
     const next = { ...phone };
     if (access) next.access = access;
     else delete next.access;
+    next.history = logged(
+      phone,
+      access === "removed"
+        ? "Access removed on the phone"
+        : access === "paused"
+          ? "Access paused on the phone"
+          : "Access allowed again",
+    );
     return next;
   });
 }

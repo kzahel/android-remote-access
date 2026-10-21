@@ -1,4 +1,5 @@
 import type { ControlState } from "@remote/protocol/control";
+import type { DeviceInfo } from "@remote/protocol/device";
 import type { PhoneFeatures } from "@remote/protocol/features";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RemoteSession } from "./control-session.js";
@@ -57,16 +58,12 @@ export function PhonePage({
     closing.current = Promise.all([closing.current, released]).then(() => {});
     return closing.current;
   }, []);
+  // Explicit connections are logged; state refreshes update details at most every 15 s.
   const recordContact = useCallback(
-    (state?: ControlState, force = false) => {
-      if (
-        !force &&
-        Date.now() - lastRecorded.current < 15000 &&
-        (!state?.phoneName || state.phoneName === metadata.current.model)
-      )
-        return;
+    (device: DeviceInfo, event?: string) => {
+      if (!event && Date.now() - lastRecorded.current < 15000) return;
       lastRecorded.current = Date.now();
-      void contactedPhone(target.id, state?.phoneName).catch(() =>
+      void contactedPhone(target.id, device, event).catch(() =>
         setStorageWarning(
           "Connected, but contact history couldn’t be saved in this browser.",
         ),
@@ -125,7 +122,7 @@ export function PhonePage({
           connected = true;
           live.current = result.session;
           setRemote(result);
-          recordContact(result.state, true);
+          recordContact(result.state.device, "Remote control started");
         } else {
           const result = await services.check(
             identity,
@@ -135,7 +132,7 @@ export function PhonePage({
           );
           if (abort.signal.aborted) return;
           setFeatures(result);
-          recordContact(undefined, true);
+          if (result) recordContact(result.device, "Connection checked");
           setStatus("Ready to connect");
         }
       } catch (error) {
@@ -212,7 +209,7 @@ export function PhonePage({
           name={phoneName(phone)}
           notice={storageWarning}
           aspect={defaultScreenAspect}
-          onContact={recordContact}
+          onContact={(state) => recordContact(state.device)}
           onEnded={() => {
             close();
             setRemote(undefined);

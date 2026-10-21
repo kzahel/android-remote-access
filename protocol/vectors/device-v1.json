@@ -1,0 +1,16 @@
+{
+  "note": "Synthetic pairing-offer device seal: HKDF-SHA256(secret, salt=id, info=ara/pair/device/v1) to AES-256-GCM, AAD=info||id, output base64(iv||ciphertext||tag). Plaintext is the compact JSON below.",
+  "secret": "1111111111111111111111111111111111111111111111111111111111111111",
+  "id": "22222222222222222222222222222222",
+  "iv": "0102030405060708090a0b0c",
+  "plaintext": "{\"manufacturer\":\"Google\",\"model\":\"Pixel 9\",\"name\":\"Kyle’s Pixel 9\",\"android\":\"17\",\"sdk\":37,\"app\":\"0.6.0\"}",
+  "device": {
+    "manufacturer": "Google",
+    "model": "Pixel 9",
+    "name": "Kyle’s Pixel 9",
+    "android": "17",
+    "sdk": 37,
+    "app": "0.6.0"
+  },
+  "sealed": "AQIDBAUGBwgJCgsMipzp5yWdm5DBOpIiRzVIst68QjoNEp3jGygAH3/GAsYrHQawknla1kqkRPg7SMUl1ZZfxjKeZpvHyTW9+y8CxpvzUNN/QYJZ6Fka2Zg7Rg3lbC+dFoeSEUP6HKyFk5qdvSXsYGSYfWvYJv6jt/VabAzzMWD4axCKy5Yn"
+}

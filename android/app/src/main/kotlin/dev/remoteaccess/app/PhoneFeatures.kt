@@ -20,5 +20,6 @@ internal object PhoneFeatures {
         return JSONObject().put("type", "features").put("v", 1)
             .put("screenViewing", screenAccess).put("touchControl", screenAccess)
             .put("connectionRequests", requests)
+            .put("device", DeviceInfo.report(context))
     }
 }

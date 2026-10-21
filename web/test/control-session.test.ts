@@ -45,6 +45,14 @@ function lane() {
                   width: 1080,
                   height: 2400,
                   scene: 1,
+                  device: {
+                    manufacturer: "Google",
+                    model: "Pixel 9",
+                    name: "Pixel 9",
+                    android: "17",
+                    sdk: 37,
+                    app: "0.6.0",
+                  },
                 }),
               )
             : new Uint8Array([0]);

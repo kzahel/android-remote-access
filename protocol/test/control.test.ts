@@ -125,8 +125,16 @@ describe("control boundary", () => {
     }
     expect(() => decodeReply(new Uint8Array(1048577))).toThrow();
   });
-  it("accepts optional phone names only as bounded display text", () => {
-    function record(phoneName: unknown) {
+  it("requires a bounded device report in every state", () => {
+    const device = {
+      manufacturer: "Google",
+      model: "Pixel 9",
+      name: "Kyle’s Pixel 9",
+      android: "17",
+      sdk: 37,
+      app: "0.6.0",
+    };
+    function record(value: unknown) {
       const payload = new TextEncoder().encode(
         JSON.stringify({
           type: "state",
@@ -136,7 +144,7 @@ describe("control boundary", () => {
           width: 1080,
           height: 2400,
           scene: 1,
-          phoneName,
+          device: value,
         }),
       );
       const bytes = new Uint8Array(12 + payload.length);
@@ -145,18 +153,16 @@ describe("control boundary", () => {
       bytes.set(payload, 12);
       return bytes;
     }
-    expect(decodeReply(record("Pixel 9"))).toMatchObject({
-      state: { phoneName: "Pixel 9" },
-    });
-    expect(decodeReply(record(undefined))).toMatchObject({ kind: "state" });
-    for (const name of [
-      "",
-      "x".repeat(81),
-      "Phone\nname",
-      "Phone\u007f",
-      9,
+    expect(decodeReply(record(device))).toMatchObject({ state: { device } });
+    for (const bad of [
+      undefined,
       null,
+      { ...device, model: "" },
+      { ...device, name: "x".repeat(81) },
+      { ...device, name: "Phone\nname" },
+      { ...device, sdk: 0 },
+      { ...device, android: 17 },
     ])
-      expect(() => decodeReply(record(name))).toThrow("Invalid phone name");
+      expect(() => decodeReply(record(bad))).toThrow("Invalid device report");
   });
 });
