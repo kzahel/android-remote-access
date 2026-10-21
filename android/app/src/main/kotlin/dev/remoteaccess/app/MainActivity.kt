@@ -31,7 +31,6 @@ import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.IntentCompat
 import androidx.core.content.PackageManagerCompat
 import androidx.core.content.UnusedAppRestrictionsConstants
 import androidx.core.net.toUri
@@ -359,16 +358,7 @@ class MainActivity : ComponentActivity() {
         val notifications = WakeSupport.notificationsAllowed(this)
         val wake = automatic && notifications
         val restore = RestartRecovery.enabled(this)
-        val unused =
-            when (unusedRestrictions) {
-                UnusedAppRestrictionsConstants.DISABLED -> true
-                UnusedAppRestrictionsConstants.API_30_BACKPORT,
-                UnusedAppRestrictionsConstants.API_30,
-                UnusedAppRestrictionsConstants.API_31,
-                -> false
-                else -> null
-            }
-        val needed = listOfNotNull(screen, wake, restore, unused)
+        val needed = listOf(screen, wake, restore)
         val list = section(layout)
         text(list, "Recommended · ${needed.count { it }} of ${needed.size} on", 14f)
         check(
@@ -401,15 +391,6 @@ class MainActivity : ComponentActivity() {
         }
         check(list, "Reconnect after restart", "After you unlock the phone once", restore, R.id.restore_setup) {
             perform { RestartRecovery.setEnabled(this, !restore) }
-        }
-        if (unused != null) {
-            check(
-                list,
-                "Keep working when unused",
-                if (unused) "Android won’t pause this app" else "Android may pause this app after months unused",
-                unused,
-                R.id.unused_app_settings,
-            ) { unusedAppSettings.launch(IntentCompat.createManageUnusedAppRestrictionsIntent(this, packageName)) }
         }
         val optional = section(layout)
         text(optional, "Optional · Unlocking", 14f)
@@ -557,21 +538,34 @@ class MainActivity : ComponentActivity() {
     private fun backgroundSettings(layout: LinearLayout) {
         connectionRequests(layout)
         text(layout, "When this app is unused", 20f)
+        // Android exempts apps with an enabled accessibility service; its own status check does not say so.
+        val exempt =
+            Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+                ?.split(':')?.any { it.startsWith("$packageName/") } == true
+        val restricted =
+            unusedRestrictions in
+                setOf(
+                    UnusedAppRestrictionsConstants.API_30_BACKPORT,
+                    UnusedAppRestrictionsConstants.API_30,
+                    UnusedAppRestrictionsConstants.API_31,
+                )
         text(
             layout,
-            when (unusedRestrictions) {
-                null -> "Checking Android settings…"
-                UnusedAppRestrictionsConstants.DISABLED -> "Android’s unused-app restrictions are off."
-                UnusedAppRestrictionsConstants.FEATURE_NOT_AVAILABLE -> "Android does not pause unused apps on this phone."
-                UnusedAppRestrictionsConstants.ERROR -> "Couldn’t check whether Android pauses this app. Review its app settings."
-                else ->
-                    "Android may remove permissions or pause this app after a long period of inactivity. " +
-                        "Turn on Keep working when unused in Settings."
+            when {
+                exempt -> "Android doesn’t pause this app while screen access is on."
+                unusedRestrictions == null -> "Checking Android settings…"
+                unusedRestrictions == UnusedAppRestrictionsConstants.DISABLED -> "Android won’t pause this app when it’s unused."
+                unusedRestrictions == UnusedAppRestrictionsConstants.FEATURE_NOT_AVAILABLE ->
+                    "Android does not pause unused apps on this phone."
+                restricted ->
+                    "Android may remove permissions and archive this app after months unused. " +
+                        "To prevent that, turn off “Manage app if unused” at the bottom of App info."
+                else -> "Couldn’t check whether Android pauses this app. Review its app settings."
             },
             14f,
         ).id = R.id.unused_app_status
-        if (unusedRestrictions == UnusedAppRestrictionsConstants.ERROR) {
-            button(layout, "App settings", R.id.app_settings) {
+        if (!exempt && (restricted || unusedRestrictions == UnusedAppRestrictionsConstants.ERROR)) {
+            button(layout, "Open App info", R.id.unused_app_settings) {
                 unusedAppSettings.launch(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:$packageName".toUri()))
             }
         }

@@ -218,13 +218,19 @@ while connection/readiness updates refresh page content.
   rows lead to the Settings checklist or Connection details. Choosing to connect
   only while the app is open is a valid configuration, not unfinished setup.
 - Settings opens with a setup checklist: recommended switches for Screen and
-  control, Connect while the app is closed, Reconnect after restart and Keep
-  working when unused (when Android pauses unused apps), with an "n of m on"
-  count, then optional Save PIN on this phone. Each switch shows Android's actual
-  state; a tap starts the change (disclosure, permission prompt or system page)
-  and the switch follows once Android reports it. Connection details holds
-  notification status, unused-app status and Retry setup. Appearance and About
-  follow.
+  control, Connect while the app is closed and Reconnect after restart, with an
+  "n of 3 on" count, then optional Save PIN on this phone. Each switch shows
+  Android's actual state; a tap starts the change (disclosure, permission prompt
+  or system page) and the switch follows once Android reports it. Connection
+  details holds notification status, unused-app status and Retry setup.
+  Appearance and About follow.
+- Unused-app handling ("Manage app if unused" on Android 17) is not a checklist
+  item. Observed on a Pixel 9, Android 17, 2026-10-21: PermissionController logs
+  `Exempted dev.remoteaccess.host - Has exempt components:
+  android.accessibilityservice.AccessibilityService` and greys out the toggle
+  while screen access is enabled. AndroidX's restriction status does not report
+  that exemption, so Connection details checks the enabled accessibility service
+  itself and only points to App info when the restriction applies.
 - Devices is a top-level drawer page. Paired clients are called devices because
   later clients need not be browsers; each entry's name says what it is
   ("Chrome on macOS"). Nicknames, per-device access/unlock switches, disconnect

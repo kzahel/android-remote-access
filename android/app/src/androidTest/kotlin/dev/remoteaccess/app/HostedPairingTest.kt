@@ -329,8 +329,7 @@ class HostedPairingTest {
                     click("notification_settings")
                     assertTrue(device.wait(Until.hasObject(By.pkg("com.android.settings")), 10000))
                     device.pressBack()
-                    click("navigate_back")
-                    if (device.wait(Until.hasObject(By.res("${context.packageName}:id/unused_app_settings")), 2000)) {
+                    if (device.hasObject(By.res("${context.packageName}:id/unused_app_settings"))) {
                         click("unused_app_settings")
                         assertTrue(device.wait(Until.hasObject(By.pkg("com.android.settings")), 10000))
                         device.pressBack()
