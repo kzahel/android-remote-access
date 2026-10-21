@@ -75,7 +75,15 @@ class HostedPairingTest {
     }
 
     private fun start(uri: String? = null) {
-        val intent = Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        val intent =
+            (
+                if (uri != null && Uri.parse(uri).host == "yepcontrol.com") {
+                    // Exercise Android's verified App Link resolver, as an external camera would.
+                    Intent(Intent.ACTION_VIEW, Uri.parse(uri)).addCategory(Intent.CATEGORY_BROWSABLE)
+                } else {
+                    Intent(context, MainActivity::class.java)
+                }
+            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         if (uri != null) {
             intent.action = Intent.ACTION_VIEW
             intent.data = Uri.parse(uri)

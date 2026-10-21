@@ -92,8 +92,13 @@ internal class Enrollment(uri: String) {
     val name: String
 
     init {
-        require(uri.startsWith("ara-pair://enroll#") && uri.length < 4096)
-        invite = JSONObject(decoded(uri.substring(18)).toString(Charsets.UTF_8))
+        require(uri.length < 4096)
+        val link = URI(uri)
+        require(
+            link.scheme == "https" && link.host != null && link.rawUserInfo == null &&
+                link.rawQuery == null && link.rawPath == "/enroll" && link.rawFragment != null,
+        )
+        invite = JSONObject(decoded(link.rawFragment).toString(Charsets.UTF_8))
         require(invite.getInt("v") == 1)
         origin = invite.getString("origin")
         val url = URI(origin)
@@ -101,6 +106,7 @@ internal class Enrollment(uri: String) {
             url.scheme == "https" && url.host != null && url.rawUserInfo == null &&
                 url.rawQuery == null && url.rawFragment == null && url.rawPath.isEmpty(),
         )
+        require(link.scheme + "://" + link.rawAuthority == origin)
         name = invite.getString("name")
         require(validDeviceName(name))
         unhex(invite.getString("id"), 16)

@@ -20,7 +20,7 @@ type Fixture = {
 };
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export async function controlAcceptance(f: Fixture) {
-  const app = "dev.remoteaccess.host";
+  const app = "com.yepcontrol.app";
   const { adb, privateWrite } = f;
   if (!f.physical && adb("shell", "getprop", "ro.kernel.qemu") !== "1")
     throw new Error("Control acceptance requires its owned emulator");

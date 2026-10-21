@@ -16,7 +16,7 @@ fun requireOrigin(value: String) {
             uri.rawQuery == null && uri.rawFragment == null && uri.rawPath.isNullOrEmpty(),
     ) { "Expected an HTTPS origin without a trailing slash: $value" }
 }
-val sharingWebsite = providers.gradleProperty("sharingWebsite").orElse("https://android-remote.graehlarts.com").get()
+val sharingWebsite = providers.gradleProperty("sharingWebsite").orElse("https://yepcontrol.com").get()
 requireOrigin(sharingWebsite)
 // Optional local relay (e.g. `pnpm dev` over Tailscale); debug builds offer it as a Settings switch.
 val localProperties =
@@ -32,7 +32,7 @@ android {
     compileSdk = 36
     buildFeatures { buildConfig = true }
     defaultConfig {
-        applicationId = "dev.remoteaccess.host"
+        applicationId = "com.yepcontrol.app"
         minSdk = 30
         targetSdk = 36
         versionCode = 3

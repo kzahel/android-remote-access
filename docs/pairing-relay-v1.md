@@ -7,7 +7,10 @@ it does not grant screen capture, input, unlock, FCM or WebRTC capability.
 ## Enrollment
 
 The browser creates a non-exportable P-256 identity in IndexedDB and an ephemeral
-256-bit QR secret. The QR URI fragment contains version, HTTPS relay origin,
+256-bit QR secret. The QR is an HTTPS App Link at `<relay origin>/enroll#<base64 JSON>`;
+[Android App Links and the install fallback](app-links.md) are configured for
+`yepcontrol.com`. The outer URL origin must match the signed invitation origin.
+The QR URI fragment contains version, HTTPS relay origin,
 random 16-byte pairing ID (hex), viewer SEC1 public key (base64), expiry (Unix
 seconds, at most five minutes), secret (hex) and an optional browser label such
 as "Chrome on macOS" (1–40 characters, trimmed, no control characters). The

@@ -9,7 +9,7 @@ import kotlin.test.assertTrue
 class HostedNetworkTest {
     @Test fun publicOriginIsReachable() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        assertTrue(context.packageName == "dev.remoteaccess.host")
+        assertTrue(context.packageName == "com.yepcontrol.app")
         val deadline = System.nanoTime() + 90_000_000_000L
         var failure: Exception? = null
         while (System.nanoTime() < deadline) {

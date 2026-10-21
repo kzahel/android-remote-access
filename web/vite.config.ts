@@ -1,4 +1,4 @@
 import { defineConfig } from "vite";
 export default defineConfig({
-  build: { rollupOptions: { input: "viewer.html" } },
+  build: { rollupOptions: { input: ["viewer.html", "install.html"] } },
 });

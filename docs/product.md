@@ -11,8 +11,8 @@ adopted on 2026-10-21.
 **Proposal, 2026-10-20:** the owner asked to record YepControl as the proposed
 direction after discussing its relationship to YepAnywhere and Machine Control.
 **Decision, 2026-10-21:** YepControl is the product name, and the Android app
-and browser viewer use it. The application ID, repository and package names keep
-their working names for now. The roles of Machine Control and YepAnywhere below
+and browser viewer use it. The application ID is `com.yepcontrol.app`, selected during the owner-requested
+2026-10-21 domain cutover. Repository and Kotlin package names keep their working names. The roles of Machine Control and YepAnywhere below
 remain proposals, not a repository merger or integration.
 
 | Name | Proposed role |
@@ -25,8 +25,9 @@ remain proposals, not a repository merger or integration.
 branding leaves room for computer/device control as those product experiences
 are implemented and qualified. Existing Machine Control repository and command
 names can remain compatible during a partial public rebrand. The owner
-registered yepcontrol.com on 2026-10-21; DNS and service use,
-final listing identity and any desktop rebrand are still open; none of this
+registered yepcontrol.com on 2026-10-21 and requested its use for the hosted
+service and HTTPS pairing links; see [App Links](app-links.md).
+The final listing name and any desktop rebrand are still open; none of this
 authorizes publication.
 
 ### Shared Android capabilities

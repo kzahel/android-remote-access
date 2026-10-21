@@ -16,7 +16,7 @@ const adbPath = path.join(sdk, "platform-tools/adb");
 const emulatorPort = 5592;
 const imageArch = os.arch() === "arm64" ? "arm64-v8a" : "x86_64";
 const serial = `emulator-${emulatorPort}`;
-const appId = "dev.remoteaccess.host";
+const appId = "com.yepcontrol.app";
 const adb = (...args: string[]) =>
   execFileSync(adbPath, ["-s", serial, ...args], {
     encoding: "utf8",

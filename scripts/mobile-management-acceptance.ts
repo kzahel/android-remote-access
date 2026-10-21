@@ -49,7 +49,7 @@ async function until<T>(
   throw new Error("Mobile acceptance timed out; see private native logs");
 }
 export async function mobileAcceptance(f: Fixture) {
-  const app = "dev.remoteaccess.host";
+  const app = "com.yepcontrol.app";
   const { adb, privateWrite } = f;
   const log = await open(path.join(f.state, "mobile-native.log"), "w", 0o600);
   let native: ReturnType<typeof spawn> | undefined;

@@ -3,6 +3,9 @@ import type { Grant } from "@remote/protocol/enrollment";
 import { afterEach, expect, it, vi } from "vitest";
 import { openEncryptedSession } from "../src/relay.js";
 
+// Transport tests have no browser IndexedDB; isolate the access-history sink.
+vi.mock("../src/store.js", () => ({ setPhoneAccess: vi.fn() }));
+
 afterEach(() => vi.unstubAllGlobals());
 
 it("explains a queued wake and updates the message after actual delivery", async () => {

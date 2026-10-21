@@ -65,7 +65,7 @@ const sdk = process.env.ANDROID_HOME ?? path.join(os.homedir(), "Android/Sdk");
 const adbPath = path.join(sdk, "platform-tools/adb");
 const port = 5594;
 const serial = physical ?? `emulator-${port}`;
-const appId = "dev.remoteaccess.host";
+const appId = "com.yepcontrol.app";
 const env = {
   ...process.env,
   ANDROID_HOME: sdk,
@@ -279,7 +279,54 @@ try {
   if (fcm && !physical)
     adb("shell", "pm", "grant", appId, "android.permission.POST_NOTIFICATIONS");
   adb("shell", "run-as", appId, "mkdir", "-p", "files");
+  if (!physical && origin === "https://yepcontrol.com") {
+    adb("shell", "pm", "verify-app-links", "--re-verify", appId);
+    await until(() =>
+      adb("shell", "pm", "get-app-links", appId).includes(
+        "yepcontrol.com: verified",
+      ),
+    );
+    await writeFile(
+      path.join(state, "app-links.log"),
+      adb("shell", "pm", "get-app-links", appId),
+      { mode: 0o600 },
+    );
+    const links = adb(
+      "shell",
+      "am",
+      "instrument",
+      "-w",
+      "-e",
+      "class",
+      "dev.remoteaccess.app.EnrollmentLinkTest",
+      `${appId}.test/androidx.test.runner.AndroidJUnitRunner`,
+    );
+    await writeFile(path.join(state, "enrollment-link.log"), links, {
+      mode: 0o600,
+    });
+    if (!links.includes("OK (1 test)"))
+      throw new Error("Native enrollment link validation failed");
+  }
   browser = await chromium.launch({ headless: true });
+  if (origin === "https://yepcontrol.com") {
+    const fallback = await browser.newPage();
+    await fallback.goto(`${origin}/enroll#synthetic-install-check`);
+    await fallback
+      .getByRole("heading", { name: "Get YepControl on your phone" })
+      .waitFor();
+    if (new URL(fallback.url()).hash)
+      throw new Error("Install page retained invitation fragment");
+    const play = await fallback
+      .getByRole("link", { name: "Check Google Play" })
+      .getAttribute("href");
+    if (
+      play !==
+      "https://play.google.com/store/apps/details?id=com.yepcontrol.app"
+    )
+      throw new Error("Wrong Play fallback");
+    await fallback.close();
+  }
+
   if (control) {
     if (!physical) {
       const storageTests = adb(

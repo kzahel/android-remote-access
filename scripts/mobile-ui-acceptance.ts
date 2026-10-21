@@ -14,7 +14,7 @@ const sdk = process.env.ANDROID_HOME ?? path.join(os.homedir(), "Android/Sdk");
 const adbPath = path.join(sdk, "platform-tools/adb");
 const port = 5596;
 const serial = `emulator-${port}`;
-const app = "dev.remoteaccess.host";
+const app = "com.yepcontrol.app";
 const env = {
   ...process.env,
   ANDROID_HOME: sdk,

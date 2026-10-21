@@ -110,13 +110,23 @@ export async function verifyOffer(i: Invitation, g: Grant): Promise<void> {
   await verifySignature(g.phone, data, g.phoneSignature);
 }
 export function decodeInvitation(uri: string): Invitation {
-  if (!uri.startsWith("ara-pair://enroll#"))
+  const url = new URL(uri);
+  if (
+    uri.length >= 4096 ||
+    url.protocol !== "https:" ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.pathname !== "/enroll" ||
+    !url.hash
+  )
     throw new Error("Invalid pairing code");
   const i = JSON.parse(
-    new TextDecoder().decode(unb64(uri.slice(18))),
+    new TextDecoder().decode(unb64(url.hash.slice(1))),
   ) as Invitation;
   if (i.v !== 1) throw new Error("Unsupported pairing code");
   originURL(i.origin);
+  if (url.origin !== i.origin) throw new Error("Wrong pairing origin");
   fromHex(i.id, 16);
   fromHex(i.secret, 32);
   keyBytes(i.viewer);
@@ -137,4 +147,4 @@ export const validBrowserName = (name: unknown): name is string =>
   // biome-ignore lint/suspicious/noControlCharactersInRegex: rejecting them is the point
   !/[\u0000-\u001f\u007f-\u009f]/.test(name);
 export const encodeInvitation = (i: Invitation): string =>
-  `ara-pair://enroll#${b64(utf8(JSON.stringify(i)))}`;
+  `${originURL(i.origin)}/enroll#${b64(utf8(JSON.stringify(i)))}`;

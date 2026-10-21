@@ -34,7 +34,7 @@ export async function prepareIdleWake(d: Driver, id: string) {
   if (process.env.HOSTED_BOOT === "1") {
     await writeFile(
       path.join(d.state, "before-reboot-package.txt"),
-      adb("shell", "dumpsys", "package", "dev.remoteaccess.host"),
+      adb("shell", "dumpsys", "package", "com.yepcontrol.app"),
       { mode: 0o600 },
     );
     const before = adb("shell", "cat", "/proc/sys/kernel/random/boot_id");
@@ -83,7 +83,7 @@ export async function prepareIdleWake(d: Driver, id: string) {
             adb(
               "shell",
               "run-as",
-              "dev.remoteaccess.host",
+              "com.yepcontrol.app",
               "cat",
               "shared_prefs/paired-browser-v1.xml",
             ),
@@ -94,7 +94,7 @@ export async function prepareIdleWake(d: Driver, id: string) {
       for (const [name, args] of [
         [
           "reboot-package.txt",
-          ["shell", "dumpsys", "package", "dev.remoteaccess.host"],
+          ["shell", "dumpsys", "package", "com.yepcontrol.app"],
         ],
         [
           "reboot-broadcasts.txt",
@@ -121,7 +121,7 @@ export async function prepareIdleWake(d: Driver, id: string) {
       adb(
         "shell",
         "run-as",
-        "dev.remoteaccess.host",
+        "com.yepcontrol.app",
         "cat",
         "shared_prefs/paired-browser-v1.xml",
       ).match(/<long name="lastPushReceipt" value="([0-9]+)"/)?.[1] ?? 0,

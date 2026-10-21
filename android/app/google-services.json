@@ -7,9 +7,9 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:468242165253:android:b9bc43dae8d2395138366c",
+        "mobilesdk_app_id": "1:468242165253:android:49123c6ca96d5bc438366c",
         "android_client_info": {
-          "package_name": "dev.remoteaccess.host"
+          "package_name": "com.yepcontrol.app"
         }
       },
       "oauth_client": [],

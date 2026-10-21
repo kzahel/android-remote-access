@@ -66,6 +66,7 @@ const viewer = await createServer({
             route?.startsWith("/phones/")
           )
             req.url = "/viewer.html";
+          if (route === "/enroll") req.url = "/install.html";
           next();
         });
       },

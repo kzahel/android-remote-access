@@ -1,9 +1,9 @@
 # YepControl
 
 An approachable, standalone way to reach an Android phone left somewhere else.
-**YepControl is the product name** (owner decision, 2026-10-21). The repository,
-Android application ID (`dev.remoteaccess.host`), Kotlin namespace and package
-names keep their working names for now.
+**YepControl is the product name** (owner decision, 2026-10-21). The hosted website is **https://yepcontrol.com**, and the Android application ID
+is **`com.yepcontrol.app`** (owner request, 2026-10-21). The repository, Kotlin
+namespace and source packages retain their working names.
 
 The motivating example is an old phone in an RV: open the battery vendor's app
 and check whether solar is charging the big power station. Other examples are
@@ -50,8 +50,8 @@ integrations.
   support both experiences with separate permissions and credential custody.
 
 Manual phone access remains useful on its own. Module extraction, sibling
-integration, desktop rebranding, DNS/hosting on yepcontrol.com (registered
-2026-10-21), listing identity and publication remain future work. See the [product direction](docs/product.md#product-direction-yepcontrol)
+integration, desktop rebranding and Play publication remain future work.
+The domain and Android identity are configured; see [App Links and installation](docs/app-links.md). See the [product direction](docs/product.md#product-direction-yepcontrol)
 and [sibling relationships](docs/sibling-repositories.md#yepcontrol-relationship).
 
 ## Develop

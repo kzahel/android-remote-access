@@ -38,7 +38,9 @@ and open questions are identified separately below.
 2. We host and operate the relay, following the existing projects' hosting and
    deployment patterns documented in dotfiles. Consumers will not need a VPN;
    Tailscale was only the spike's stand-in. The 2026-10-20 follow-up selects the Pi and
-   `android-remote.graehlarts.com` for the hosted development instance.
+   `android-remote.graehlarts.com` for the initial hosted development instance.
+   The 2026-10-21 owner request moves it to `https://yepcontrol.com` and selects
+   application ID `com.yepcontrol.app`; see [App Links](app-links.md).
 3. Account-free pairing comes first: a QR code shown in the browser, scanned on
    the phone, confirmed with **Grant**. Sign-in may be added later as an option.
 4. The pairing flow was prototyped in this repository before any production
