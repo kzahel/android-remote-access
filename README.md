@@ -160,6 +160,22 @@ For a separate deployment, supply `-PsharingWebsite=https://YOUR_ORIGIN` to the
 Android build. QR encoding uses the pinned Apache-2.0 ZXing **core** 3.5.3 Java
 library; its license is included in APK assets under `third-party/`.
 
+### Local relay over Tailscale
+
+With Tailscale running on this computer and the phone, `pnpm dev` runs the relay
+(`tsx watch`, state in `.local/dev-relay/`) and the Vite viewer, and publishes
+them at `https://<this-machine>.<tailnet>.ts.net` with a foreground
+`tailscale serve`. Ctrl+C removes the serve configuration. Set `DEV_HTTPS_PORT`
+if port 443 is already served. Remote wake is off unless the relay environment
+has `FIREBASE_PROJECT_ID` and Firebase credentials.
+
+Open that address on a tailnet device and scan its pairing code with the phone.
+The phone uses the relay named in each pairing code, so any build can pair with
+it and hosted pairings keep working. To make sharing setup show the local link,
+add `devSharingWebsite=https://<this-machine>.<tailnet>.ts.net` to the ignored
+`android/local.properties` (or pass `-PdevSharingWebsite=…`); debug builds then
+offer **Use development website** under Settings.
+
 ## Evidence and plans
 
 See [pairing/relay v1](docs/pairing-relay-v1.md) for enrollment and routing,

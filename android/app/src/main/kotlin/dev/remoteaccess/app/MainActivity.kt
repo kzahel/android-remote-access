@@ -461,6 +461,12 @@ class MainActivity : ComponentActivity() {
             navigate("appearance")
         }
         row(layout, "About", "App version and information", R.id.about_settings) { navigate("about") }
+        if (Website.developmentAvailable) {
+            toggle(layout, "Use development website", Website.development(this), R.id.development_website) { enabled ->
+                perform { Website.setDevelopment(this, enabled) }
+            }
+            text(layout, "Debug build. Sharing setup links to ${Website.current(this).removePrefix("https://")}.", 14f)
+        }
     }
 
     private fun appearance(layout: LinearLayout) {

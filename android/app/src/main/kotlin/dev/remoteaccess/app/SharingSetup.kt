@@ -26,6 +26,7 @@ internal object SharingSetup {
         val density = activity.resources.displayMetrics.density
 
         fun dp(value: Int) = (value * density).toInt()
+        val website = Website.current(activity)
         val content =
             LinearLayout(activity).apply {
                 orientation = LinearLayout.VERTICAL
@@ -52,18 +53,18 @@ internal object SharingSetup {
             content.addView(this, LinearLayout.LayoutParams(-1, -2))
         }
         text("On another phone, tablet or computer, open:")
-        text(BuildConfig.SHARING_WEBSITE.removePrefix("https://")).apply {
+        text(website.removePrefix("https://")).apply {
             id = R.id.sharing_website
             setTextIsSelectable(true)
         }
         button("Copy link", R.id.copy_website) {
             activity.getSystemService(ClipboardManager::class.java)
-                .setPrimaryClip(ClipData.newPlainText("Remote access website", BuildConfig.SHARING_WEBSITE))
+                .setPrimaryClip(ClipData.newPlainText("Remote access website", website))
         }
         button("Share link", R.id.share_website) {
             activity.startActivity(
                 Intent.createChooser(
-                    Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, BuildConfig.SHARING_WEBSITE),
+                    Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, website),
                     "Open on another device",
                 ),
             )
@@ -71,7 +72,7 @@ internal object SharingSetup {
         val qr =
             ImageView(activity).apply {
                 id = R.id.website_qr
-                contentDescription = "Website QR code. Opens ${BuildConfig.SHARING_WEBSITE}; does not grant access."
+                contentDescription = "Website QR code. Opens $website; does not grant access."
                 isVisible = false
                 setBackgroundColor(Color.WHITE)
             }
@@ -80,7 +81,7 @@ internal object SharingSetup {
                 if (qr.isVisible) {
                     qr.isVisible = false
                 } else {
-                    val matrix = QRCodeWriter().encode(BuildConfig.SHARING_WEBSITE, BarcodeFormat.QR_CODE, 512, 512)
+                    val matrix = QRCodeWriter().encode(website, BarcodeFormat.QR_CODE, 512, 512)
                     val pixels = IntArray(512 * 512) { at -> if (matrix[at % 512, at / 512]) Color.BLACK else Color.WHITE }
                     qr.setImageBitmap(Bitmap.createBitmap(pixels, 512, 512, Bitmap.Config.ARGB_8888))
                     qr.isVisible = true

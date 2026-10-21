@@ -1,4 +1,5 @@
 import java.net.URI
+import java.util.Properties
 
 plugins {
     id("com.android.application")
@@ -7,12 +8,24 @@ plugins {
     id("org.jlleitschuh.gradle.ktlint")
     id("com.google.gms.google-services")
 }
+
+fun requireOrigin(value: String) {
+    val uri = URI(value)
+    require(
+        uri.scheme == "https" && uri.host != null && uri.rawUserInfo == null &&
+            uri.rawQuery == null && uri.rawFragment == null && uri.rawPath.isNullOrEmpty(),
+    ) { "Expected an HTTPS origin without a trailing slash: $value" }
+}
 val sharingWebsite = providers.gradleProperty("sharingWebsite").orElse("https://android-remote.graehlarts.com").get()
-val sharingUri = URI(sharingWebsite)
-require(
-    sharingUri.scheme == "https" && sharingUri.host != null && sharingUri.rawUserInfo == null &&
-        sharingUri.rawQuery == null && sharingUri.rawFragment == null && sharingUri.rawPath.isNullOrEmpty(),
-)
+requireOrigin(sharingWebsite)
+// Optional local relay (e.g. `pnpm dev` over Tailscale); debug builds offer it as a Settings switch.
+val localProperties =
+    Properties().apply {
+        rootProject.file("local.properties").takeIf { it.exists() }?.reader()?.use { load(it) }
+    }
+val devSharingWebsite =
+    providers.gradleProperty("devSharingWebsite").orNull ?: localProperties.getProperty("devSharingWebsite", "")
+if (devSharingWebsite.isNotEmpty()) requireOrigin(devSharingWebsite)
 
 android {
     namespace = "dev.remoteaccess.app"
@@ -25,7 +38,11 @@ android {
         versionCode = 3
         versionName = "0.6.0"
         buildConfigField("String", "SHARING_WEBSITE", "\"$sharingWebsite\"")
+        buildConfigField("String", "DEV_SHARING_WEBSITE", "\"\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+    buildTypes {
+        getByName("debug") { buildConfigField("String", "DEV_SHARING_WEBSITE", "\"$devSharingWebsite\"") }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

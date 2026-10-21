@@ -8,6 +8,7 @@
     <item name="background_settings" type="id" />
     <item name="appearance_settings" type="id" />
     <item name="about_settings" type="id" />
+    <item name="development_website" type="id" />
     <item name="appearance_system" type="id" />
     <item name="appearance_light" type="id" />
     <item name="appearance_dark" type="id" />
