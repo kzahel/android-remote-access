@@ -106,7 +106,9 @@ class MainActivity : ComponentActivity() {
             store.load()
             runOnUiThread {
                 loaded = true
-                intent.dataString?.let { showInvitation(it) } ?: render()
+                // A recreated post-pairing page must not reopen its consumed App Link.
+                val invitation = if (savedInstanceState == null) intent.dataString else null
+                invitation?.let { showInvitation(it) } ?: render()
                 refreshSystemReadiness()
             }
         }
@@ -233,7 +235,8 @@ class MainActivity : ComponentActivity() {
             page,
             when (page) {
                 "settings" -> "Settings"
-                "features" -> "Finish setup"
+                "features" -> "Set up this phone"
+                "pair" -> "Add device"
                 "activity" -> "Activity"
                 "devices" -> "Devices"
                 "device" -> deviceId?.let(store::device)?.nickname ?: "Device"
@@ -253,6 +256,7 @@ class MainActivity : ComponentActivity() {
         when (page) {
             "settings" -> settings(layout)
             "features" -> features(layout)
+            "pair" -> pairing(layout)
             "activity" -> activity(layout)
             "devices" -> devices(layout)
             "device" -> device(layout)
@@ -306,13 +310,20 @@ class MainActivity : ComponentActivity() {
         if (state.settings.armed && devices.isNotEmpty() && devices.none { it.enabled }) {
             row(layout, "Devices", "Choose which devices can connect", R.id.manage_access) { navigate("devices") }
         }
-        scanTile(layout)
-        websiteRow(layout)
-        if (devices.isNotEmpty()) {
+        if (devices.isEmpty()) {
+            scanTile(layout)
+            row(layout, "Open the website on another device", "Website, share link and QR code", R.id.pair_device) { navigate("pair") }
+        } else {
             text(layout, "Devices", 14f).setPadding(dp(4), dp(8), 0, dp(4))
             devices.take(3).forEach { device -> row(layout, device.nickname, deviceSummary(device)) { navigate("device", device.id) } }
             button(layout, "All devices", R.id.all_devices) { navigate("devices") }
+            row(layout, "Add device", "Pair another browser or device", R.id.pair_device) { navigate("pair") }
         }
+    }
+
+    private fun pairing(layout: LinearLayout) {
+        scanTile(layout)
+        websiteRow(layout)
     }
 
     /** The main action: pair with a code already showing on the website. */
@@ -435,7 +446,7 @@ class MainActivity : ComponentActivity() {
         devices.forEach { device ->
             row(layout, device.nickname, deviceSummary(device)) { navigate("device", device.id) }
         }
-        button(layout, "Add device", R.id.pair_device) { scanPairingCode() }
+        button(layout, "Add device", R.id.pair_device) { navigate("pair") }
     }
 
     private fun scanPairingCode() {
@@ -449,9 +460,18 @@ class MainActivity : ComponentActivity() {
 
     private fun features(layout: LinearLayout) {
         val device = deviceId?.let(store::device)
-        text(layout, "${device?.nickname ?: "The device"} is paired. Turn these on so remote access works well.")
+        text(layout, "${device?.nickname ?: "The device"} is paired.", 20f)
+        text(layout, "Choose how you want to use this phone. You can change these later in Settings.")
         setupChecklist(layout, device)
-        button(layout, "Done", R.id.skip_features) { navigate("home") }
+        shell.actions.visibility = View.VISIBLE
+        button(shell.actions, "Continue", R.id.skip_features) {
+            // Setup is complete by choice; Back from the result must not reopen onboarding.
+            backStack.clear()
+            backStack.add("home")
+            page = "device"
+            notice = null
+            render()
+        }
     }
 
     /** What remote access needs, as switches showing Android's actual state; a tap starts the change. */
@@ -462,11 +482,9 @@ class MainActivity : ComponentActivity() {
         val screen = ScreenAccessService.current != null
         val automatic = store.snapshot.settings.automatic
         val notifications = WakeSupport.notificationsAllowed(this)
-        val wake = automatic && notifications
         val restore = RestartRecovery.enabled(this)
-        val needed = listOf(screen, wake, restore)
         val list = section(layout)
-        text(list, "Recommended · ${needed.count { it }} of ${needed.size} on", 14f)
+        text(list, "Phone access", 20f)
         check(
             list,
             "Screen and control",
@@ -478,7 +496,7 @@ class MainActivity : ComponentActivity() {
             list,
             "Connect while the app is closed",
             when {
-                wake -> "Paired devices can wake this phone"
+                automatic && notifications -> "Allows background connection requests"
                 automatic -> "Needs notifications to work"
                 else -> "Only while this app is open"
             },
@@ -708,8 +726,29 @@ class MainActivity : ComponentActivity() {
                 handler.post { if (page == "device") goBack() }
                 return
             }
-        text(layout, "Paired ${time(device.pairedAt)}\n${lastConnected(device)}", 14f)
+        val live = HostSessions.current.get()
+        val connection = section(layout)
+        val status =
+            when {
+                live?.deviceId == device.id -> sessionStatus(live.status)
+                !device.enabled -> "Access paused"
+                !store.snapshot.settings.armed -> "Remote access is off"
+                else -> "Not connected"
+            }
+        text(connection, status, 20f)
+        if (live?.deviceId == device.id) {
+            button(connection, "Disconnect", R.id.disconnect_device) { HostRuntime.disconnect(this, device.id) }
+        }
         toggle(layout, "Allow this device", device.enabled, R.id.device_toggle) { enabled -> change { it.enable(device.id, enabled) } }
+        val setupIssue =
+            when {
+                ScreenAccessService.current == null -> "Screen access is off. Enable it to view and control this phone."
+                store.snapshot.settings.automatic && !WakeSupport.notificationsAllowed(this) -> "Background requests need notifications."
+                else -> null
+            }
+        if (setupIssue != null) {
+            row(layout, "Phone setup", setupIssue, R.id.open_features) { navigate("features", device.id) }
+        }
         toggle(
             layout,
             "Allow unlocking",
@@ -732,12 +771,7 @@ class MainActivity : ComponentActivity() {
                 .window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
             input.requestFocus()
         }
-        val live = HostSessions.current.get()
-        if (live?.deviceId == device.id) {
-            val connection = section(layout)
-            text(connection, sessionStatus(live.status))
-            button(connection, "Disconnect", R.id.disconnect_device) { HostRuntime.disconnect(this, device.id) }
-        }
+        text(layout, "Paired ${time(device.pairedAt)}\n${lastConnected(device)}", 14f)
         button(layout, getString(R.string.remove_device), R.id.remove_device) {
             AlertDialog.Builder(
                 this,
@@ -828,6 +862,7 @@ class MainActivity : ComponentActivity() {
 
     private fun allow(invitation: Enrollment) {
         if (granting != null) return
+        val firstDevice = store.snapshot.devices.none { !it.revoked }
         granting = invitation
         render()
         HostRuntime.network.execute {
@@ -854,10 +889,11 @@ class MainActivity : ComponentActivity() {
                     notice = "Couldn’t pair. Create a new code on your other device."
                 } else {
                     backStack.add("home")
-                    page = "features"
+                    page = if (firstDevice) "features" else "device"
                     deviceId = paired.id
                 }
                 render()
+                if (paired != null) shell.message("${paired.nickname} paired")
             }
         }
     }

@@ -10,11 +10,14 @@ import androidx.test.uiautomator.BySelector
 import androidx.test.uiautomator.Configurator
 import androidx.test.uiautomator.StaleObjectException
 import androidx.test.uiautomator.UiDevice
+import androidx.test.uiautomator.UiScrollable
+import androidx.test.uiautomator.UiSelector
 import androidx.test.uiautomator.Until
 import org.json.JSONObject
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -98,6 +101,10 @@ class HostedPairingTest {
         openDevice(store.snapshot.devices.first { !it.revoked }.id)
     }
 
+    private fun title(expected: String) {
+        assertTrue(device.wait(Until.hasObject(By.res("${context.packageName}:id/page_title").text(expected)), 10000))
+    }
+
     @Test
     fun pairOrReconnectAndRevoke() {
         val stage = File(context.filesDir, "hosted-stage")
@@ -110,6 +117,7 @@ class HostedPairingTest {
         if (pairing) {
             click("grant_device")
             waitFor(90000) { store.snapshot.devices.any { !it.revoked } }
+            title("Set up this phone")
             click("skip_features")
         }
         val before = KeystoreIdentity.loadOrCreate("phone-identity-v1").publicKey
@@ -171,9 +179,47 @@ class HostedPairingTest {
                     click("grant_device")
                     waitFor(90000) { store.snapshot.devices.size == before + 1 }
                     waitFor { store.snapshot.devices.all { it.synced } }
-                    assertTrue(device.wait(Until.hasObject(By.res("${context.packageName}:id/skip_features")), 10000))
-                    click("skip_features")
+                    val paired = store.snapshot.devices.last()
+                    if (before == 0) {
+                        title("Set up this phone")
+                        assertTrue(device.hasObject(By.text("${paired.nickname} is paired.")))
+                        assertTrue(device.hasObject(By.res("${context.packageName}:id/screen_access").checked(false)))
+                        assertTrue(device.hasObject(By.res("${context.packageName}:id/skip_features").enabled(true)))
+                        assertTrue(device.takeScreenshot(File(context.filesDir, "ui-first-pair-setup.png")))
+                        // A system-settings round trip may recreate this page before Continue.
+                        device.setOrientationLeft()
+                        title("Set up this phone")
+                        device.setOrientationNatural()
+                        title("Set up this phone")
+                        click("skip_features")
+                    }
+                    title(paired.nickname)
+                    assertTrue(device.hasObject(By.res("${context.packageName}:id/device_toggle")))
+                    assertFalse(device.hasObject(By.res("${context.packageName}:id/skip_features")))
+                    assertTrue(
+                        device.takeScreenshot(
+                            File(context.filesDir, if (before == 0) "ui-first-pair-detail.png" else "ui-next-pair-detail.png"),
+                        ),
+                    )
+                    // A repair action retains this device across recreation and Back.
+                    click("open_features")
+                    title("Set up this phone")
+                    device.setOrientationLeft()
+                    title("Set up this phone")
+                    device.pressBack()
+                    title(paired.nickname)
+                    device.setOrientationNatural()
+                    title(paired.nickname)
+                    device.pressBack()
+                    title("Home")
                     assertTrue(device.wait(Until.hasObject(By.res("${context.packageName}:id/host_status")), 10000))
+                    assertFalse(device.hasObject(By.res("${context.packageName}:id/scan_pairing_code")))
+                    assertFalse(device.hasObject(By.res("${context.packageName}:id/sharing_website")))
+                    click("pair_device")
+                    title("Add device")
+                    assertTrue(device.hasObject(By.res("${context.packageName}:id/sharing_website")))
+                    device.pressBack()
+                    title("Home")
                 }
                 "home" -> start()
                 "control-ready" -> {
@@ -279,6 +325,8 @@ class HostedPairingTest {
                 }
                 "setup" -> {
                     start()
+                    click("pair_device")
+                    title("Add device")
                     val scan = assertNotNull(device.wait(Until.findObject(By.res("${context.packageName}:id/scan_pairing_code")), 10000))
                     assertTrue(scan.isEnabled)
                     click("copy_website")
@@ -434,6 +482,11 @@ class HostedPairingTest {
                             waitFor { HostSessions.current.get() == null }
                         }
                         "remove" -> {
+                            if (!device.hasObject(By.res("${context.packageName}:id/remove_device"))) {
+                                UiScrollable(UiSelector().className("android.widget.ScrollView")).scrollIntoView(
+                                    UiSelector().resourceId("${context.packageName}:id/remove_device"),
+                                )
+                            }
                             click("remove_device")
                             assertNotNull(device.wait(Until.findObject(By.res("android:id/button1")), 10000)).click()
                             waitFor { store.device(id) == null }

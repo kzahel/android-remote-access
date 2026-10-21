@@ -142,6 +142,25 @@ export async function mobileAcceptance(f: Fixture) {
     enrolled = true;
     const state = await command("pair");
     assert.ok(state.devices.find((b) => b.id === invitation.id));
+    const captures =
+      state.devices.length === 1
+        ? ["ui-first-pair-setup", "ui-first-pair-detail"]
+        : ["ui-next-pair-detail"];
+    for (const name of captures) {
+      await writeFile(
+        path.join(f.state, `${name}.png`),
+        execFileSync(f.adbPath, [
+          "-s",
+          f.serial,
+          "exec-out",
+          "run-as",
+          app,
+          "cat",
+          `files/${name}.png`,
+        ]),
+        { mode: 0o600 },
+      );
+    }
     await page
       .getByRole("button", { name: "Connect to phone", exact: true })
       .waitFor();
@@ -154,7 +173,7 @@ export async function mobileAcceptance(f: Fixture) {
       .filter({
         hasText: success
           ? "Ready to connect"
-          : /Phone is unavailable|Connection ended/,
+          : /Phone is unavailable|Connection ended|Access is paused on the phone|Access to this phone was removed on the phone/,
       })
       .waitFor({ timeout: success ? 80000 : 15000 });
   }
@@ -447,6 +466,10 @@ export async function mobileAcceptance(f: Fixture) {
       publicWebsiteQrAndShare: true,
       pairingAndForegroundAccessBeforePermissions: true,
       independentSkippableFeatureSetup: true,
+      firstPairSetupContinuesToDevice: true,
+      subsequentPairGoesDirectlyToDevice: true,
+      setupAndDeviceBackNavigationAfterRotation: true,
+      pairedHomePrioritizesDevices: true,
       permissionDenialPreservesPairingAndForegroundAccess: true,
       authenticatedFeatureReports: true,
       renamedThroughUI: true,

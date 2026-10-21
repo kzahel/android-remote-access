@@ -291,3 +291,49 @@ disconnect and isolated removal of both fixture grants. Android debug/test build
 Android lint, ktlint, TypeScript checking, the new runner's Biome check and
 `git diff --check` also passed. These are owned-emulator results, not a new
 physical-phone, reboot or natural overnight qualification.
+
+## Pairing completion and returning Home
+
+Owner direction, 2026-10-21: once a device is paired, Home should emphasize
+existing access rather than continue to look like first-run setup. This
+supersedes the always-visible scanner/website layout and the post-pairing
+navigation described above.
+
+- With no paired devices, Home retains the large one-tap scanner and a link to
+  the website tools. Once paired, Home shows access status, paired devices and
+  a compact Add device row. Add device from Home or Devices opens a pairing
+  page containing the scanner and website address/copy/share/QR tools.
+- The first device opens Set up this phone after approval, with a persistent
+  pairing confirmation and a fixed Continue button available without scrolling
+  or enabling any permissions.
+  Continue opens that device's details. Further devices go directly to their
+  details, with a brief accessible pairing confirmation. Back returns Home;
+  completed pairing/setup screens are not left on the navigation stack.
+- Setup explains capabilities rather than scoring a required checklist. Screen
+  and control enables viewing/input; background requests and restart recovery
+  are independent choices. Restart recovery still requires the first local
+  unlock. Unlock permission and saving a PIN remain optional. Settings retains
+  the same controls and setup explicitly says choices can be changed later.
+- Device details lead with connection status and access controls. A Phone setup
+  action appears when screen access is off or opted-in background requests need
+  notification permission. Missing optional settings alone do not trigger it.
+  Pairing/connection timestamps and removal follow the controls.
+- Activity recreation retains the post-pairing destination instead of reopening
+  the consumed App Link. Permission and access-policy behavior is unchanged;
+  this is a native navigation/presentation change with no protocol or storage
+  format change.
+
+The native navigation runner covers the Add device page from Home and Devices.
+The two-browser hosted runner verifies first-pair setup skipping, direct arrival
+at later-device details, repair navigation, rotation and Back, and Home's paired
+layout alongside the existing encrypted foreground, permission-denial, FCM and
+access-management checks. Captures and receipts remain in ignored
+`.local/mobile-ui-proof/` and `.local/mobile-proof/`.
+
+Both runners passed on 2026-10-21, including all three native Room tests, the
+new pairing/navigation assertions, both process-absent FCM wakes and the existing
+policy/disconnect/removal checks. Actual setup, detail and paired-Home captures
+were visually reviewed. Android debug/test builds, Android lint/ktlint,
+TypeScript checking, the changed runner's Biome check and `git diff --check`
+passed. These runs used owned emulators and isolated Chromium; both test devices
+were revoked and the runner processes closed.

@@ -9,6 +9,7 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.WindowInsets
+import android.view.accessibility.AccessibilityManager
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -33,7 +34,15 @@ internal class ManagementShell(
     private val title = TextView(activity)
     private val titleAction = ImageButton(activity)
     private val scroll = ScrollView(activity).apply { isFillViewport = true }
+    private val feedback = TextView(activity)
+    private val hideFeedback = Runnable { feedback.visibility = View.GONE }
     val body = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+    val actions =
+        LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(8), dp(20), dp(8))
+            visibility = View.GONE
+        }
     private val links = mutableMapOf<String, TextView>()
     private var current = ""
     private var revision = 0
@@ -92,6 +101,16 @@ internal class ManagementShell(
         body.setPadding(dp(20), dp(16), dp(20), dp(32))
         scroll.addView(body)
         content.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        content.addView(actions, LinearLayout.LayoutParams(-1, -2))
+        feedback.apply {
+            visibility = View.GONE
+            textSize = 16f
+            setTextColor(color(android.R.attr.textColorPrimary))
+            setBackgroundColor(color(R.attr.accentSurfaceColor))
+            setPadding(dp(20), dp(14), dp(20), dp(14))
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+        }
+        content.addView(feedback, LinearLayout.LayoutParams(-1, -2))
         val heading = LinearLayout(activity).apply { gravity = Gravity.CENTER_VERTICAL }
         heading.addView(
             TextView(activity).apply {
@@ -145,7 +164,7 @@ internal class ManagementShell(
         navigation.setImageResource(if (isTopLevel()) R.drawable.ic_menu else R.drawable.ic_back)
         val selected =
             when (page) {
-                "home", "features", "grant" -> "home"
+                "home", "features", "grant", "pair" -> "home"
                 "activity" -> "activity"
                 "devices", "device" -> "devices"
                 else -> "settings"
@@ -156,6 +175,8 @@ internal class ManagementShell(
             link.background = ripple(selected == key)
         }
         body.removeAllViews()
+        actions.removeAllViews()
+        actions.visibility = View.GONE
         revision++
         restoreScroll()
     }
@@ -171,6 +192,19 @@ internal class ManagementShell(
         titleAction.setImageResource(icon)
         titleAction.setOnClickListener { action() }
         titleAction.visibility = View.VISIBLE
+    }
+
+    /** Brief confirmation outside the refreshed body, with the user's accessibility timeout. */
+    fun message(value: String) {
+        feedback.removeCallbacks(hideFeedback)
+        feedback.text = value
+        feedback.visibility = View.VISIBLE
+        val timeout =
+            activity.getSystemService(AccessibilityManager::class.java).getRecommendedTimeoutMillis(
+                4000,
+                AccessibilityManager.FLAG_CONTENT_TEXT,
+            )
+        feedback.postDelayed(hideFeedback, timeout.toLong())
     }
 
     fun restoreScroll() {
