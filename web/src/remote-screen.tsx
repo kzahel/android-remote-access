@@ -7,6 +7,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import type { RemoteSession } from "./control-session.js";
 import { RemoteControls } from "./remote-controls.js";
+import { SmoothView, type SmoothViewState } from "./smooth-view.js";
 import { TouchInput } from "./touch-input.js";
 import { usePhoneUnlock } from "./use-phone-unlock.js";
 import { useViewerFullscreen } from "./use-viewer-fullscreen.js";
@@ -42,7 +43,6 @@ export function RemoteScreen({
     unlockMessage: (): string => "",
   });
   const canvas = useRef<HTMLCanvasElement>(null);
-  const qualityDialog = useRef<HTMLDialogElement>(null);
   const typingDialog = useRef<HTMLDialogElement>(null);
   const frame = useRef<
     { scene: number; width: number; height: number } | undefined
@@ -54,8 +54,13 @@ export function RemoteScreen({
   const [actionMessage, setActionMessage] = useState("");
   const [text, setText] = useState("");
   const [pin, setPin] = useState("");
-  const [quality, setQuality] = useState(0);
-  const [videoUnavailable, setVideoUnavailable] = useState(false);
+  const smooth = useRef<SmoothView | undefined>(undefined);
+  const [smoothState, setSmoothState] = useState<SmoothViewState>({
+    wanted: false,
+    phase: "off",
+    message: "",
+    unavailable: false,
+  });
   const [connectionPath, setConnectionPath] = useState(session.path);
   const [apps, setApps] = useState<AppEntry[]>([]);
   const unlocking = usePhoneUnlock(phoneId, session, initial, state, setState);
@@ -71,18 +76,20 @@ export function RemoteScreen({
       ? new TouchInput(canvas.current, session, () => frame.current, setMessage)
       : undefined;
     touch.current = input;
-    let videoActive = false;
     let lastStatus = 0;
-    let shownVideo = false;
     const renderer = canvas.current
       ? new VideoRenderer(canvas.current, (meta) => {
           frame.current = meta;
-          shownVideo = true;
-          setMessage("Smooth view");
+          smooth.current?.displayed();
         })
       : undefined;
+    const viewing = new SmoothView(session, setSmoothState, () =>
+      renderer?.close(),
+    );
+    smooth.current = viewing;
+    setSmoothState(viewing.state);
     async function capture() {
-      if (input?.active && !videoActive) {
+      if (input?.active && !viewing.readingVideo) {
         timer = setTimeout(() => {
           void capture();
         }, 150);
@@ -93,31 +100,35 @@ export function RemoteScreen({
           const status = await session.command({ op: "status" });
           if (stopped) return;
           if (status.kind === "state") {
-            videoActive = status.state.videoActive === true;
+            viewing.observe(status.state.video);
             setState(status.state);
             callbacks.current.onContact?.(status.state);
             setConnectionPath(session.path);
-            if (!videoActive && shownVideo) {
-              renderer?.close();
-              shownVideo = false;
-              setMessage("Smooth view ended. Still frames are available.");
-            }
           }
           lastStatus = Date.now();
         }
+        const version = viewing.version;
         const reply = await session.command({
-          op: videoActive ? "videoFrame" : "capture",
+          op: viewing.readingVideo ? "videoFrame" : "capture",
         });
         if (stopped) return;
-        if (reply.kind === "video") {
+        if (version !== viewing.version) {
+          timer = setTimeout(() => void capture(), 0);
+          return;
+        }
+        if (reply.kind === "video" && viewing.readingVideo) {
           if (!renderer?.push(reply)) await session.command({ op: "videoKey" });
-        } else if (videoActive && reply.kind === "result" && reply.code === 6) {
+        } else if (
+          viewing.readingVideo &&
+          reply.kind === "result" &&
+          reply.code === 6
+        ) {
           // No frame is ready. The bounded encoder mailbox never queues an idle capture.
         } else if (reply.kind === "image") {
           const image = await createImageBitmap(
             new Blob([reply.jpeg], { type: "image/jpeg" }),
           );
-          if (!stopped && canvas.current) {
+          if (!stopped && version === viewing.version && canvas.current) {
             const target = canvas.current;
             target.width = reply.width;
             target.height = reply.height;
@@ -135,25 +146,22 @@ export function RemoteScreen({
             ?.clearRect(0, 0, canvas.current.width, canvas.current.height);
           setMessage(resultMessage(reply.code));
           const status = await session.command({ op: "status" });
-          if (!stopped && status.kind === "state") setState(status.state);
+          if (!stopped && status.kind === "state") {
+            setState(status.state);
+            viewing.observe(status.state.video);
+          }
         }
         if (!stopped)
           timer = setTimeout(
             () => {
               void capture();
             },
-            videoActive ? 16 : 650,
+            viewing.readingVideo ? 16 : 650,
           );
       } catch (error) {
         if (!stopped) {
           if (error instanceof VideoDecodeError) {
-            videoActive = false;
-            shownVideo = false;
-            renderer?.close();
-            setQuality(0);
-            setVideoUnavailable(true);
-            setActionMessage(error.message);
-            await session.command({ op: "video", quality: 0 }).catch(() => {});
+            viewing.fail(error.message, true);
           } else setActionMessage("");
           setMessage(
             error instanceof Error ? error.message : "Connection ended",
@@ -174,7 +182,8 @@ export function RemoteScreen({
     return () => {
       stopped = true;
       clearTimeout(timer);
-      renderer?.close();
+      viewing.close();
+      if (smooth.current === viewing) smooth.current = undefined;
       input?.close();
       touch.current = undefined;
     };
@@ -210,6 +219,7 @@ export function RemoteScreen({
           notice ||
           unlocking.message ||
           actionMessage ||
+          smoothState.message ||
           message ||
           (state.locked ? "Phone is locked" : "Connected securely")
         }
@@ -221,7 +231,35 @@ export function RemoteScreen({
             navigate={(action) => void act({ op: "navigation", action })}
             wake={() => void act({ op: "wake" })}
             lock={() => void act({ op: "sleep" })}
-            quality={() => qualityDialog.current?.showModal()}
+            smooth={() => {
+              setActionMessage("");
+              setMessage("");
+              const viewing = smooth.current;
+              viewing?.setEnabled(!viewing.state.wanted);
+            }}
+            smoothOn={smoothState.phase === "active"}
+            smoothPending={smoothState.wanted && smoothState.phase !== "active"}
+            smoothDisabled={
+              !smoothState.wanted &&
+              (!state.accessibility ||
+                state.locked ||
+                !state.video ||
+                !VideoRenderer.supported() ||
+                smoothState.unavailable)
+            }
+            smoothHint={
+              smoothState.wanted
+                ? "Turn off smooth view"
+                : !state.accessibility
+                  ? "Enable screen access on the phone to use Smooth view."
+                  : state.locked
+                    ? "Unlock the phone before starting Smooth view."
+                    : !state.video
+                      ? "Update the phone app to use Smooth view."
+                      : !VideoRenderer.supported() || smoothState.unavailable
+                        ? "This browser supports still frames."
+                        : "Turn on smooth view"
+            }
             type={() => typingDialog.current?.showModal()}
             disconnect={disconnect}
             fullscreen={fullscreen.active}
@@ -309,63 +347,6 @@ export function RemoteScreen({
           )
         )}
       </ViewerWorkspace>
-      <dialog ref={qualityDialog} aria-labelledby="quality-title">
-        <div className="dialog-heading">
-          <h2 id="quality-title">Viewing quality</h2>
-          <button
-            type="button"
-            aria-label="Close viewing quality"
-            onClick={() => qualityDialog.current?.close()}
-          >
-            ×
-          </button>
-        </div>
-        <p>
-          Connection: {connectionPath === "direct" ? "Direct" : "Hosted relay"}
-        </p>
-        <label>
-          Smooth view
-          <select
-            aria-label="Viewing quality"
-            value={quality}
-            disabled={!VideoRenderer.supported() || videoUnavailable}
-            onChange={(event) => {
-              const value = Number(event.target.value) as 0 | 1 | 2 | 3;
-              setQuality(value);
-              if (value)
-                setMessage(
-                  "Approve screen sharing on the phone to start smooth view.",
-                );
-              void act({ op: "video", quality: value });
-            }}
-          >
-            <option value={0}>Still frames</option>
-            <option value={1}>Save data</option>
-            <option value={2}>Balanced</option>
-            <option value={3}>Smooth</option>
-          </select>
-        </label>
-        {quality > 0 && !state.videoActive && !videoUnavailable && (
-          <button
-            type="button"
-            onClick={() =>
-              void act({ op: "video", quality: quality as 1 | 2 | 3 })
-            }
-          >
-            Start smooth view
-          </button>
-        )}
-        {(!VideoRenderer.supported() || videoUnavailable) && (
-          <p>
-            This browser supports still frames. Use a browser with video
-            decoding for smooth view.
-          </p>
-        )}
-        <p>
-          Android asks for screen-sharing approval on the phone. After locking
-          or restarting, approve again.
-        </p>
-      </dialog>
       <dialog ref={typingDialog} aria-labelledby="typing-title">
         <div className="dialog-heading">
           <h2 id="typing-title">Type or open an app</h2>

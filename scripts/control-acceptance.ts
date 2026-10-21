@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
 import { open, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { Browser } from "@playwright/test";
+import { type Browser, expect } from "@playwright/test";
 import jsQR from "jsqr";
 import { PNG } from "pngjs";
 import { prepareIdleWake } from "./control-recovery.js";
@@ -319,11 +319,13 @@ export async function controlAcceptance(f: Fixture) {
     await until(() => witness().taps === 0);
     if (process.env.HOSTED_VIDEO === "1") {
       await page
-        .getByRole("button", { name: "Viewing quality", exact: true })
+        .getByRole("switch", { name: "Smooth view", exact: true })
         .click();
-      await page
-        .getByRole("combobox", { name: "Viewing quality", exact: true })
-        .selectOption("2");
+      assert.equal(
+        await page.getByRole("dialog").count(),
+        0,
+        "Smooth view opens no browser dialog",
+      );
       await command("approve-video");
       // Return from the consent activity to an independent animated native view.
       await command("control-fixture");
@@ -339,38 +341,6 @@ export async function controlAcceptance(f: Fixture) {
       console.log(
         `H264 frames decoded over encrypted ${process.env.HOSTED_DIRECT === "1" ? "WebRTC" : "relay"}`,
       );
-      const smoothBefore = await page.evaluate(
-        () => (window as unknown as { __videoFrames: number }).__videoFrames,
-      );
-      await page
-        .getByRole("combobox", { name: "Viewing quality", exact: true })
-        .selectOption("3");
-      await until(
-        async () =>
-          (await page.evaluate(
-            () =>
-              (window as unknown as { __videoFrames: number }).__videoFrames,
-          )) >
-          smoothBefore + 10,
-        20000,
-      );
-      console.log("Smooth quality mode decoded successfully");
-      await page
-        .getByRole("combobox", { name: "Viewing quality", exact: true })
-        .selectOption("1");
-      const before = await page.evaluate(
-        () => (window as unknown as { __videoFrames: number }).__videoFrames,
-      );
-      await until(
-        async () =>
-          (await page.evaluate(
-            () =>
-              (window as unknown as { __videoFrames: number }).__videoFrames,
-          )) >
-          before + 10,
-        20000,
-      );
-      console.log("Live video quality change recovered with fresh keyframes");
       const begin = Date.now(),
         bytesBefore = receivedBytes;
       const framesBefore = await page.evaluate(
@@ -391,7 +361,9 @@ export async function controlAcceptance(f: Fixture) {
         "Video must continue decoding during the measurement",
       );
       console.log(`Measured video: ${JSON.stringify(videoMeasurement)}`);
-      await page.getByRole("button", { name: "Close viewing quality" }).click();
+      await expect(
+        page.getByRole("switch", { name: "Smooth view", exact: true }),
+      ).toBeChecked();
     }
     await delay(1500);
     async function at(p: { x: number; y: number }) {

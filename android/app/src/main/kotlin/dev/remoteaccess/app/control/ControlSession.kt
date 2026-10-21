@@ -65,12 +65,19 @@ internal class ControlSession(
                     .put("accessibility", false).put("locked", context.getSystemService(KeyguardManager::class.java).isKeyguardLocked)
                     .put("width", 0).put("height", 0).put("scene", 0)
             val vault = PinVault(context)
+            state.put("video", VideoStream.state(this)).put("videoActive", VideoStream.available(context, this))
             state.put("device", dev.remoteaccess.app.DeviceInfo.report(context)).put(
                 "unlockSupported",
                 true,
             ).put("unlockAllowed", HostStore.get(context).device(deviceId)?.unlockAllowed == true)
                 .put("savedPin", vault.saved()).put("unlockBlocked", vault.guard.blocked())
             reply(1, state.toString().toByteArray())
+        } else if (command.op == 16 && command.values[0] == 0) {
+            // Stopping needs neither an unlocked display nor the accessibility service.
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                VideoStream.close(context, this)
+                reply(2, byteArrayOf(0))
+            }
         } else {
             val service = ScreenAccessService.current
             if (service == null) {
@@ -103,6 +110,7 @@ internal class ControlSession(
 
     fun close() {
         active.set(false)
+        VideoStream.close(context, this, dev.remoteaccess.protocol.CaptureLifecycle.Reason.DISCONNECTED)
         ScreenAccessService.current?.release(this)
     }
 }

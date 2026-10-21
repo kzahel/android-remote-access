@@ -72,6 +72,7 @@ class ScreenAccessService : AccessibilityService() {
         if (current === this) current = null
         dev.remoteaccess.app.HostStore.get(this).listeners.forEach { it() }
         invalidate()
+        VideoStream.close(this, reason = dev.remoteaccess.protocol.CaptureLifecycle.Reason.PERMISSION)
         return super.onUnbind(intent)
     }
 
@@ -79,7 +80,7 @@ class ScreenAccessService : AccessibilityService() {
         if (current === this) current = null
         dev.remoteaccess.app.HostStore.get(this).listeners.forEach { it() }
         invalidate()
-        VideoStream.close(this)
+        VideoStream.close(this, reason = dev.remoteaccess.protocol.CaptureLifecycle.Reason.PERMISSION)
         compression.shutdownNow()
         super.onDestroy()
     }
@@ -119,7 +120,7 @@ class ScreenAccessService : AccessibilityService() {
                 return@post result(0)
             }
             if (command.op == 16) {
-                if (locked()) return@post result(3)
+                if (command.values[0] != 0 && locked()) return@post result(3)
                 return@post result(if (VideoStream.configure(this, owner, allowed, command.values[0])) 0 else 4)
             }
             if (command.op == 18) {

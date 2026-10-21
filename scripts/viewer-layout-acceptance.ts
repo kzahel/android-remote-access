@@ -250,10 +250,10 @@ try {
         .getByRole("button", { name: "More controls", exact: true })
         .click();
       await page
-        .getByRole("button", { name: "Viewing quality", exact: true })
+        .getByRole("button", { name: "Type or open an app", exact: true })
         .click();
       await expect(
-        page.getByRole("dialog", { name: "Viewing quality", exact: true }),
+        page.getByRole("dialog", { name: "Type or open an app", exact: true }),
       ).toBeVisible();
       if (mode === "unsupported") {
         await page.keyboard.press("Escape");
@@ -264,7 +264,7 @@ try {
         );
       } else {
         await page
-          .getByRole("button", { name: "Close viewing quality", exact: true })
+          .getByRole("button", { name: "Close typing controls", exact: true })
           .click();
       }
       await page
@@ -395,7 +395,6 @@ try {
       page.getByRole("heading", { name: "Enable screen access" }),
     ).toBeHidden();
     for (const [open, close] of [
-      ["Viewing quality", "Close viewing quality"],
       ["Type or open an app", "Close typing controls"],
     ] as const) {
       await page.getByRole("button", { name: open, exact: true }).click();
@@ -560,6 +559,108 @@ try {
     console.log(
       `${name}: lock/unlock, messages, permission loss, rotation and dialogs keep geometry and scroll stable`,
     );
+    await context.close();
+  }
+  // The actual React switch must remain usable while Android consent is pending.
+  for (const width of [1280, 390]) {
+    const context = await browser.newContext({
+      viewport: { width, height: 844 },
+    });
+    const page = await context.newPage();
+    activePage = page;
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.goto(
+      `http://127.0.0.1:${address.port}/layout-proof?locked=false&savedPin=false`,
+    );
+    const toggle = page.getByRole("switch", {
+      name: "Smooth view",
+      exact: true,
+    });
+    await expect(toggle).toBeEnabled();
+    const baseline = await geometry(page);
+    for (const reason of [
+      "canceled",
+      "interrupted",
+      "locked",
+      "disconnected",
+      "permission",
+      "timeout",
+    ] as const) {
+      await toggle.click();
+      await expect(page.getByRole("status")).toContainText(
+        "Approve screen sharing",
+      );
+      await expect(toggle).toHaveAttribute("aria-busy", "true");
+      await expect(toggle).not.toBeChecked();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await stable(page, baseline);
+      const sent = await page.evaluate(
+        () => window.layoutFixture.videos.length,
+      );
+      await page.evaluate(
+        (reason) =>
+          window.layoutFixture.patch({
+            video: { id: 1, phase: "off", reason },
+          }),
+        reason,
+      );
+      await expect(toggle).toHaveAttribute("aria-busy", "false");
+      await expect(toggle).not.toBeChecked();
+      await expect(toggle).toBeEnabled();
+      await page.waitForTimeout(1700);
+      assert.equal(
+        await page.evaluate(() => window.layoutFixture.videos.length),
+        sent,
+        "Polling never reopens consent",
+      );
+    }
+    await toggle.click();
+    await expect(page.getByRole("status")).toContainText(
+      "Approve screen sharing",
+    );
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-busy", "false");
+    await expect
+      .poll(() => page.evaluate(() => window.layoutFixture.videos.at(-1)))
+      .toBe(0);
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await stable(page, baseline);
+    // A host reporting active is insufficient until the decoder displays a frame.
+    await toggle.click();
+    await expect(page.getByRole("status")).toContainText(
+      "Approve screen sharing",
+    );
+    await page.evaluate(() =>
+      window.layoutFixture.patch({
+        video: { id: 2, phase: "active", reason: "none" },
+      }),
+    );
+    await expect(page.getByRole("status")).toContainText(
+      "Starting smooth view",
+    );
+    await expect(toggle).not.toBeChecked();
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-busy", "false");
+    // The current internal-beta host remains useful for still frames before updating.
+    await page.evaluate(() => window.layoutFixture.legacyVideo());
+    await expect(toggle).toBeDisabled();
+    await expect(toggle).toHaveAttribute(
+      "title",
+      "Update the phone app to use Smooth view.",
+    );
+    await stable(page, baseline);
+    await page.screenshot({
+      path: path.join(artifacts, `smooth-${width}.png`),
+      fullPage: true,
+    });
+    assert.deepEqual(errors, []);
+    results.push({
+      smoothView: width,
+      noModal: true,
+      cancellationAndRetry: true,
+      errors,
+    });
     await context.close();
   }
   // Exercise the actual React unlock flow, including StrictMode effect replay,

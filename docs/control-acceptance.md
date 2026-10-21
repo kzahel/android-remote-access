@@ -121,11 +121,11 @@ uncertainty of 8 ms; these are measurements, not an availability promise.
 The connected viewer uses the authenticated phone model as its heading and one
 fixed-height status area. The screen occupies a fixed viewport-relative stage;
 unlock and permission guidance appear inside it. Navigation, wake, lock and
-disconnect share a compact icon dock. Quality and typing/app controls open in
-dialogs without moving the screen or dock.
+disconnect share a compact icon dock. Smooth view uses a direct switch;
+typing/app controls open in a dialog without moving the screen or dock.
 
 `pnpm test:viewer-layout` runs the actual React screen with a synthetic session
-in isolated Chromium at 1280×1000, 390×844, 320×680 and 844×390. All four pass
+in isolated Chromium at 1280×1000, 1728×997, 390×844, 320×680 and 844×390. All five pass
 exact geometry and page-scroll comparisons through saved/manual unlock, lock,
 navigation, long errors, unlock-attempt guards, permission loss, decoded frames,
 rotation and both dialogs. It also verifies one heading/status, preserved touch
@@ -150,3 +150,12 @@ lock and secure content can be blank or refused. Arbitrary network transitions
 and OEMs remain separate qualification; direct-path loss and relay recovery have
 measured acceptance. Physical FCM evidence is a wake test, not proof of physical
 remote unlock.
+
+## Smooth-view lifecycle — 2026-10-21
+
+The viewing-quality dialog has been replaced by one Smooth view switch using
+Balanced internally. Consent/start/end states and request identity address
+cancellation, pending Off, stale callbacks, recreation and deadlines. See the
+[investigation, implementation and regression harness](smooth-view-lifecycle.md).
+Earlier quality-mode traffic figures above describe their pinned historical
+runs; the current browser acceptance runner requests Balanced.

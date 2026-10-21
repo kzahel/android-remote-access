@@ -18,15 +18,19 @@ import android.os.IBinder
 import android.os.Looper
 import android.view.Surface
 import android.view.WindowManager
+import dev.remoteaccess.protocol.CaptureLifecycle.Phase
+import dev.remoteaccess.protocol.CaptureLifecycle.Reason
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** User-consented H.264 encoder. All encoder/display resources have one worker owner. */
 class VideoService : Service() {
-    private val running = AtomicBoolean(false)
-    private var projection: MediaProjection? = null
-    private var request: VideoStream.Request? = null
+    private class Run(val stream: VideoStream.Request, val projection: MediaProjection, val startId: Int) {
+        val running = AtomicBoolean(true)
 
-    @Volatile private var resize: Pair<Int, Int>? = null
+        @Volatile var resize: Pair<Int, Int>? = null
+    }
+
+    private var run: Run? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -35,16 +39,24 @@ class VideoService : Service() {
         flags: Int,
         startId: Int,
     ): Int {
-        if (running.get()) return START_NOT_STICKY
-        val current = VideoStream.request
+        val current = VideoStream.request?.takeIf { it.id == intent?.getIntExtra("request", 0) }
+        if (current != null && run?.stream === current) return START_NOT_STICKY
+        if (current == null || current.lifecycle.phase != Phase.STARTING || !current.allowed()) {
+            if (run == null) stopSelf(startId)
+            return START_NOT_STICKY
+        }
 
         @Suppress("DEPRECATION")
         val consent = intent?.getParcelableExtra<Intent>("consent")
-        if (current == null || consent == null || !current.allowed()) {
-            stopSelf()
+        if (consent == null) {
+            VideoStream.end(this, current, Reason.UNAVAILABLE)
+            stopSelf(startId)
             return START_NOT_STICKY
         }
-        request = current
+        run?.let {
+            it.running.set(false)
+            it.projection.stop()
+        }
         try {
             startForeground(
                 dev.remoteaccess.app.WakeSupport.VIDEO_NOTIFICATION,
@@ -52,35 +64,36 @@ class VideoService : Service() {
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION,
             )
             val capture = checkNotNull(getSystemService(MediaProjectionManager::class.java).getMediaProjection(Activity.RESULT_OK, consent))
-            projection = capture
+            val active = Run(current, capture, startId)
+            run = active
             capture.registerCallback(
                 object : MediaProjection.Callback() {
                     override fun onStop() {
-                        stopSelf()
+                        VideoStream.end(this@VideoService, current, Reason.INTERRUPTED)
+                        stopSelf(startId)
                     }
 
                     override fun onCapturedContentResize(
                         width: Int,
                         height: Int,
                     ) {
-                        resize = width to height
+                        active.resize = width to height
                     }
                 },
                 Handler(Looper.getMainLooper()),
             )
-            running.set(true)
-            current.active = true
-            Thread({ encode(capture, current) }, "screen-encoder").start()
+            Thread({ encode(active) }, "screen-encoder").start()
         } catch (_: Exception) {
-            stopSelf()
+            VideoStream.end(this, current, Reason.UNAVAILABLE)
+            stopSelf(startId)
         }
         return START_NOT_STICKY
     }
 
-    private fun encode(
-        capture: MediaProjection,
-        stream: VideoStream.Request,
-    ) {
+    private fun encode(active: Run) {
+        val capture = active.projection
+        val stream = active.stream
+        var reason = Reason.INTERRUPTED
         var encoder: MediaCodec? = null
         var surface: Surface? = null
         var display: VirtualDisplay? = null
@@ -146,15 +159,15 @@ class VideoService : Service() {
                 stream.reset()
             }
             configure()
-            while (running.get() && VideoStream.request === stream && stream.allowed() &&
+            while (active.running.get() && VideoStream.request === stream && stream.allowed() &&
                 !getSystemService(KeyguardManager::class.java).isKeyguardLocked
             ) {
-                resize?.let {
+                active.resize?.let {
                     if (it.first > 0 && it.second > 0 && it != source) {
                         source = it
                         quality = 0
                     }
-                    resize = null
+                    active.resize = null
                 }
                 if (stream.quality != quality) {
                     configure()
@@ -187,22 +200,30 @@ class VideoService : Service() {
                 }
             }
         } catch (_: Exception) {
-            // Still frames remain available. A new projection requires fresh system consent.
+            reason = Reason.UNAVAILABLE
         } finally {
-            stream.active = false
             runCatching { display?.release() }
             runCatching { encoder?.stop() }
             runCatching { encoder?.release() }
             surface?.release()
-            Handler(Looper.getMainLooper()).post { stopSelf() }
+            Handler(Looper.getMainLooper()).post {
+                VideoStream.end(
+                    this,
+                    stream,
+                    if (getSystemService(KeyguardManager::class.java).isKeyguardLocked) Reason.LOCKED else reason,
+                )
+                stopSelf(active.startId)
+            }
         }
     }
 
     override fun onDestroy() {
-        running.set(false)
-        VideoStream.ended(request)
-        projection?.stop()
-        projection = null
+        run?.let {
+            it.running.set(false)
+            VideoStream.end(this, it.stream, Reason.INTERRUPTED)
+            it.projection.stop()
+        }
+        run = null
         stopForeground(STOP_FOREGROUND_REMOVE)
         super.onDestroy()
     }

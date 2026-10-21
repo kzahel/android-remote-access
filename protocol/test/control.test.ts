@@ -165,4 +165,52 @@ describe("control boundary", () => {
     ])
       expect(() => decodeReply(record(bad))).toThrow("Invalid device report");
   });
+  it("validates capture lifecycle states without breaking stills on older beta hosts", () => {
+    function record(video: unknown) {
+      const payload = new TextEncoder().encode(
+        JSON.stringify({
+          type: "state",
+          v: 1,
+          accessibility: true,
+          locked: false,
+          width: 1080,
+          height: 2400,
+          scene: 1,
+          device: {
+            manufacturer: "Google",
+            model: "Emulator",
+            name: "Test phone",
+            android: "16",
+            sdk: 36,
+            app: "0.6.0",
+          },
+          video,
+        }),
+      );
+      const bytes = new Uint8Array(12 + payload.length);
+      bytes.set([65, 82, 80, 49, 1, 0, 0, 0]);
+      new DataView(bytes.buffer).setUint32(8, 1);
+      bytes.set(payload, 12);
+      return bytes;
+    }
+    expect(decodeReply(record(undefined))).toMatchObject({ kind: "state" });
+    for (const phase of ["consent", "starting", "active", "off"]) {
+      expect(
+        decodeReply(record({ id: 1, phase, reason: "none" })),
+      ).toMatchObject({ state: { video: { phase } } });
+    }
+    for (const video of [
+      null,
+      {},
+      "active",
+      { id: 0, phase: "active", reason: "none" },
+      { id: -1, phase: "off", reason: "stopped" },
+      { id: 2 ** 31, phase: "off", reason: "stopped" },
+      { id: 1.5, phase: "consent", reason: "none" },
+      { id: 1, phase: "unknown", reason: "none" },
+      { id: 1, phase: "off", reason: "unknown" },
+      { id: 1, phase: "consent", reason: "canceled" },
+    ])
+      expect(() => decodeReply(record(video))).toThrow("Invalid video state");
+  });
 });

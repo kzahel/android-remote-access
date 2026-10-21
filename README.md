@@ -61,6 +61,7 @@ pnpm exec playwright install chromium
 | `pnpm test:viewer-layout` | Responsive viewer layout in isolated Chromium. |
 | `pnpm test:viewer-phones` | Browser phone storage, multiple phones and tabs. |
 | `pnpm test:interop` | Browser ↔ Android Keystore interoperability. |
+| `pnpm test:smooth-view` | Smooth toggle, consent, video and teardown on an owned emulator. |
 | `pnpm test:mobile-ui` | Native navigation, setup and appearance. |
 | `pnpm test:hosted` | Hosted QR pairing, reconnect, FCM wake and revocation. |
 | `pnpm test:mobile` | Multiple browsers and native access management. |
@@ -81,6 +82,7 @@ availability and broader device qualification remain pending. See
 
 - [Beta builds, signing and Play publishing](docs/distribution/android-beta.md)
 - [Pairing and relay](docs/pairing-relay-v1.md) · [Session encryption](docs/crypto-session-v1.md)
+- [Smooth-view consent and lifecycle](docs/smooth-view-lifecycle.md)
 - [Android permissions and device management](docs/mobile-management.md)
 - [Browser phone management](docs/browser-phones.md)
 - [Android platform limits](docs/android-platform.md)

@@ -918,3 +918,41 @@ a {
   clip-path: none;
   white-space: normal;
 }
+
+.smooth-switch {
+  display: block;
+  width: 28px;
+  height: 16px;
+  border: 1px solid currentColor;
+  border-radius: 10px;
+  padding: 2px;
+}
+.smooth-switch::before {
+  content: "";
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: currentColor;
+}
+[role="switch"][aria-checked="true"] .smooth-switch {
+  color: var(--accent);
+}
+[role="switch"][aria-checked="true"] .smooth-switch::before {
+  transform: translateX(12px);
+}
+[role="switch"][data-pending] .smooth-switch {
+  border-style: dashed;
+}
+
+.control-dock [role="switch"] {
+  flex-direction: column;
+  gap: 2px;
+}
+.smooth-label {
+  font-size: 9px;
+  line-height: 11px;
+}
+[data-labels] .smooth-label {
+  display: none;
+}

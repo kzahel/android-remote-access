@@ -5,7 +5,11 @@ export function RemoteControls({
   navigate,
   wake,
   lock,
-  quality,
+  smooth,
+  smoothOn = false,
+  smoothPending = false,
+  smoothDisabled = false,
+  smoothHint = "Smooth view",
   type,
   disconnect,
   fullscreen = false,
@@ -14,7 +18,11 @@ export function RemoteControls({
   navigate?: (action: "back" | "home" | "recents") => void;
   wake?: () => void;
   lock?: () => void;
-  quality?: () => void;
+  smooth?: () => void;
+  smoothOn?: boolean;
+  smoothPending?: boolean;
+  smoothDisabled?: boolean;
+  smoothHint?: string;
   type?: () => void;
   disconnect?: () => void;
   fullscreen?: boolean;
@@ -74,12 +82,22 @@ export function RemoteControls({
         <div className="screen-controls">
           <button
             type="button"
-            title="Viewing quality"
-            disabled={!quality}
-            onClick={quality}
+            role="switch"
+            aria-label="Smooth view"
+            aria-checked={smoothOn}
+            aria-busy={smoothPending}
+            title={smoothHint}
+            data-pending={smoothPending || undefined}
+            disabled={!smooth || smoothDisabled}
+            onClick={smooth}
           >
-            <ControlIcon name="quality" />
-            <span className="control-label">Viewing quality</span>
+            <span className="smooth-switch" aria-hidden="true" />
+            <span className="smooth-label" aria-hidden="true">
+              Smooth
+            </span>
+            <span className="control-label" aria-hidden="true">
+              Smooth view
+            </span>
           </button>
           <button
             type="button"

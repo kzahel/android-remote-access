@@ -134,6 +134,20 @@ export function encodeCommand(
   out.set(tail, 12 + values.length * 4);
   return out;
 }
+export type VideoState = {
+  id: number;
+  phase: "off" | "consent" | "starting" | "active";
+  reason:
+    | "none"
+    | "stopped"
+    | "canceled"
+    | "timeout"
+    | "interrupted"
+    | "locked"
+    | "unavailable"
+    | "disconnected"
+    | "permission";
+};
 export type ControlState = {
   type: "state";
   v: 1;
@@ -144,6 +158,8 @@ export type ControlState = {
   scene: number;
   device: DeviceInfo;
   videoActive?: boolean;
+  // Additive capability for internal-beta hosts; stills remain usable before an app update.
+  video?: VideoState;
   unlockSupported?: boolean;
   unlockAllowed?: boolean;
   savedPin?: boolean;
@@ -207,6 +223,30 @@ export function decodeReply(data: Uint8Array<ArrayBuffer>): Reply {
       )
         throw new Error("Invalid state");
       state.device = parseDevice(state.device);
+      if (state.video !== undefined) {
+        const video = state.video;
+        if (
+          !video ||
+          typeof video !== "object" ||
+          !Number.isInteger(video.id) ||
+          video.id < 0 ||
+          video.id > 0x7fffffff ||
+          !["off", "consent", "starting", "active"].includes(video.phase) ||
+          ![
+            "none",
+            "stopped",
+            "canceled",
+            "timeout",
+            "interrupted",
+            "locked",
+            "unavailable",
+            "disconnected",
+            "permission",
+          ].includes(video.reason) ||
+          (video.phase !== "off" && (video.id === 0 || video.reason !== "none"))
+        )
+          throw new Error("Invalid video state");
+      }
       for (const field of [
         "videoActive",
         "unlockSupported",

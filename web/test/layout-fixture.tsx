@@ -1,4 +1,10 @@
-import type { Command, ControlState, Reply } from "@remote/protocol/control";
+import {
+  type Command,
+  type ControlState,
+  decodeReply,
+  encodeCommand,
+  type Reply,
+} from "@remote/protocol/control";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { AppShell } from "../src/app-shell.js";
@@ -23,6 +29,7 @@ const state: ControlState = {
   width: 1080,
   height: 2400,
   scene: 1,
+  video: { id: 0, phase: "off", reason: "none" },
   unlockAllowed: true,
   savedPin: true,
   unlockBlocked: false,
@@ -36,6 +43,25 @@ for (const flag of [
   "accessibility",
 ] as const) {
   if (params.has(flag)) state[flag] = params.get(flag) === "true";
+}
+let nativeId = 0;
+let nativePending: Promise<unknown> = Promise.resolve();
+function nativeCommand(command: Command): Promise<Reply> {
+  const work = nativePending.then(async () => {
+    const response = await fetch("/native-control", {
+      method: "POST",
+      body: encodeCommand(++nativeId, command),
+    });
+    if (!response.ok) throw Error("Native fixture exchange failed");
+    return decodeReply(new Uint8Array(await response.arrayBuffer()));
+  });
+  nativePending = work.catch(() => {});
+  return work;
+}
+if (params.has("native")) {
+  const initial = await nativeCommand({ op: "start" });
+  if (initial.kind !== "state") throw Error("Missing native fixture state");
+  Object.assign(state, initial.state);
 }
 const unlockOutcome = params.get("unlock") || "success";
 let finishUnlock = () => {};
@@ -55,11 +81,16 @@ const jpeg = new Uint8Array(
 let failNext = false;
 const trace: string[] = [];
 const unlocks: string[] = [];
+const videos: number[] = [];
 window.layoutFixture = {
   unmount: () => rendered.unmount(),
   trace,
   unlocks,
+  videos,
   ended: "",
+  legacyVideo: () => {
+    delete state.video;
+  },
   finishUnlock: () => finishUnlock(),
   patch: (patch) => Object.assign(state, patch),
   failNext: () => {
@@ -73,6 +104,7 @@ const session = {
     return connected;
   },
   async command(command: Command): Promise<Reply> {
+    if (params.has("native")) return nativeCommand(command);
     if (!connected) throw Error("Session ended");
     trace.push(`${command.op}: locked=${state.locked}`);
     if (trace.length > 30) trace.shift();
@@ -104,6 +136,13 @@ const session = {
       }
       state.locked = false;
     }
+    if (command.op === "video") {
+      videos.push(command.quality);
+      state.video = command.quality
+        ? { id: (state.video?.id || 0) + 1, phase: "consent", reason: "none" }
+        : { id: state.video?.id || 0, phase: "off", reason: "stopped" };
+    }
+    if (command.op === "videoFrame") return { id: 1, kind: "result", code: 6 };
     if (command.op === "sleep") state.locked = true;
     if (command.op === "capture") {
       if (state.locked) return { id: 1, kind: "result", code: 3 };
@@ -171,7 +210,9 @@ declare global {
       finishUnlock: () => void;
       trace: string[];
       unlocks: string[];
+      videos: number[];
       ended: string;
+      legacyVideo: () => void;
     };
   }
 }
