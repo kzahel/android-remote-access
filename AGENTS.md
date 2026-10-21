@@ -173,3 +173,14 @@ to make this research repository look implemented. Commit on the current
 branch unless instructed otherwise. Attribute model contributions with only a
 `Contributing-model: <short-model-name>` trailer, not model authorship banners
 or Co-Authored-By lines. Do not publish/push without authorization.
+
+## Beta and public-source authorization — 2026-10-21
+
+The owner authorized public MIT source after a history/private-infrastructure audit,
+CI-driven Play beta publication, release assets adapted from owned YepAnywhere
+branding, and a website privacy policy. Audience is 13+ (13–15, 16–17 and 18+),
+category Tools, free installation, no ads, and no required account. Start with
+internal testing and verify the Play-installed build before wider closed testing.
+This does not authorize production rollout or unrelated sibling/infrastructure changes.
+Private signing/IAM/tester inventories stay in dotfiles; public source carries
+only generic provisioning instructions and public client configuration.

@@ -212,3 +212,10 @@ The most consequential findings are that screen capture, input, waking the
 process, waking the display and unlocking are separate capabilities; FCM and
 background permissions do not combine into an unconditional availability
 guarantee. See the platform analysis before choosing an implementation.
+
+## License
+
+Project-owned source is [MIT licensed](LICENSE). Bundled third-party components
+retain their original licenses and notices; see [dependency review](docs/direct-transport.md)
+and Android assets under `third-party/`. The [public-source audit](docs/publication-audit.md)
+records the pre-publication history and infrastructure review.

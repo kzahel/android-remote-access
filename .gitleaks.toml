@@ -1,0 +1,17 @@
+title = "YepControl secret scanning"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Firebase Android client configuration is public, Firebase-restricted, and not a server credential; see docs/publication-audit.md."
+targetRules = ["gcp-api-key", "generic-api-key"]
+condition = "AND"
+regexTarget = "line"
+regexes = ['''"current_key"\s*:\s*"AIza[0-9A-Za-z_-]{35}"''']
+paths = ['''^android/app/google-services\.json$''']
+
+[[allowlists]]
+description = "Deterministic public crypto test vectors, with scalars 1–4; never application keys."
+targetRules = ["generic-api-key"]
+paths = ['''^protocol/vectors/session-v1\.json$''']
