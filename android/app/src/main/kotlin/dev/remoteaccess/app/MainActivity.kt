@@ -23,6 +23,7 @@ import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.RadioButton
 import android.widget.RadioGroup
 import android.widget.Switch
@@ -49,6 +50,9 @@ class MainActivity : ComponentActivity() {
     private var page = "home"
     private var deviceId: String? = null
     private var pending: Enrollment? = null
+
+    /** The invitation being granted; cleared by Cancel so a late result does not move the screen. */
+    @Volatile private var granting: Enrollment? = null
     private var sharingDialog: AlertDialog? = null
     private val foregroundOwner = Any()
     private var notice: String? = null
@@ -696,24 +700,60 @@ class MainActivity : ComponentActivity() {
                 navigate("home")
                 return
             }
-        text(layout, invitation.name ?: "Unnamed device", 20f)
+        val name = invitation.name ?: "Unnamed device"
+        text(layout, name, 20f)
         if (invitation.origin != Website.current(this)) text(layout, invitation.origin.removePrefix("https://"), 14f)
-        text(layout, "Only allow a code you just created yourself.", 14f)
-        button(layout, getString(R.string.grant_device), R.id.grant_device) {
-            perform(network = true) {
-                val accepted = invitation.grant(KeystoreIdentity.loadOrCreate("phone-identity-v1"))
-                val device = store.pair(accepted, invitation.name)
-                WakeSupport.enqueue(this, androidx.work.Data.EMPTY, registration = true)
-                runOnUiThread {
-                    pending = null
-                    backStack.clear()
+        if (granting === invitation) {
+            val progress = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+            progress.addView(
+                ProgressBar(this, null, android.R.attr.progressBarStyleSmall).apply {
+                    indeterminateTintList = ColorStateList.valueOf(color(android.R.attr.colorAccent))
+                },
+                LinearLayout.LayoutParams(dp(24), dp(24)).apply { marginEnd = dp(12) },
+            )
+            text(progress, "Connecting to $name…").accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+            layout.addView(progress, LinearLayout.LayoutParams(-1, dp(52)))
+        } else {
+            text(layout, "Only allow a code you just created yourself.", 14f)
+            button(layout, getString(R.string.grant_device), R.id.grant_device) { allow(invitation) }
+        }
+        button(layout, "Cancel", R.id.cancel_grant) {
+            granting = null
+            navigate("home")
+        }
+    }
+
+    private fun allow(invitation: Enrollment) {
+        if (granting != null) return
+        granting = invitation
+        render()
+        HostRuntime.network.execute {
+            val paired =
+                try {
+                    val accepted = invitation.grant(KeystoreIdentity.loadOrCreate("phone-identity-v1")) { granting !== invitation }
+                    store.pair(accepted, invitation.name).also {
+                        WakeSupport.enqueue(this, androidx.work.Data.EMPTY, registration = true)
+                    }
+                } catch (error: Exception) {
+                    if (BuildConfig.DEBUG) android.util.Log.w("RemoteAccess", "Pairing failed: ${error.javaClass.simpleName}")
+                    null
+                }
+            runOnUiThread {
+                if (granting !== invitation) return@runOnUiThread
+                granting = null
+                pending = null
+                backStack.clear()
+                if (paired == null) {
+                    page = "home" // A pairing code is single-use; the other device must create a new one.
+                    notice = "Couldn’t pair. Create a new code on your other device."
+                } else {
                     backStack.add("home")
                     page = "features"
-                    deviceId = device.id
+                    deviceId = paired.id
                 }
+                render()
             }
         }
-        button(layout, "Cancel") { navigate("home") }
     }
 
     private fun change(

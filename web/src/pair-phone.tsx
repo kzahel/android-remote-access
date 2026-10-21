@@ -14,11 +14,19 @@ import { browserName } from "./browser-name.js";
 import { browserIdentity, phoneURL, rememberPhone } from "./store.js";
 import { ViewerHeading } from "./viewer-heading.js";
 
-async function api(id: string, action = "", body?: unknown) {
+async function api(
+  id: string,
+  action = "",
+  body?: unknown,
+  wait?: { seen: string; signal: AbortSignal },
+) {
   const response = await fetch(
     `/api/pair/${id}${action ? `/${action}` : ""}`,
     body === undefined
-      ? {}
+      ? wait
+        ? // The relay holds this poll until the state differs from `seen`.
+          { headers: { "Pair-Wait": wait.seen }, signal: wait.signal }
+        : {}
       : {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -40,46 +48,50 @@ export function PairPhone() {
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (!invitation) return;
-    let stopped = false;
-    let polling = false;
-    const timer = setInterval(async () => {
-      if (stopped || polling) return;
-      polling = true;
+    const abort = new AbortController();
+    const stopped = () => abort.signal.aborted;
+    void (async () => {
+      let seen = "waiting";
       try {
-        if (Date.now() >= invitation.expires * 1000)
-          throw new Error("Code expired. Create a new code.");
-        const result = await api(invitation.id);
-        if (result.state === "offered" && result.grant) {
-          const g = result.grant;
-          if (stopped) return;
-          await verifyOffer(invitation, g);
-          const identity = await browserIdentity();
-          const viewerSignature = b64(
-            await identity.sign(grantBytes(invitation.origin, g)),
-          );
-          if (stopped) return;
-          const accepted = await api(invitation.id, "complete", {
-            viewerSignature,
+        while (!stopped()) {
+          if (Date.now() >= invitation.expires * 1000)
+            throw new Error("Code expired. Create a new code.");
+          const asked = Date.now();
+          const result = await api(invitation.id, "", undefined, {
+            seen,
+            signal: abort.signal,
           });
-          if (stopped) return;
-          if (accepted.state !== "paired") throw new Error("Pairing failed");
-          const paired: Grant = { ...g, viewerSignature };
-          const id = await rememberPhone(paired, alias);
-          location.assign(phoneURL(id));
+          if (result.state === "offered" && result.grant) {
+            const g = result.grant;
+            await verifyOffer(invitation, g);
+            const identity = await browserIdentity();
+            const viewerSignature = b64(
+              await identity.sign(grantBytes(invitation.origin, g)),
+            );
+            if (stopped()) return;
+            const accepted = await api(invitation.id, "complete", {
+              viewerSignature,
+            });
+            if (stopped()) return;
+            if (accepted.state !== "paired") throw new Error("Pairing failed");
+            const paired: Grant = { ...g, viewerSignature };
+            const id = await rememberPhone(paired, alias);
+            location.assign(phoneURL(id));
+            return;
+          }
+          seen = result.state;
+          // A relay without held polls answers at once; keep the earlier pace.
+          if (Date.now() - asked < 500)
+            await new Promise((resolve) => setTimeout(resolve, 1000));
         }
       } catch (error) {
-        if (!stopped) {
+        if (!stopped()) {
           setInvitation(undefined);
           setStatus(error instanceof Error ? error.message : "Pairing failed");
         }
-      } finally {
-        polling = false;
       }
-    }, 1000);
-    return () => {
-      stopped = true;
-      clearInterval(timer);
-    };
+    })();
+    return () => abort.abort();
   }, [invitation, alias]);
   async function pair() {
     setBusy(true);

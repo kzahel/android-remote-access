@@ -31,6 +31,11 @@ the QR can enroll; it must not enter URLs sent to a server, logs or analytics.
 Create requests are viewer-signed over `ara/pair/create/v1`, origin, ID, viewer
 key, expiry. Pending enrollment is bounded, memory-only and lost on restart.
 Public polling returns only a phone's signed offer, never the QR secret.
+A poll may send `Pair-Wait: <state it already has>` (`waiting` from the browser,
+`offered` from the phone). The relay then holds the reply until the state
+changes, the code expires or 15 seconds pass, so each endpoint reacts as soon as
+the other acts. Holds are bounded (1,000 total, 4 per pairing). Relays without
+this answer at once and clients fall back to their earlier poll interval.
 The browser holds the QR secret only until completion/expiration. A completed
 receipt can be fetched by ID but contains only public keys and signatures.
 Phone confirmation polls are bounded. Losing the final receipt may leave a

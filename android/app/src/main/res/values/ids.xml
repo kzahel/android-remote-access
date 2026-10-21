@@ -3,6 +3,7 @@
     <item name="page_title" type="id" />
     <item name="open_home" type="id" />
     <item name="open_devices" type="id" />
+    <item name="cancel_grant" type="id" />
     <item name="manage_access" type="id" />
     <item name="screen_access" type="id" />
     <item name="app_settings" type="id" />

@@ -185,6 +185,36 @@ it("pairs only after both endpoint signatures and never stores the QR secret", a
   expect((await create()).status).toBe(400);
   expect((await api()).status).toBe(200);
 });
+it("answers held pairing polls when the other endpoint acts", async () => {
+  expect((await create()).status).toBe(201);
+  const started = Date.now();
+  const browserWait = api("", undefined, { "Pair-Wait": "waiting" });
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  const g = await offer();
+  expect((await api("/offer", g)).status).toBe(202);
+  const offered = await browserWait;
+  expect(await offered.json()).toMatchObject({ state: "offered" });
+  const phoneWait = api("", undefined, { "Pair-Wait": "offered" });
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  const viewerSignature = b64(await viewer.sign(grantBytes(origin, g)));
+  expect((await api("/complete", { viewerSignature })).status).toBe(200);
+  expect(await (await phoneWait).json()).toMatchObject({ state: "paired" });
+  expect(Date.now() - started).toBeLessThan(2000);
+  // Without the header, or with a different seen state, polls answer at once.
+  expect(await (await api()).json()).toMatchObject({ state: "paired" });
+  expect(
+    await (await api("", undefined, { "Pair-Wait": "offered" })).json(),
+  ).toMatchObject({ state: "paired" });
+});
+it("returns the unchanged pairing state when a held poll times out", async () => {
+  await relay.close();
+  await start({ pairWaitMs: 150 });
+  expect((await create()).status).toBe(201);
+  const started = Date.now();
+  const reply = await api("", undefined, { "Pair-Wait": "waiting" });
+  expect(Date.now() - started).toBeGreaterThanOrEqual(140);
+  expect(await reply.json()).toEqual({ state: "waiting" });
+});
 it("rejects wrong QR secrets, substituted phone keys and expired invitations at endpoints", async () => {
   const g = await offer();
   await expect(

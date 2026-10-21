@@ -57,9 +57,12 @@ internal fun request(
     id: String,
     action: String = "",
     body: JSONObject? = null,
+    seen: String? = null,
 ): JSONObject {
     val url = "$origin/api/pair/$id" + if (action.isEmpty()) "" else "/$action"
     val request = Request.Builder().url(url)
+    // The relay holds this poll until the pairing state differs from `seen`.
+    if (seen != null) request.header("Pair-Wait", seen)
     if (body != null) request.post(body.toString().toRequestBody("application/json".toMediaType()))
     return http.newCall(request.build()).execute().use {
         check(it.isSuccessful) { "Pairing expired, revoked, or unavailable" }
@@ -110,7 +113,10 @@ internal class Enrollment(uri: String) {
         require(remaining in 1..301000) { "Pairing code expired" }
     }
 
-    fun grant(identity: Identity): JSONObject {
+    fun grant(
+        identity: Identity,
+        cancelled: () -> Boolean = { false },
+    ): JSONObject {
         checkTime()
         val id = invite.getString("id")
         val grant =
@@ -127,16 +133,21 @@ internal class Enrollment(uri: String) {
         grant.put("phoneSignature", encoded(identity.sign(data))).put("mac", mac)
         request(origin, id, "offer", grant)
         val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(90)
+        var seen = "offered"
         while (System.nanoTime() < deadline) {
             checkTime()
-            val reply = request(origin, id)
-            if (reply.getString("state") == "paired") {
+            check(!cancelled()) { "Cancelled" }
+            val asked = System.nanoTime()
+            val reply = request(origin, id, seen = seen)
+            seen = reply.getString("state")
+            if (seen == "paired") {
                 val accepted = reply.getJSONObject("grant")
                 require(grantBytes(origin, accepted).contentEquals(data))
                 Crypto.verify(decoded(grant.getString("viewer")), data, decoded(accepted.getString("viewerSignature")))
                 return accepted.put("origin", origin)
             }
-            Thread.sleep(750)
+            // A relay without held polls answers at once; keep the earlier pace.
+            if (System.nanoTime() - asked < TimeUnit.MILLISECONDS.toNanos(500)) Thread.sleep(750)
         }
         error("Device did not confirm. Create a fresh code.")
     }

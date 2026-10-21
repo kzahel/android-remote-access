@@ -40,6 +40,8 @@ export interface Options {
   sender?: Sender;
   wakeLifetimeMs?: number;
   wakeCooldownMs?: number;
+  /** Longest a pairing poll with a `Pair-Wait` header is held for a state change. */
+  pairWaitMs?: number;
 }
 export function createRelay(options: Options) {
   const origin = originURL(options.origin);
@@ -116,6 +118,26 @@ export function createRelay(options: Options) {
     wakeTimers.delete(id);
   };
   const pending = new Map<string, Pending>();
+  const pairState = (id: string): [number, Record<string, unknown>] => {
+    const paired = pairs[id];
+    if (paired?.revoked) return [410, { error: "Unavailable" }];
+    if (paired) return [200, { state: "paired", grant: paired }];
+    const p = pending.get(id);
+    if (p && p.expires * 1000 > Date.now())
+      return [
+        200,
+        p.offer ? { state: "offered", grant: p.offer } : { state: "waiting" },
+      ];
+    return [404, { error: "Unavailable" }];
+  };
+  // Held pairing polls answer as soon as the other endpoint acts, instead of on the next poll.
+  const watchers = new Map<string, Set<() => void>>();
+  let watching = 0;
+  const changed = (id: string) => {
+    const waiting = watchers.get(id);
+    watchers.delete(id);
+    for (const finish of waiting ?? []) finish();
+  };
   const buckets = new Map<string, { until: number; count: number }>();
   const routes = new Map<
     string,
@@ -185,16 +207,31 @@ export function createRelay(options: Options) {
         p = undefined;
       }
       if (req.method === "GET" && !action) {
-        if (existing?.revoked) reply(410, { error: "Unavailable" });
-        else if (existing) reply(200, { state: "paired", grant: existing });
-        else if (p)
-          reply(
-            200,
-            p.offer
-              ? { state: "offered", grant: p.offer }
-              : { state: "waiting" },
-          );
-        else reply(404, { error: "Unavailable" });
+        const [status, body] = pairState(id);
+        const seen = req.headers["pair-wait"];
+        if (
+          status !== 200 ||
+          body.state !== seen ||
+          watching >= 1000 ||
+          (watchers.get(id)?.size ?? 0) >= 4
+        ) {
+          reply(status, body);
+          return;
+        }
+        watching++;
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          watching--;
+          clearTimeout(timer);
+          watchers.get(id)?.delete(finish);
+          if (!res.destroyed) reply(...pairState(id));
+        };
+        const timer = setTimeout(finish, options.pairWaitMs ?? 15000);
+        const waiting = watchers.get(id) ?? new Set();
+        watchers.set(id, waiting.add(finish));
+        res.once("close", finish);
         return;
       }
       if (
@@ -249,6 +286,7 @@ export function createRelay(options: Options) {
           throw new Error("Unavailable");
         pending.set(id, { id, viewer, expires });
         reply(201, { state: "waiting" });
+        changed(id);
       } else if (action === "offer") {
         if (!p || p.offer || existing) throw new Error("Unavailable");
         const grant: Grant = {
@@ -275,6 +313,7 @@ export function createRelay(options: Options) {
           throw new Error("Unavailable");
         p.offer = grant;
         reply(202, { state: "offered" });
+        changed(id);
       } else if (action === "complete") {
         if (!p?.offer || existing) throw new Error("Unavailable");
         const viewerSignature = text("viewerSignature");
@@ -294,6 +333,7 @@ export function createRelay(options: Options) {
         durable();
         pending.delete(id);
         reply(200, { state: "paired", grant: pairs[id] });
+        changed(id);
       } else if (action === "revoke") {
         if (!existing) throw new Error("Unavailable");
         await verifySignature(
@@ -307,6 +347,7 @@ export function createRelay(options: Options) {
         disconnect(id);
         push.remove(id);
         reply(200, { state: "revoked" });
+        changed(id);
       }
     } catch {
       if (!res.headersSent)
@@ -574,6 +615,7 @@ export function createRelay(options: Options) {
     server,
     async close() {
       clearInterval(sweep);
+      for (const id of [...watchers.keys()]) changed(id);
       for (const id of requests.keys()) clearRequest(id);
       for (const ws of wss.clients) ws.terminate();
       await new Promise<void>((resolve) => wss.close(() => resolve()));
