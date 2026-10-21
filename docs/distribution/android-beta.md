@@ -129,3 +129,41 @@ from internal availability. The website association now includes all three
 Play signing fingerprints copied from Console, while retaining the development
 certificate for owned fixtures. Play-installed device acceptance remains pending;
 the successful debug-build tests above do not establish it.
+
+
+### Store setup and review state
+
+All eleven initial Console setup tasks are completed: Tools category, public
+support email/website, privacy policy, reviewer QR/second-device instructions,
+no ads, ages 13–15 / 16–17 / 18+, Data safety, and no government, financial or
+health features. Store copy, the 512-square icon, 1024 × 500 feature graphic and
+three unmodified 1080 × 1920 native screenshots are saved. Screenshot order is
+Home, Settings, Appearance. The owned emulator navigation/theme suite passes at
+this 9:16 display size; it is reaped after capture.
+
+The owner separately accepted IARC terms. Its questionnaire assigns ESRB
+**Everyone**, **PEGI 3**, USK/ClassInd all ages and generic 3+, with **Users
+Interact**. This content rating is distinct from the 13+ intended audience.
+Paired screen sharing is disclosed, with blocking/revocation and invited-only
+interaction; the app has no public content feed or content catalog.
+
+Data safety declares collected device/other IDs for functionality and security:
+required pairing identities and optional Firebase installation delivery IDs,
+retained rather than processed only ephemerally. Transport is encrypted; there
+are no accounts. The policy provides deletion-request steps and explains the
+security records retained without a fixed expiry. E2E screen/control contents
+are excluded under the [Play definition](https://support.google.com/googleplay/android-developer/answer/10787469?hl=en);
+Firebase processing follows its [Android SDK disclosure](https://firebase.google.com/docs/android/play-data-disclosure).
+Transfers to service providers are distinguished from third-party sharing.
+
+The icon and feature graphic are labeled as AI-assisted artwork in Console;
+the actual app screenshots are not generated or edited images. See
+[Play's asset declaration guidance](https://support.google.com/googleplay/android-developer/answer/17262077?hl=en).
+
+**These listing/policy changes are saved, not Google-reviewed or published.**
+Console still gates review on a closed-test release. The internal release remains
+active and unreviewed; no closed or production release was created. The owner
+account accepted the internal tester invitation. Its Play listing opens, but the
+browser Install flow stalls before device selection. A read-only check confirms
+the test phone does not have `com.yepcontrol.app` installed, so Play-installed
+acceptance remains pending. Complete that check before expanding the beta.
