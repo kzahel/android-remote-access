@@ -620,9 +620,14 @@ class MainActivity : ComponentActivity() {
                     setText(device.nickname)
                     isSingleLine = true
                     filters = arrayOf(android.text.InputFilter.LengthFilter(60))
+                    setSelectAllOnFocus(true)
                 }
-            AlertDialog.Builder(this).setTitle("Rename device").setView(input).setNegativeButton("Cancel", null)
+            val field = android.widget.FrameLayout(this).apply { setPadding(dp(24), dp(8), dp(24), 0) }
+            field.addView(input)
+            AlertDialog.Builder(this).setTitle("Rename device").setView(field).setNegativeButton("Cancel", null)
                 .setPositiveButton("Save") { _, _ -> perform { store.rename(device.id, input.text.toString()) } }.show()
+                .window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
+            input.requestFocus()
         }
         val live = HostSessions.current.get()
         if (live?.deviceId == device.id) {
