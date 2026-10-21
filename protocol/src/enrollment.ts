@@ -7,6 +7,8 @@ export interface Invitation {
   viewer: string;
   expires: number;
   secret: string;
+  /** Browser-chosen label such as "Chrome on macOS"; shown to the phone owner, never trusted. */
+  name?: string;
 }
 export interface Grant {
   id: string;
@@ -118,6 +120,8 @@ export function decodeInvitation(uri: string): Invitation {
   fromHex(i.id, 16);
   fromHex(i.secret, 32);
   keyBytes(i.viewer);
+  if (i.name !== undefined && !validBrowserName(i.name))
+    throw new Error("Invalid browser name");
   if (
     !Number.isSafeInteger(i.expires) ||
     i.expires * 1000 <= Date.now() ||
@@ -126,5 +130,12 @@ export function decodeInvitation(uri: string): Invitation {
     throw new Error("Expired pairing code");
   return i;
 }
+export const validBrowserName = (name: unknown): name is string =>
+  typeof name === "string" &&
+  name === name.trim() &&
+  name.length >= 1 &&
+  name.length <= 40 &&
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: rejecting them is the point
+  !/[\u0000-\u001f\u007f-\u009f]/.test(name);
 export const encodeInvitation = (i: Invitation): string =>
   `ara-pair://enroll#${b64(utf8(JSON.stringify(i)))}`;

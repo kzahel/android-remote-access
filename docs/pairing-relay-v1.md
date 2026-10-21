@@ -9,9 +9,12 @@ it does not grant screen capture, input, unlock, FCM or WebRTC capability.
 The browser creates a non-exportable P-256 identity in IndexedDB and an ephemeral
 256-bit QR secret. The QR URI fragment contains version, HTTPS relay origin,
 random 16-byte pairing ID (hex), viewer SEC1 public key (base64), expiry (Unix
-seconds, at most five minutes), and secret (hex). The secret never goes to the
-relay. The phone receives this through the scanner or normal pairing deep link,
-validates it, displays the relay host, and requires Grant. Test instrumentation
+seconds, at most five minutes), secret (hex) and an optional browser label such
+as "Chrome on macOS" (1–40 characters, trimmed, no control characters). The
+secret never goes to the relay. The phone receives this through the scanner or
+normal pairing deep link, validates it, displays the label, shows the relay host
+when it differs from the configured website, and requires Allow. The label is
+the default nickname; it is the QR creator's claim, not an authenticated identity. Test instrumentation
 supplies the decoded rendered QR at this same boundary and presses Grant.
 
 Signed/HMAC messages are UTF-8 fields joined by newline; fields cannot contain

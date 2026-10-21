@@ -230,7 +230,7 @@ class MainActivity : ComponentActivity() {
                 "background" -> "Background connections"
                 "appearance" -> "Appearance"
                 "about" -> "About"
-                "grant" -> "Pair browser"
+                "grant" -> "Allow this browser?"
                 else -> "Home"
             },
         )
@@ -671,16 +671,13 @@ class MainActivity : ComponentActivity() {
                 navigate("home")
                 return
             }
-        text(layout, "Grant this browser access through ${invitation.origin}?")
-        text(
-            layout,
-            "Only continue if you opened this pairing code yourself. You can rename, disable or remove this browser afterward.",
-            14f,
-        )
+        text(layout, invitation.name ?: "Unnamed browser", 20f)
+        if (invitation.origin != Website.current(this)) text(layout, invitation.origin.removePrefix("https://"), 14f)
+        text(layout, "Only allow a browser you just opened yourself.", 14f)
         button(layout, getString(R.string.grant_browser), R.id.grant_browser) {
             perform(network = true) {
                 val accepted = invitation.grant(KeystoreIdentity.loadOrCreate("phone-identity-v1"))
-                store.pair(accepted)
+                store.pair(accepted, invitation.name)
                 WakeSupport.enqueue(this, androidx.work.Data.EMPTY, registration = true)
                 runOnUiThread {
                     pending = null

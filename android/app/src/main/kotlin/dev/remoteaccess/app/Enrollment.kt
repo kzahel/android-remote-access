@@ -78,9 +78,14 @@ internal fun request(
     }
 }
 
+internal fun validBrowserName(name: String) = name == name.trim() && name.length in 1..40 && name.none { it.isISOControl() }
+
 internal class Enrollment(uri: String) {
     private val invite: JSONObject
     val origin: String
+
+    /** Browser-chosen label; shown to the owner as a convenience, never as proof of identity. */
+    val name: String?
 
     init {
         require(uri.startsWith("ara-pair://enroll#") && uri.length < 4096)
@@ -92,6 +97,8 @@ internal class Enrollment(uri: String) {
             url.scheme == "https" && url.host != null && url.rawUserInfo == null &&
                 url.rawQuery == null && url.rawFragment == null && url.rawPath.isEmpty(),
         )
+        name = if (invite.has("name")) invite.getString("name") else null
+        require(name == null || validBrowserName(name))
         unhex(invite.getString("id"), 16)
         unhex(invite.getString("secret"), 32)
         Crypto.publicKey(decoded(invite.getString("viewer")))

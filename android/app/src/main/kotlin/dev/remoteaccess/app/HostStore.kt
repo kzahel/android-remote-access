@@ -144,13 +144,22 @@ internal class HostStore private constructor(private val legacy: android.content
     }
 
     @Synchronized
-    fun pair(grant: JSONObject): Browser {
+    fun pair(
+        grant: JSONObject,
+        name: String? = null,
+    ): Browser {
         load()
         check(snapshot.browsers.size < 32) { "Remove an unused browser before adding another" }
         val id = grant.getString("id")
         check(browser(id) == null) { "Browser already paired" }
-        val number = generateSequence(1) { it + 1 }.first { n -> snapshot.browsers.none { it.nickname == "Browser $n" } }
-        val browser = Browser(id, grant.toString(), "Browser $number", System.currentTimeMillis())
+        val taken = snapshot.browsers.map { it.nickname }.toSet()
+        val nickname =
+            if (name != null && name !in taken) {
+                name
+            } else {
+                generateSequence(if (name == null) 1 else 2) { it + 1 }.map { "${name ?: "Browser"} $it" }.first { it !in taken }
+            }
+        val browser = Browser(id, grant.toString(), nickname, System.currentTimeMillis())
         database.runInTransaction {
             dao.put(browser)
             append("Browser paired", browser)

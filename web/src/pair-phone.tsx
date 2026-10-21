@@ -10,6 +10,7 @@ import {
 } from "@remote/protocol/enrollment";
 import { useEffect, useState } from "react";
 import { encode } from "uqr";
+import { browserName } from "./browser-name.js";
 import { browserIdentity, phoneURL, rememberPhone } from "./store.js";
 import { ViewerHeading } from "./viewer-heading.js";
 
@@ -91,6 +92,7 @@ export function PairPhone() {
         viewer: b64(identity.publicKey),
         secret: hex(crypto.getRandomValues(new Uint8Array(32))),
         expires: Math.floor(Date.now() / 1000) + 300,
+        name: browserName(),
       };
       await api(i.id, "", {
         viewer: i.viewer,
