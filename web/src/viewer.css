@@ -217,8 +217,7 @@ button.secondary {
   background: var(--hover);
   color: var(--text);
 }
-.icon-button,
-.manage-phone {
+.icon-button {
   display: grid;
   place-items: center;
   flex: 0 0 auto;
@@ -229,8 +228,7 @@ button.secondary {
   color: var(--muted);
   background: transparent;
 }
-.icon-button:hover,
-.manage-phone:hover {
+.icon-button:hover {
   background: var(--hover);
 }
 section {
@@ -614,20 +612,67 @@ a {
   gap: 4px;
   min-width: 0;
 }
+/* The whole card opens the phone; rename and forget sit above that link. */
+.phone-card {
+  position: relative;
+}
+.phone-card:hover {
+  background: var(--hover);
+}
+.phone-card .phone-title::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+}
+.phone-name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 32px;
+}
+.inline-action {
+  width: 32px;
+  height: 32px;
+}
+.phone-card .inline-action,
+.phone-name-input {
+  position: relative;
+  z-index: 1;
+}
+.phone-name-input {
+  width: 100%;
+  height: 32px;
+  margin: 0;
+  padding: 0 6px;
+  font: inherit;
+  font-size: 1.1rem;
+  font-weight: 650;
+}
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
 .phone-title {
   font-size: 1.1rem;
   font-weight: 650;
   text-decoration: none;
   overflow-wrap: anywhere;
 }
-.phone-model,
 .phone-description time,
 .phone-description > span,
 .contact-detail {
   font-size: 0.8125rem;
   color: var(--muted);
 }
-.phone-description > .phone-access {
+.phone-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.phone-meta > .phone-access {
   color: light-dark(#8a4b00, #f2c27a);
   font-weight: 600;
 }

@@ -77,20 +77,16 @@ async function records(page: Page) {
     >;
   });
 }
-async function manage(page: Page, name: string) {
-  await page
-    .getByRole("button", { name: `Manage ${name}`, exact: true })
-    .click();
-  await expect(page.getByRole("dialog")).toBeVisible();
-}
 async function rename(page: Page, name: string, alias: string) {
-  await manage(page, name);
+  await page
+    .getByRole("button", { name: `Rename ${name}`, exact: true })
+    .click();
   const input = page.getByLabel("Phone name", { exact: true });
   await input.fill("");
   await input.pressSequentially(alias, { delay: 12 });
   await expect(input).toHaveValue(alias);
-  await page.getByRole("button", { name: "Save name", exact: true }).click();
-  await expect(page.getByRole("dialog")).toBeHidden();
+  await input.press("Enter");
+  await expect(input).toBeHidden();
 }
 try {
   await server.listen();
@@ -148,7 +144,9 @@ try {
   const other = await context.newPage();
   await Promise.all([home.goto(origin), other.goto(origin)]);
   await expect(
-    home.getByRole("link", { name: "Open Your phone", exact: true }),
+    home
+      .locator(".phone-list")
+      .getByRole("link", { name: "Your phone", exact: true }),
   ).toBeVisible();
   const migrated = await records(home);
   assert.equal(migrated.length, 1);
@@ -505,11 +503,6 @@ try {
     liveBefore,
     "Opening settings and changing appearance keeps the live session",
   );
-  await other
-    .getByRole("button", { name: "Details for RV phone", exact: true })
-    .click();
-  await expect(other.getByRole("dialog")).toBeVisible();
-  await other.getByRole("button", { name: "Close phone settings" }).click();
   const competing = await context.newPage();
   await competing.goto(a.url());
   await competing
@@ -603,7 +596,9 @@ try {
   assert.ok(updated.lastContactAt);
   await home.reload();
   await expect(
-    home.getByRole("link", { name: "Open Travel phone", exact: true }),
+    home
+      .locator(".phone-list")
+      .getByRole("link", { name: "Travel phone", exact: true }),
   ).toBeVisible();
   await other.reload();
   await expect(other).toHaveURL(`${origin}/phones/${secondId}`);
@@ -676,11 +671,13 @@ try {
     });
   }
   const beforeForget = await a.evaluate(() => window.phonesFixture.closed);
-  await manage(home, "Travel phone");
   await home
-    .getByRole("button", { name: "Forget this phone", exact: true })
+    .getByRole("button", { name: "Forget Travel phone", exact: true })
     .click();
-  await home.getByRole("button", { name: "Forget phone", exact: true }).click();
+  await home
+    .getByRole("dialog", { name: "Forget Travel phone?" })
+    .getByRole("button", { name: "Forget", exact: true })
+    .click();
   await expect(a.getByRole("heading", { level: 1 })).toHaveText(
     "Phone not saved",
   );

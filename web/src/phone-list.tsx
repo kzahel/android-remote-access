@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { PhoneManagement } from "./phone-management.js";
+import { ForgetPhone, PhoneName } from "./phone-management.js";
 import {
   phoneName,
   phoneURL,
@@ -62,32 +62,30 @@ export function PhoneList({
           {[...phones]
             .sort((a, b) => b.pairedAt - a.pairedAt || a.id.localeCompare(b.id))
             .map((phone) => (
-              <li key={phone.id}>
+              <li key={phone.id} className="phone-card">
                 <div className="phone-description">
-                  <a className="phone-title" href={phoneURL(phone.id)}>
-                    {phoneName(phone)}
-                  </a>
-                  {phone.alias && phone.model && (
-                    <span className="phone-model">{phone.model}</span>
-                  )}
-                  {phone.access ? (
-                    <span className="phone-access">
-                      {phone.access === "removed"
-                        ? "Access removed on the phone"
-                        : "Access paused on the phone"}
-                    </span>
-                  ) : (
-                    <LastContact at={phone.lastContactAt} />
-                  )}
+                  <PhoneName phone={phone}>
+                    {/* Stretched over the card: the whole card opens the phone. */}
+                    <a className="phone-title" href={phoneURL(phone.id)}>
+                      {phoneName(phone)}
+                    </a>
+                  </PhoneName>
+                  {/* One detail line, so renaming never changes the card's height. */}
+                  <span className="phone-meta">
+                    {phone.alias && phone.model && `${phone.model} · `}
+                    {phone.access ? (
+                      <span className="phone-access">
+                        {phone.access === "removed"
+                          ? "Access removed on the phone"
+                          : "Access paused on the phone"}
+                      </span>
+                    ) : (
+                      <LastContact at={phone.lastContactAt} />
+                    )}
+                  </span>
                 </div>
                 <div className="phone-actions">
-                  <a
-                    className="button-link secondary"
-                    href={phoneURL(phone.id)}
-                  >
-                    Open<span className="sr-only"> {phoneName(phone)}</span>
-                  </a>
-                  <PhoneManagement phone={phone} />
+                  <ForgetPhone phone={phone} />
                 </div>
               </li>
             ))}

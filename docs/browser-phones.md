@@ -94,8 +94,9 @@ there is no menu button. Smaller viewports use a modal navigation drawer, opened
 from the top-left menu button, with native
 focus containment, Escape, a close button and outside-tap dismissal. Phone links
 remain real `/phones/<phoneId>` links, including opening another phone in a new
-tab. An information button opens local name/model/contact details without
-leaving the current viewer. “In use” reflects a browser-held phone lease, including
+tab. On All phones, each card opens its phone; a pencil renames it inline
+(blank restores the reported model) and a trash button forgets it after one
+confirmation. Sidebar rows and the phone header carry no extra details button. “In use” reflects a browser-held phone lease, including
 other tabs; it does not claim that an uncontacted phone is online. Lock queries,
 local notifications and cross-tab broadcasts refresh that indicator without
 contacting the phone or waking it.

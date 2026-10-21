@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { ControlIcon } from "./control-icon.js";
 import {
   forgetPhone,
@@ -7,140 +7,121 @@ import {
   type SavedPhone,
 } from "./store.js";
 
-export function PhoneManagement({
+/** The phone's name with an inline pencil edit. Blank restores the reported model. */
+export function PhoneName({
   phone,
-  label,
+  children,
 }: {
   phone: SavedPhone;
-  label?: string;
+  children: ReactNode;
 }) {
-  const uid = useId();
-  const [open, setOpen] = useState(false);
-  const dialog = useRef<HTMLDialogElement>(null);
-  const [alias, setAlias] = useState("");
-  const [confirmForget, setConfirmForget] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState("");
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
   const name = phoneName(phone);
   useEffect(() => {
-    if (open) dialog.current?.showModal();
-  }, [open]);
-  async function change(action: () => Promise<void>) {
-    setBusy(true);
-    setError("");
+    if (editing) input.current?.select();
+  }, [editing]);
+  async function save() {
+    if (!editing) return;
+    setEditing(false);
+    if (value.trim() === (phone.alias ?? "")) return;
     try {
-      await action();
-      dialog.current?.close();
+      await renamePhone(phone.id, value);
+      setError("");
     } catch {
-      setError(
-        "Couldn’t save this change. Check that site storage is available.",
-      );
-    } finally {
-      setBusy(false);
+      setError("Couldn’t save the name. Check that site storage is available.");
     }
   }
   return (
+    <div className="phone-name">
+      {editing ? (
+        <input
+          ref={input}
+          className="phone-name-input"
+          aria-label="Phone name"
+          value={value}
+          placeholder={phone.model || "Your phone"}
+          maxLength={60}
+          onChange={(event) => setValue(event.target.value)}
+          onBlur={() => void save()}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") void save();
+            if (event.key === "Escape") setEditing(false);
+          }}
+        />
+      ) : (
+        <>
+          {children}
+          <button
+            className="icon-button inline-action"
+            type="button"
+            aria-label={`Rename ${name}`}
+            title="Rename"
+            onClick={() => {
+              setValue(phone.alias ?? "");
+              setEditing(true);
+            }}
+          >
+            <ControlIcon name="edit" />
+          </button>
+        </>
+      )}
+      {error && <span role="alert">{error}</span>}
+    </div>
+  );
+}
+
+/** Removes the phone from this browser after one confirmation. */
+export function ForgetPhone({ phone }: { phone: SavedPhone }) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const [error, setError] = useState("");
+  const name = phoneName(phone);
+  return (
     <>
       <button
-        className="manage-phone"
+        className="icon-button inline-action"
         type="button"
-        aria-label={label || `Manage ${name}`}
-        title={label || "Phone details"}
+        aria-label={`Forget ${name}`}
+        title="Forget"
         onClick={() => {
-          setAlias(phone.alias ?? "");
-          setConfirmForget(false);
           setError("");
-          setOpen(true);
+          dialog.current?.showModal();
         }}
       >
-        <ControlIcon name="info" />
+        <ControlIcon name="trash" />
       </button>
-      <dialog
-        ref={dialog}
-        aria-labelledby={`manage-${uid}`}
-        onClose={() => setOpen(false)}
-      >
-        {open && (
-          <>
-            <div className="dialog-heading">
-              <h2 id={`manage-${uid}`}>
-                {confirmForget ? `Forget ${name}?` : "Phone settings"}
-              </h2>
-              <button
-                type="button"
-                aria-label="Close phone settings"
-                onClick={() => dialog.current?.close()}
-              >
-                ×
-              </button>
-            </div>
-            {confirmForget ? (
-              <>
-                <p>
-                  This removes the phone from this browser and closes its
-                  connections in other tabs. To revoke this browser’s access,
-                  also remove it in the phone app.
-                </p>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void change(() => forgetPhone(phone.id))}
-                >
-                  Forget phone
-                </button>
-                <button
-                  className="secondary"
-                  type="button"
-                  onClick={() => setConfirmForget(false)}
-                >
-                  Keep phone
-                </button>
-              </>
-            ) : (
-              <>
-                <form
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void change(() => renamePhone(phone.id, alias));
-                  }}
-                >
-                  <label htmlFor={`alias-${uid}`}>Phone name</label>
-                  <input
-                    id={`alias-${uid}`}
-                    value={alias}
-                    placeholder={phone.model || "Your phone"}
-                    maxLength={60}
-                    onChange={(event) => setAlias(event.target.value)}
-                  />
-                  <p className="hint">
-                    Saved in this browser. Leave blank to use the phone’s model.
-                  </p>
-                  <dl className="phone-details">
-                    <dt>Model</dt>
-                    <dd>{phone.model || "Not contacted yet"}</dd>
-                    <dt>Last contacted</dt>
-                    <dd>
-                      {phone.lastContactAt
-                        ? new Date(phone.lastContactAt).toLocaleString()
-                        : "Not contacted yet"}
-                    </dd>
-                  </dl>
-                  <button type="submit" disabled={busy}>
-                    Save name
-                  </button>
-                </form>
-                <button
-                  className="secondary"
-                  type="button"
-                  onClick={() => setConfirmForget(true)}
-                >
-                  Forget this phone
-                </button>
-              </>
-            )}
-            {error && <p role="alert">{error}</p>}
-          </>
-        )}
+      <dialog ref={dialog} aria-label={`Forget ${name}?`}>
+        <h2>Forget {name}?</h2>
+        <p>
+          This removes the phone from this browser. To stop this browser’s
+          access, also remove it in YepControl on the phone.
+        </p>
+        <div className="dialog-actions">
+          <button
+            className="secondary"
+            type="button"
+            onClick={() => dialog.current?.close()}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              void forgetPhone(phone.id).then(
+                () => dialog.current?.close(),
+                () =>
+                  setError(
+                    "Couldn’t forget this phone. Check that site storage is available.",
+                  ),
+              )
+            }
+          >
+            Forget
+          </button>
+        </div>
+        {error && <p role="alert">{error}</p>}
       </dialog>
     </>
   );

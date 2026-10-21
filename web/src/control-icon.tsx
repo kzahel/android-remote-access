@@ -13,6 +13,8 @@ export type ControlIconName =
   | "phones"
   | "plus"
   | "info"
+  | "edit"
+  | "trash"
   | "close"
   | "quality"
   | "screen"
@@ -44,6 +46,8 @@ export function ControlIcon({ name }: { name: ControlIconName }) {
     ),
     menu: <path d="M4 6h16M4 12h16M4 18h16" />,
     close: <path d="m6 6 12 12M6 18 18 6" />,
+    edit: <path d="M4 20h4L19 9l-4-4L4 16zM13 7l4 4" />,
+    trash: <path d="M4 7h16M9 7V4h6v3m-9 0 1 13h10l1-13M10 11v6m4-6v6" />,
     phone: (
       <>
         <rect x="6" y="2" width="12" height="20" rx="3" />

@@ -2,7 +2,6 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { ControlIcon } from "./control-icon.js";
 import { usePhoneActivity } from "./phone-activity.js";
 import { LastContact } from "./phone-list.js";
-import { PhoneManagement } from "./phone-management.js";
 import { SettingsPanel } from "./settings-panel.js";
 import { phoneName, phoneURL, type SavedPhone } from "./store.js";
 import { HeadingTarget } from "./viewer-heading.js";
@@ -103,10 +102,6 @@ export function AppShell({
                     </span>
                   </span>
                 </a>
-                <PhoneManagement
-                  phone={phone}
-                  label={`Details for ${phoneName(phone)}`}
-                />
               </div>
             ))
         ) : (
@@ -142,7 +137,6 @@ export function AppShell({
             </button>
           )}
           <div className="topbar-heading" ref={setHeading} />
-          {current && <PhoneManagement phone={current} />}
         </header>
         {wide ? (
           <aside id="app-sidebar" className="app-sidebar">
