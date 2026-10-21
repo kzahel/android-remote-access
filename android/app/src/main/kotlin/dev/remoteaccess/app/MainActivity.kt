@@ -12,6 +12,11 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.text.SpannableString
+import android.text.SpannableStringBuilder
+import android.text.style.ForegroundColorSpan
+import android.text.style.RelativeSizeSpan
+import android.text.style.StyleSpan
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
@@ -221,13 +226,11 @@ class MainActivity : ComponentActivity() {
             page,
             when (page) {
                 "settings" -> "Settings"
-                "features" -> "Choose features"
+                "features" -> "Finish setup"
                 "activity" -> "Activity"
                 "browsers" -> "Manage access"
                 "browser" -> browserId?.let(store::browser)?.nickname ?: "Browser"
-                "screen" -> "Screen and control"
-                "unlock" -> "Unlocking"
-                "background" -> "Background connections"
+                "background" -> "Connection details"
                 "appearance" -> "Appearance"
                 "about" -> "About"
                 "grant" -> "Allow this browser?"
@@ -246,8 +249,6 @@ class MainActivity : ComponentActivity() {
             "activity" -> activity(layout)
             "browsers" -> browsers(layout)
             "browser" -> browser(layout)
-            "screen" -> screenSettings(layout)
-            "unlock" -> unlockSettings(layout)
             "background" -> backgroundSettings(layout)
             "appearance" -> appearance(layout)
             "about" -> about(layout)
@@ -285,7 +286,7 @@ class MainActivity : ComponentActivity() {
         }
         if (state.settings.armed && browsers.any { it.enabled }) {
             if (ScreenAccessService.current == null) {
-                row(layout, "Screen access is off", "Review to enable viewing and control", R.id.review_settings) { navigate("screen") }
+                row(layout, "Screen access is off", "Review to enable viewing and control", R.id.review_settings) { navigate("settings") }
             }
             if (state.settings.automatic && (
                     !WakeSupport.notificationsAllowed(this) ||
@@ -338,95 +339,137 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun features(layout: LinearLayout) {
-        text(layout, "Browser paired. Choose what you want to enable, or do this later in Settings.")
-        featureRows(layout)
+        val browser = browserId?.let(store::browser)
+        text(layout, "${browser?.nickname ?: "The browser"} is paired. Turn these on so remote access works well.")
+        setupChecklist(layout, browser)
         button(layout, "Done", R.id.skip_features) { navigate("home") }
     }
 
-    private fun featureRows(layout: LinearLayout) {
-        row(layout, "Screen and control", if (ScreenAccessService.current != null) "Enabled" else "Off", R.id.screen_settings) {
-            navigate("screen")
-        }
-        row(
-            layout,
-            "Unlocking",
-            if (PinVault(this).saved()) "PIN saved on this phone" else "Optional · No saved PIN",
-            R.id.unlock_settings,
-        ) {
-            navigate("unlock")
-        }
-        row(
-            layout,
-            "Background connections",
+    /** What remote access needs, as switches showing Android's actual state; a tap starts the change. */
+    private fun setupChecklist(
+        layout: LinearLayout,
+        browser: Browser?,
+    ) {
+        val screen = ScreenAccessService.current != null
+        val automatic = store.snapshot.settings.automatic
+        val notifications = WakeSupport.notificationsAllowed(this)
+        val wake = automatic && notifications
+        val restore = RestartRecovery.enabled(this)
+        val unused =
+            when (unusedRestrictions) {
+                UnusedAppRestrictionsConstants.DISABLED -> true
+                UnusedAppRestrictionsConstants.API_30_BACKPORT,
+                UnusedAppRestrictionsConstants.API_30,
+                UnusedAppRestrictionsConstants.API_31,
+                -> false
+                else -> null
+            }
+        val needed = listOfNotNull(screen, wake, restore, unused)
+        val list = section(layout)
+        text(list, "Recommended · ${needed.count { it }} of ${needed.size} on", 14f)
+        check(
+            list,
+            "Screen and control",
+            if (screen) "Paired browsers can view and control" else "Needed to see and control the screen",
+            screen,
+            R.id.screen_access,
+        ) { screenAccess(screen) }
+        check(
+            list,
+            "Connect while the app is closed",
             when {
-                !store.snapshot.settings.automatic -> "Off · Connect while the app is open"
-                !WakeSupport.notificationsAllowed(this) -> "Notifications needed"
-                else -> "On · Depends on Android and network availability"
+                wake -> "Paired browsers can wake this phone"
+                automatic -> "Needs notifications to work"
+                else -> "Only while this app is open"
             },
-            R.id.background_settings,
+            automatic,
+            R.id.enable_wake,
         ) {
-            navigate("background")
+            if (!automatic && !notifications) allowNotifications(prompt = true)
+            change { it.settings(automatic = !automatic) }
         }
+        if (automatic && !notifications) {
+            button(
+                list,
+                "Allow notifications",
+                R.id.allow_notifications,
+            ) { allowNotifications(prompt = false) }
+        }
+        check(list, "Reconnect after restart", "After you unlock the phone once", restore, R.id.restore_setup) {
+            perform { RestartRecovery.setEnabled(this, !restore) }
+        }
+        if (unused != null) {
+            check(
+                list,
+                "Keep working when unused",
+                if (unused) "Android won’t pause this app" else "Android may pause this app after months unused",
+                unused,
+                R.id.unused_app_settings,
+            ) { unusedAppSettings.launch(IntentCompat.createManageUnusedAppRestrictionsIntent(this, packageName)) }
+        }
+        val optional = section(layout)
+        text(optional, "Optional · Unlocking", 14f)
+        if (browser != null) {
+            check(
+                optional,
+                "Unlock from ${browser.nickname}",
+                "Each unlock is still your explicit action",
+                browser.unlockAllowed,
+                R.id.allow_unlock,
+            ) {
+                change { it.allowUnlock(browser.id, !browser.unlockAllowed) }
+            }
+        }
+        val saved = PinVault(this).saved()
+        check(
+            optional,
+            "Save PIN on this phone",
+            if (saved) "Unlock without typing the PIN" else "Otherwise type the PIN to unlock",
+            saved,
+            R.id.save_pin,
+        ) { if (saved) UnlockSetup.forget(this) { render() } else UnlockSetup.show(this) { render() } }
     }
 
-    private fun screenSettings(layout: LinearLayout) {
-        text(
-            layout,
-            "See this phone’s screen and control it from a paired browser. " +
-                "Android uses one accessibility permission for these features.",
-            14f,
-        )
-        text(
-            layout,
-            if (ScreenAccessService.current != null) "Screen access is enabled" else "Screen access is off",
-        )
-        text(layout, "Smooth video also needs Android’s screen-sharing approval when requested. Protected screens may remain hidden.", 14f)
-        button(layout, "Screen access settings") {
-            AlertDialog.Builder(this).setTitle("Allow remote screen access?")
+    private fun screenAccess(enabled: Boolean) {
+        if (enabled) {
+            AlertDialog.Builder(this).setTitle("Turn off screen access?")
                 .setMessage(
-                    "Android Remote Access uses accessibility to capture this phone’s screen, read the focused field, " +
-                        "and perform taps, gestures and typing that you request from a paired browser. " +
-                        "Screen content and actions are encrypted between this phone and your browser " +
-                        "and pass through our relay when needed. " +
-                        "They are not stored in Activity. Only enable this if you want paired browsers to view and control this phone. " +
-                        "You can stop access in the app or Android settings.",
+                    "Paired browsers will no longer see or control the screen. Turning it back on takes a few steps in Android settings.",
                 )
-                .setNegativeButton(
-                    "Cancel",
-                    null,
-                ).setPositiveButton("Continue") { _, _ -> startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }.show()
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Turn off") { _, _ ->
+                    ScreenAccessService.current?.disableSelf()
+                    handler.postDelayed({ render() }, 500)
+                }.show()
+            return
         }
+        AlertDialog.Builder(this).setTitle("Allow remote screen access?")
+            .setMessage(
+                "Android Remote Access uses accessibility to capture this phone’s screen, read the focused field, " +
+                    "and perform taps, gestures and typing that you request from a paired browser. " +
+                    "Screen content and actions are encrypted between this phone and your browser " +
+                    "and pass through our relay when needed. " +
+                    "They are not stored in Activity. Only enable this if you want paired browsers to view and control this phone. " +
+                    "You can stop access in the app or Android settings.",
+            )
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Continue") { _, _ -> startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }.show()
     }
 
-    private fun unlockSettings(layout: LinearLayout) {
-        text(
-            layout,
-            "Enter your phone’s PIN during a remote session, or optionally save it on this phone. " +
-                "Each browser needs your permission to unlock.",
-        )
-        text(layout, "After a restart, unlock the phone locally once before remote unlocking can work.", 14f)
-        button(layout, "Save phone PIN", R.id.save_pin) { UnlockSetup.show(this) { render() } }
-        if (PinVault(this).saved()) {
-            text(layout, "A PIN is saved on this phone")
-            button(layout, "Forget saved PIN", R.id.forget_pin) { UnlockSetup.forget(this) { render() } }
+    /** Android stops showing the prompt after repeated refusals; then only its settings page can allow notifications. */
+    private fun allowNotifications(prompt: Boolean) {
+        if (Build.VERSION.SDK_INT >= 33 && (prompt || shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS))) {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            openNotificationSettings()
         }
-        row(layout, "Manage browser permissions", "Choose which browsers may unlock", R.id.manage_access) { navigate("browsers") }
     }
 
     private fun connectionRequests(layout: LinearLayout) {
-        toggle(layout, "Connect when requested", store.snapshot.settings.automatic, R.id.enable_wake) { enabled ->
-            if (enabled && Build.VERSION.SDK_INT >= 33 &&
-                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
-            ) {
-                notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                change { it.settings(automatic = true) }
-            } else {
-                change { it.settings(automatic = enabled) }
-            }
-        }
         text(
             layout,
-            "Let paired browsers contact this phone while the app is closed. Delivery depends on Android and network availability.",
+            "Paired browsers can contact this phone while the app is closed when that is on in Settings. " +
+                "Delivery depends on Android and network availability.",
             14f,
         )
         text(
@@ -446,7 +489,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun settings(layout: LinearLayout) {
-        featureRows(layout)
+        setupChecklist(layout, null)
+        row(layout, "Connection details", "Notifications and connection setup", R.id.background_settings) { navigate("background") }
         row(layout, "Manage access", "Paired browsers and their permissions", R.id.manage_access) { navigate("browsers") }
         row(
             layout,
@@ -509,23 +553,7 @@ class MainActivity : ComponentActivity() {
 
     private fun backgroundSettings(layout: LinearLayout) {
         connectionRequests(layout)
-        toggle(layout, "Restore setup after restart", RestartRecovery.enabled(this), R.id.restore_setup) { enabled ->
-            perform { RestartRecovery.setEnabled(this, enabled) }
-        }
-        text(
-            layout,
-            "Refresh connection setup after restarting or updating. Unlock the phone locally once after a restart. " +
-                "Screen sharing still needs new approval.",
-            14f,
-        )
         text(layout, "When this app is unused", 20f)
-        val restrictionsEnabled =
-            unusedRestrictions in
-                setOf(
-                    UnusedAppRestrictionsConstants.API_30_BACKPORT,
-                    UnusedAppRestrictionsConstants.API_30,
-                    UnusedAppRestrictionsConstants.API_31,
-                )
         text(
             layout,
             when (unusedRestrictions) {
@@ -535,19 +563,13 @@ class MainActivity : ComponentActivity() {
                 UnusedAppRestrictionsConstants.ERROR -> "Couldn’t check whether Android pauses this app. Review its app settings."
                 else ->
                     "Android may remove permissions or pause this app after a long period of inactivity. " +
-                        "Review this setting for remote access."
+                        "Turn on Keep working when unused in Settings."
             },
             14f,
         ).id = R.id.unused_app_status
-        if (restrictionsEnabled || unusedRestrictions == UnusedAppRestrictionsConstants.ERROR) {
-            button(layout, "Unused app settings", R.id.unused_app_settings) {
-                val intent =
-                    if (restrictionsEnabled) {
-                        IntentCompat.createManageUnusedAppRestrictionsIntent(this, packageName)
-                    } else {
-                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:$packageName".toUri())
-                    }
-                unusedAppSettings.launch(intent)
+        if (unusedRestrictions == UnusedAppRestrictionsConstants.ERROR) {
+            button(layout, "App settings", R.id.app_settings) {
+                unusedAppSettings.launch(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:$packageName".toUri()))
             }
         }
         text(layout, "Connection setup", 20f)
@@ -677,14 +699,14 @@ class MainActivity : ComponentActivity() {
         button(layout, getString(R.string.grant_browser), R.id.grant_browser) {
             perform(network = true) {
                 val accepted = invitation.grant(KeystoreIdentity.loadOrCreate("phone-identity-v1"))
-                store.pair(accepted, invitation.name)
+                val browser = store.pair(accepted, invitation.name)
                 WakeSupport.enqueue(this, androidx.work.Data.EMPTY, registration = true)
                 runOnUiThread {
                     pending = null
                     backStack.clear()
                     backStack.add("home")
                     page = "features"
-                    notice = "Browser paired"
+                    browserId = browser.id
                 }
             }
         }
@@ -847,6 +869,37 @@ class MainActivity : ComponentActivity() {
                 isChecked = checked
                 isEnabled = loaded && !changing && (!busy || resource == R.id.access_toggle)
                 setOnCheckedChangeListener { _, enabled -> action(enabled) }
+            },
+            LinearLayout.LayoutParams(-1, -2),
+        )
+    }
+
+    private fun check(
+        layout: LinearLayout,
+        label: String,
+        summary: String,
+        checked: Boolean,
+        resource: Int,
+        action: () -> Unit,
+    ) {
+        layout.addView(
+            Switch(this).apply {
+                id = resource
+                val detail =
+                    SpannableString(summary).apply {
+                        setSpan(RelativeSizeSpan(0.82f), 0, length, 0)
+                        setSpan(ForegroundColorSpan(color(android.R.attr.textColorSecondary)), 0, length, 0)
+                    }
+                text = SpannableStringBuilder().append(label, StyleSpan(Typeface.BOLD), 0).append("\n").append(detail)
+                textSize = 17f
+                minHeight = dp(64)
+                setPadding(0, dp(6), 0, dp(6))
+                isChecked = checked
+                isEnabled = loaded && !changing && !busy
+                setOnClickListener {
+                    isChecked = checked // Shows Android's state until the change is confirmed.
+                    action()
+                }
             },
             LinearLayout.LayoutParams(-1, -2),
         )

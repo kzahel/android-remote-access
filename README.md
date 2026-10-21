@@ -142,8 +142,9 @@ The Android app has a fixed title bar and a drawer for **Home**, **Activity** an
 another device**, which opens the website link, Copy/Share, optional website QR
 and **Scan pairing code**. **Settings → Manage access** holds paired browsers and
 per-browser permissions. **Settings → Appearance** offers System/Light/Dark with
-a green accent. Approval works before Android permissions; **Choose features**
-is a separate, skippable step that links to the same focused settings screens.
+a green accent. Approval works before Android permissions; **Finish setup** is a
+skippable checklist of switches that show Android's actual state, the same
+checklist that heads Settings.
 Run `pnpm test:mobile-ui` for relay-independent native navigation/theme acceptance;
 see [mobile navigation](docs/mobile-management.md#simplified-navigation-and-appearance).
 Allowed browsers can check the secure connection while the app is visible without

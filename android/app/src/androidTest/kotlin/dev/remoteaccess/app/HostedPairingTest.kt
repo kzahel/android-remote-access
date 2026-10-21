@@ -62,10 +62,10 @@ class HostedPairingTest {
         tap(By.res("${context.packageName}:id/$id"))
     }
 
-    private fun settings(section: String) {
+    private fun settings(section: String? = null) {
         start()
         click("open_settings")
-        click(section)
+        section?.let { click(it) }
     }
 
     private fun openBrowser(id: String) {
@@ -113,7 +113,7 @@ class HostedPairingTest {
         waitFor(120000) { command.exists() }
         when (command.readText()) {
             "wake" -> {
-                settings("background_settings")
+                settings()
                 if (!store.snapshot.settings.automatic) click("enable_wake")
                 val allow = device.wait(Until.findObject(By.res("com.android.permissioncontroller:id/permission_allow_button")), 2000)
                 allow?.click()
@@ -175,8 +175,8 @@ class HostedPairingTest {
                 "enable-screen-access" -> {
                     if (dev.remoteaccess.app.control.ScreenAccessService.current == null) {
                         start()
-                        settings("screen_settings")
-                        tap(By.text("Screen access settings"))
+                        settings()
+                        click("screen_access")
                         tap(By.res("android:id/button1"))
                         val service = By.text("Remote screen access")
                         if (!device.wait(Until.hasObject(service), 2000)) {
@@ -195,7 +195,7 @@ class HostedPairingTest {
                 }
                 "restart-setup" -> {
                     start()
-                    settings("background_settings")
+                    settings()
                     if (!RestartRecovery.enabled(context)) click("restore_setup")
                     waitFor { RestartRecovery.enabled(context) }
                 }
@@ -251,7 +251,7 @@ class HostedPairingTest {
                 "save-fixture-pin" -> {
                     assertTrue(device.executeShellCommand("getprop ro.kernel.qemu").trim() == "1")
                     start()
-                    settings("unlock_settings")
+                    settings()
                     click("save_pin")
                     // Disposable emulator credential; never used on a physical phone.
                     val pinField = device.wait(Until.findObject(By.res("${context.packageName}:id/save_pin_value")), 10000)
@@ -286,16 +286,15 @@ class HostedPairingTest {
                 "close-setup" -> device.pressBack()
                 "features" -> {
                     start()
-                    // Pair approval opens the guide; focused settings reuse the same feature screens.
-                    settings("screen_settings")
-                    device.pressBack()
-                    assertTrue(device.wait(Until.hasObject(By.res("${context.packageName}:id/screen_settings")), 10000))
+                    // Pair approval opens the checklist; Settings shows the same switches.
+                    settings()
+                    assertTrue(device.wait(Until.hasObject(By.res("${context.packageName}:id/screen_access")), 10000))
                 }
                 "skip-setup" -> start()
                 "deny-feature-permission" -> {
                     val paired = store.snapshot.browsers.map { it.id }
                     start()
-                    settings("background_settings")
+                    settings()
                     click("enable_wake")
                     val deny = By.res("com.android.permissioncontroller:id/permission_deny_button")
                     assertNotNull(device.wait(Until.findObject(deny), 10000)).click()
@@ -329,7 +328,8 @@ class HostedPairingTest {
                     click("notification_settings")
                     assertTrue(device.wait(Until.hasObject(By.pkg("com.android.settings")), 10000))
                     device.pressBack()
-                    if (device.hasObject(By.res("${context.packageName}:id/unused_app_settings"))) {
+                    click("navigate_back")
+                    if (device.wait(Until.hasObject(By.res("${context.packageName}:id/unused_app_settings")), 2000)) {
                         click("unused_app_settings")
                         assertTrue(device.wait(Until.hasObject(By.pkg("com.android.settings")), 10000))
                         device.pressBack()
@@ -385,7 +385,7 @@ class HostedPairingTest {
                 }
                 "automatic" -> {
                     start()
-                    settings("background_settings")
+                    settings()
                     if (store.snapshot.settings.automatic != task.getBoolean("enabled")) click("enable_wake")
                     device.wait(Until.findObject(By.res("com.android.permissioncontroller:id/permission_allow_button")), 2000)?.click()
                     waitFor(60000) {

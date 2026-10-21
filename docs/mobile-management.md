@@ -212,15 +212,21 @@ while connection/readiness updates refresh page content.
 
 - Home shows the global access switch, current connection/readiness, Stop
   connection while connected, and Connect from another device. Specific repair
-  rows lead directly to screen access or background settings. Choosing to connect
+  rows lead to the Settings checklist or Connection details. Choosing to connect
   only while the app is open is a valid configuration, not unfinished setup.
-- Settings has focused Screen and control, Unlocking, Background connections,
-  Manage access, Appearance and About pages. Paired browsers, nicknames,
-  per-browser access/unlock switches, disconnect and confirmed removal live under
-  Manage access. Existing grant defaults and authority checks are unchanged.
+- Settings opens with a setup checklist: recommended switches for Screen and
+  control, Connect while the app is closed, Reconnect after restart and Keep
+  working when unused (when Android pauses unused apps), with an "n of m on"
+  count, then optional Save PIN on this phone. Each switch shows Android's actual
+  state; a tap starts the change (disclosure, permission prompt or system page)
+  and the switch follows once Android reports it. Connection details holds
+  notification status, unused-app status and Retry setup. Manage access,
+  Appearance and About follow. Paired browsers, nicknames, per-browser
+  access/unlock switches, disconnect and confirmed removal live under Manage
+  access. Existing grant defaults and authority checks are unchanged.
 - Pairing still works before Android permissions. The skippable post-pairing
-  guide links to the same feature screens used by Settings. There is one place
-  to change each preference; no separate duplicated setup controls.
+  Finish setup page shows the same checklist plus the new browser's unlock
+  permission. There is one control for each preference.
 - Activity remains bounded, local history with event/browser/time entries. The
   redesign does not extend retention, capture screen content or make history a
   tamper-proof audit service. It does not add one-time grants or a new browser

@@ -31,7 +31,7 @@ before network registration. This follows the pinned
 [YA lifecycle reference](sibling-repositories.md#yep-anywhere-fcm-implementation-reference)
 without reusing its registration, sender identity or application runtime.
 
-1. The phone owner pairs normally, enables **Connect when requested** in Settings
+1. The phone owner pairs normally, enables **Connect while the app is closed** in Settings
    and allows connection notifications. Global Remote access and the individual
    browser must also be enabled. Disabled notifications or revoked local grants
    prevent wake work. Firebase registration is explicit rather than automatic.
