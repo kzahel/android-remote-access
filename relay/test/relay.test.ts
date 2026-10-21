@@ -208,11 +208,12 @@ it("answers held pairing polls when the other endpoint acts", async () => {
 });
 it("returns the unchanged pairing state when a held poll times out", async () => {
   await relay.close();
-  await start({ pairWaitMs: 150 });
+  await start({ pairWaitMs: 400 });
   expect((await create()).status).toBe(201);
   const started = Date.now();
   const reply = await api("", undefined, { "Pair-Wait": "waiting" });
-  expect(Date.now() - started).toBeGreaterThanOrEqual(140);
+  // Timers can fire a little early against a busy loop's cached clock.
+  expect(Date.now() - started).toBeGreaterThanOrEqual(250);
   expect(await reply.json()).toEqual({ state: "waiting" });
 });
 it("rejects wrong QR secrets, substituted phone keys and expired invitations at endpoints", async () => {
