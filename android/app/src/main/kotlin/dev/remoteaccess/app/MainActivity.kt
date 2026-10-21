@@ -554,15 +554,13 @@ class MainActivity : ComponentActivity() {
         }
         AlertDialog.Builder(this).setTitle("Allow remote screen access?")
             .setMessage(
-                "YepControl uses accessibility to capture this phone’s screen, read the focused field, " +
-                    "and perform taps, gestures and typing that you request from a paired device. " +
-                    "Screen content and actions are encrypted between this phone and your device " +
-                    "and pass through our relay when needed. " +
-                    "They are not stored in Activity. Only enable this if you want paired devices to view and control this phone. " +
-                    "You can stop access in the app or Android settings.",
+                "YepControl uses Android accessibility to let browsers you approve view this phone’s screen " +
+                    "and perform taps, swipes and typing you request. Screen content may include private information from other apps.\n\n" +
+                    "Screen content and controls are encrypted between your devices. " +
+                    "You can stop remote access in YepControl or Android settings.",
             )
             .setNegativeButton("Cancel", null)
-            .setPositiveButton("Continue") { _, _ -> startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }.show()
+            .setPositiveButton("Agree and continue") { _, _ -> startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }.show()
     }
 
     /** Android stops showing the prompt after repeated refusals; then only its settings page can allow notifications. */

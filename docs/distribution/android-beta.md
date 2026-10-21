@@ -15,6 +15,53 @@ connection metadata and Firebase installation identifiers; never claim the
 service collects no data whatsoever. Play AccessibilityService and foreground
 service declarations must match the APK and include the required review demo.
 
+## Accessibility disclosure and review preparation — 2026-10-21
+
+Source-reviewed against Google's [accessibility declaration requirements](https://support.google.com/googleplay/android-developer/answer/10964491?hl=en),
+[disclosure guidance](https://support.google.com/googleplay/android-developer/answer/11150561?hl=en)
+and [User Data policy](https://support.google.com/googleplay/android-developer/answer/10144311?hl=en).
+These are documented requirements and implementation observations, not a Google
+approval verdict.
+
+The app already presents a separate disclosure before opening Android's
+accessibility settings. First-pair setup exposes screen access, Cancel leaves it
+disabled, and the user can return later. The revised dialog uses ordinary
+language, warns that other apps may show private information, explains encrypted
+sharing with approved browsers and how to stop access, and uses **Agree and
+continue** for the affirmative action. PIN storage/unlocking and background
+connections retain their separate opt-ins. Declining may leave viewing and
+control unavailable; no alternate remote-control functionality is required.
+
+Google requires an explanation of the access, purpose and sharing, not the
+literal class name `AccessibilityService API` in the end-user dialog. Keep that
+technical identification in the declaration and existing store copy. The
+service correctly does not declare `isAccessibilityTool`. A separate stored
+in-app agreement flag is possible hardening, not a prescribed implementation
+or a confirmed compliance defect merely because it is absent.
+
+Before review, verify the live Console declaration and attach an accessible demo
+video showing app launch, the complete disclosure, refusal and reopening,
+agreement, Android's permission grant and actual browser-driven viewing/input.
+Explain the accessibility screenshot/input capabilities, separate MediaProjection
+video and optional owner-requested PIN entry. Review the PIN capability against
+the [sensitive API policy](https://support.google.com/googleplay/android-developer/answer/16558241?hl=en);
+disclosure does not itself establish policy acceptance. Reconcile the declaration
+with the privacy policy and documented E2E Data safety treatment. The earlier
+Console setup record does not establish that the accessibility form/video has
+been completed.
+
+The revised flow passes an owned Android 15/API-35 emulator recording against
+the live website in isolated Chromium: app opening, normal pairing approval,
+the complete disclosure, Cancel with screen access still disabled, a browser
+connection showing the missing screen permission, reopening/agreement, the
+normal Android accessibility grant, actual screen viewing, browser-driven
+Home/Recents and Settings launch, and disconnect. The side-by-side captioned
+MP4 and private receipt remain in ignored `.local/accessibility-review/`.
+The temporary pairing was revoked and the browser/emulator processes reaped.
+This is debug-candidate evidence, not Play-installed acceptance or Google review;
+it does not demonstrate PIN entry or smooth-video permission. The recording has
+not been uploaded or attached to a Console declaration.
+
 ## CI and signing
 
 Ordinary push/PR **Checks** builds/tests/lints TypeScript and Kotlin, builds the
