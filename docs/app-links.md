@@ -69,3 +69,30 @@ from test receipts):
 - [Android domain verification commands](https://developer.android.com/training/app-links/verify-applinks).
 - [Google Play listing URLs](https://developer.android.com/distribute/marketing-tools/linking-to-google-play).
 - [Firebase Android registration: package names cannot be changed](https://firebase.google.com/docs/android/setup).
+
+## Acceptance receipt — 2026-10-21
+
+Deployed product revision `94ec227c1fa09f1436b2ba7945b34a3d4eab148d` passes
+public HTTPS/WSS health. `www` returns 301 to the canonical origin.
+`/.well-known/assetlinks.json` returns 200 with `application/json`, no redirect;
+a missing association file returns 404 instead of the viewer HTML.
+
+The owned API-35 emulator reports `yepcontrol.com: verified` for
+`com.yepcontrol.app` and the actual development signing certificate. Native
+URL-validation instrumentation passes, and the real rendered QR opens the
+Grant screen through Android's implicit App Link resolver. Pairing, three or
+more encrypted exchanges, persisted reconnect after Android process restart and
+browser reload, durable revocation and rejection after revocation all pass.
+The renamed Firebase client receives a real wake after process reclamation with
+no application socket: 427 ms to native receipt and 724 ms to the native
+encrypted exchange in this run (clock estimate uncertainty 9 ms). These are one
+emulator run's observations, not latency guarantees or overnight/OEM evidence.
+The runner's revocation expectation now recognizes the current viewer copy.
+
+Isolated Playwright Chromium checks the install page and exact Play destination,
+fragment removal and a 360 × 800 mobile viewport without horizontal overflow or
+heading clipping. Build, type checks, TypeScript/Android lint, formatting, 105
+TypeScript tests and Kotlin protocol tests pass. The Node transport-status test
+mocks its browser storage sink so it does not open IndexedDB outside a browser.
+The browser and owned emulator are reaped. No physical phone was selected and
+no Play listing or release build was published.

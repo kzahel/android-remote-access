@@ -591,7 +591,10 @@ try {
     await page.reload();
     await page
       .getByRole("status")
-      .filter({ hasText: /Phone is unavailable|Connection ended/ })
+      .filter({
+        hasText:
+          /Access to this phone was removed on the phone\.|Phone is unavailable|Connection ended/,
+      })
       .waitFor({ timeout: 30000 });
     const report = {
       renderedQrDecoded: true,

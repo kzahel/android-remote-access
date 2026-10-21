@@ -11,9 +11,10 @@ adopted on 2026-10-21.
 **Proposal, 2026-10-20:** the owner asked to record YepControl as the proposed
 direction after discussing its relationship to YepAnywhere and Machine Control.
 **Decision, 2026-10-21:** YepControl is the product name, and the Android app
-and browser viewer use it. The application ID is `com.yepcontrol.app`, selected during the owner-requested
-2026-10-21 domain cutover. Repository and Kotlin package names keep their working names. The roles of Machine Control and YepAnywhere below
-remain proposals, not a repository merger or integration.
+and browser viewer use it. The application ID is `com.yepcontrol.app`, selected
+during the owner-requested 2026-10-21 domain cutover. Repository and Kotlin
+package names keep their working names. The roles of Machine Control and
+YepAnywhere below remain proposals, not a repository merger or integration.
 
 | Name | Proposed role |
 | --- | --- |
