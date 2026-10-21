@@ -5,9 +5,10 @@
 Build understanding of a potential standalone consumer product for remotely
 reaching an Android phone. Its name is **YepControl** (owner decision,
 2026-10-21); use it in user-facing text. The owner requested the domain/identity cutover on 2026-10-21: use
-`https://yepcontrol.com` and application ID `com.yepcontrol.app`. Repository and
-Kotlin source package names retain their working names. See `docs/app-links.md`. Distribution, architecture details and business
-model remain open. Do not fold it into Yep Anywhere merely because YA and Machine
+`https://yepcontrol.com` and application ID `com.yepcontrol.app`. The repository
+is `kzahel/yepcontrol`; Kotlin source package names retain their working names.
+See `docs/app-links.md`. Distribution, architecture details and business model
+remain open. Do not fold it into Yep Anywhere merely because YA and Machine
 Control contain useful pieces.
 
 The inspiration is a phone left in an RV near an Anker power station: the owner

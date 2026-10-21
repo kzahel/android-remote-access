@@ -1,5 +1,5 @@
 {
-  "name": "android-remote-access",
+  "name": "yepcontrol",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.30.3",

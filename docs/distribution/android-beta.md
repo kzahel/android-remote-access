@@ -88,8 +88,8 @@ recorded below when verified; this document alone does not establish publication
 ## CI candidate receipt — 2026-10-21
 
 Source `23da3af464dd5724e1a6ba35e3d89b39a5e3d415` passes full
-[Checks 39648064549](https://github.com/kzahel/android-remote-access/actions/runs/39648064549).
-[Release artifacts 39648579086](https://github.com/kzahel/android-remote-access/actions/runs/39648579086)
+[Checks 39648064549](https://github.com/kzahel/yepcontrol/actions/runs/39648064549).
+[Release artifacts 39648579086](https://github.com/kzahel/yepcontrol/actions/runs/39648579086)
 then builds and signs **0.6.0 / code 4** successfully. The downloaded artifact's
 receipt, checksum and strict JDK signature match the exact source/run/version
 and dedicated upload certificate. AAB SHA-256:
