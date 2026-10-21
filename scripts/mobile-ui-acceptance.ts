@@ -100,6 +100,8 @@ try {
   }
   assert.ok(booted, "Owned emulator did not boot");
   assert.equal(adb("shell", "getprop", "ro.kernel.qemu"), "1");
+  // Match Play's 9:16 screenshot format on this disposable emulator.
+  adb("shell", "wm", "size", "1080x1920");
   adb("shell", "input", "keyevent", "KEYCODE_WAKEUP");
   adb("shell", "wm", "dismiss-keyguard");
   for (const apk of [
