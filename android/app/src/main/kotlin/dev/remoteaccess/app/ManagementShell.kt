@@ -32,6 +32,7 @@ internal class ManagementShell(
     private val toolbar = LinearLayout(activity).apply { gravity = Gravity.CENTER_VERTICAL }
     private val navigation = ImageButton(activity)
     private val title = TextView(activity)
+    private val titleAction = ImageButton(activity)
     private val scroll = ScrollView(activity).apply { isFillViewport = true }
     val body = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
     private val links = mutableMapOf<String, TextView>()
@@ -77,7 +78,16 @@ internal class ManagementShell(
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
             isAccessibilityHeading = true
         }
-        toolbar.addView(title, LinearLayout.LayoutParams(0, -2, 1f))
+        // The title wraps its text so an optional action (e.g. rename) sits beside the name it edits.
+        title.maxWidth = activity.resources.displayMetrics.widthPixels - dp(128)
+        toolbar.addView(title, LinearLayout.LayoutParams(-2, -2))
+        titleAction.apply {
+            background = ripple()
+            imageTintList = ColorStateList.valueOf(color(android.R.attr.textColorSecondary))
+            visibility = View.GONE
+        }
+        toolbar.addView(titleAction, LinearLayout.LayoutParams(dp(48), dp(48)).apply { marginStart = dp(4) })
+        toolbar.addView(View(activity), LinearLayout.LayoutParams(0, 0, 1f))
         content.addView(toolbar, LinearLayout.LayoutParams(-1, dp(64)))
         content.addView(View(activity).apply { setBackgroundColor(color(R.attr.outlineColor)) }, LinearLayout.LayoutParams(-1, dp(1)))
         body.setPadding(dp(20), dp(16), dp(20), dp(32))
@@ -148,6 +158,7 @@ internal class ManagementShell(
         scrollPosition = if (current == page) scroll.scrollY else 0
         current = page
         title.text = label
+        titleAction.visibility = View.GONE
         navigation.id = if (isTopLevel()) R.id.navigation_menu else R.id.navigate_back
         navigation.contentDescription = if (isTopLevel()) "Open navigation" else "Back"
         navigation.setImageResource(if (isTopLevel()) R.drawable.ic_menu else R.drawable.ic_back)
@@ -166,6 +177,19 @@ internal class ManagementShell(
         body.removeAllViews()
         revision++
         restoreScroll()
+    }
+
+    fun titleAction(
+        description: String,
+        icon: Int,
+        resource: Int,
+        action: () -> Unit,
+    ) {
+        titleAction.id = resource
+        titleAction.contentDescription = description
+        titleAction.setImageResource(icon)
+        titleAction.setOnClickListener { action() }
+        titleAction.visibility = View.VISIBLE
     }
 
     fun restoreScroll() {

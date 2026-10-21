@@ -614,20 +614,22 @@ class MainActivity : ComponentActivity() {
             R.id.allow_unlock,
         ) { enabled -> change { it.allowUnlock(device.id, enabled) } }
         text(layout, "Lets this device submit a PIN or request the PIN saved on this phone. Each unlock is an explicit action.", 14f)
-        button(layout, "Rename", R.id.rename_device) {
+        shell.titleAction("Rename ${device.nickname}", R.drawable.ic_edit, R.id.rename_device) {
             val input =
                 EditText(this).apply {
                     setText(device.nickname)
                     isSingleLine = true
                     filters = arrayOf(android.text.InputFilter.LengthFilter(60))
                 }
-            AlertDialog.Builder(this).setTitle("Device nickname").setView(input).setNegativeButton("Cancel", null)
+            AlertDialog.Builder(this).setTitle("Rename device").setView(input).setNegativeButton("Cancel", null)
                 .setPositiveButton("Save") { _, _ -> perform { store.rename(device.id, input.text.toString()) } }.show()
         }
         val live = HostSessions.current.get()
-        text(layout, if (live?.deviceId == device.id) sessionStatus(live.status) else "Not connected")
-        val disconnect = button(layout, "Disconnect", R.id.disconnect_device) { HostRuntime.disconnect(this, device.id) }
-        disconnect.isEnabled = live?.deviceId == device.id
+        if (live?.deviceId == device.id) {
+            val connection = section(layout)
+            text(connection, sessionStatus(live.status))
+            button(connection, "Disconnect", R.id.disconnect_device) { HostRuntime.disconnect(this, device.id) }
+        }
         button(layout, getString(R.string.remove_device), R.id.remove_device) {
             AlertDialog.Builder(
                 this,
