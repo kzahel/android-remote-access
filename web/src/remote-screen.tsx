@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import type { RemoteSession } from "./control-session.js";
 import { RemoteControls } from "./remote-controls.js";
 import { TouchInput } from "./touch-input.js";
+import { usePhoneUnlock } from "./use-phone-unlock.js";
 import { useViewerFullscreen } from "./use-viewer-fullscreen.js";
 import { VideoDecodeError, VideoRenderer } from "./video-renderer.js";
 import { ViewerHeading } from "./viewer-heading.js";
@@ -15,6 +16,7 @@ import { ViewerWorkspace } from "./viewer-workspace.js";
 
 /** Media and pointer coordinates stay in refs; React owns only status and controls. */
 export function RemoteScreen({
+  phoneId,
   session,
   initial,
   disconnect,
@@ -24,17 +26,21 @@ export function RemoteScreen({
   onEnded,
   aspect,
 }: {
+  phoneId: string;
   session: RemoteSession;
   initial: ControlState;
   disconnect: () => void;
   name?: string;
   notice?: string;
   onContact?: (state: ControlState) => void;
-  onEnded?: () => void;
+  onEnded?: (message?: string) => void;
   aspect?: number;
 }) {
-  const callbacks = useRef({ onContact, onEnded });
-  callbacks.current = { onContact, onEnded };
+  const callbacks = useRef({
+    onContact,
+    onEnded,
+    unlockMessage: (): string => "",
+  });
   const canvas = useRef<HTMLCanvasElement>(null);
   const qualityDialog = useRef<HTMLDialogElement>(null);
   const typingDialog = useRef<HTMLDialogElement>(null);
@@ -52,6 +58,12 @@ export function RemoteScreen({
   const [videoUnavailable, setVideoUnavailable] = useState(false);
   const [connectionPath, setConnectionPath] = useState(session.path);
   const [apps, setApps] = useState<AppEntry[]>([]);
+  const unlocking = usePhoneUnlock(phoneId, session, initial, state, setState);
+  callbacks.current = {
+    onContact,
+    onEnded,
+    unlockMessage: unlocking.connectionEndedMessage,
+  };
   useEffect(() => {
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
@@ -147,7 +159,10 @@ export function RemoteScreen({
             error instanceof Error ? error.message : "Connection ended",
           );
           frame.current = undefined;
-          if (!session.connected) callbacks.current.onEnded?.();
+          if (!session.connected)
+            callbacks.current.onEnded?.(
+              callbacks.current.unlockMessage() || undefined,
+            );
           if (session.connected)
             timer = setTimeout(() => {
               void capture();
@@ -168,7 +183,7 @@ export function RemoteScreen({
     setActionMessage("");
     try {
       const reply = await session.command(command);
-      if (["unlock", "unlockSaved", "wake", "sleep"].includes(command.op)) {
+      if (command.op === "wake" || command.op === "sleep") {
         const status = await session.command({ op: "status" });
         if (status.kind === "state") setState(status.state);
       }
@@ -193,6 +208,7 @@ export function RemoteScreen({
         name={name || state.device.name}
         status={
           notice ||
+          unlocking.message ||
           actionMessage ||
           message ||
           (state.locked ? "Phone is locked" : "Connected securely")
@@ -235,6 +251,7 @@ export function RemoteScreen({
             <div className="screen-overlay">
               <div className="screen-panel">
                 <h2>Unlock phone</h2>
+                {unlocking.message && <p>{unlocking.message}</p>}
                 {!state.unlockAllowed && (
                   <p>
                     Allow unlocking for this browser in the phone app’s browser
@@ -247,44 +264,46 @@ export function RemoteScreen({
                     before another attempt.
                   </p>
                 )}
-                {state.savedPin && (
+                {state.savedPin && !unlocking.busy && (
                   <button
                     className="saved-pin-button"
                     type="button"
                     disabled={!state.unlockAllowed || state.unlockBlocked}
-                    onClick={() => void act({ op: "unlockSaved" })}
+                    onClick={() => void unlocking.unlock({ op: "unlockSaved" })}
                   >
                     Use saved PIN
                   </button>
                 )}
-                <form
-                  className="unlock-form"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    const value = pin;
-                    setPin("");
-                    void act({ op: "unlock", pin: value });
-                  }}
-                >
-                  <label htmlFor="phone-pin">Phone PIN</label>
-                  <div className="inline-field">
-                    <input
-                      id="phone-pin"
-                      type="password"
-                      inputMode="numeric"
-                      autoComplete="off"
-                      maxLength={16}
-                      value={pin}
-                      onChange={(e) => setPin(e.target.value)}
-                    />
-                    <button
-                      type="submit"
-                      disabled={!state.unlockAllowed || state.unlockBlocked}
-                    >
-                      Unlock phone
-                    </button>
-                  </div>
-                </form>
+                {!unlocking.busy && (
+                  <form
+                    className="unlock-form"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      const value = pin;
+                      setPin("");
+                      void unlocking.unlock({ op: "unlock", pin: value });
+                    }}
+                  >
+                    <label htmlFor="phone-pin">Phone PIN</label>
+                    <div className="inline-field">
+                      <input
+                        id="phone-pin"
+                        type="password"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        maxLength={16}
+                        value={pin}
+                        onChange={(e) => setPin(e.target.value)}
+                      />
+                      <button
+                        type="submit"
+                        disabled={!state.unlockAllowed || state.unlockBlocked}
+                      >
+                        Unlock phone
+                      </button>
+                    </div>
+                  </form>
+                )}
               </div>
             </div>
           )

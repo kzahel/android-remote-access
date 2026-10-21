@@ -2,7 +2,12 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { chromium, expect, type Page } from "@playwright/test";
+import {
+  type BrowserContext,
+  chromium,
+  expect,
+  type Page,
+} from "@playwright/test";
 import { createServer } from "vite";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -80,7 +85,7 @@ try {
     ["small-mobile", 320, 680],
     ["landscape", 844, 390],
   ] as const) {
-    const context = await browser.newContext({
+    const context: BrowserContext = await browser.newContext({
       viewport: { width, height },
       colorScheme: "light",
     });
@@ -149,15 +154,15 @@ try {
       path: path.join(artifacts, `${name}-locked.png`),
       fullPage: true,
     });
-    await page
-      .getByRole("button", { name: "Use saved PIN", exact: true })
-      .click();
+    await expect
+      .poll(() => page.evaluate(() => window.layoutFixture.unlocks))
+      .toEqual(["unlockSaved"]);
     assert.deepEqual(
       dialogs,
       [],
-      "Saved PIN unlock acts without a confirmation dialog",
+      "Saved PIN unlock runs automatically without a confirmation dialog",
     );
-    await expect(page.getByLabel("Phone PIN", { exact: true })).toBeHidden();
+    await expect(page.locator(".screen-overlay")).toBeHidden();
     await stable(page, baseline);
     await expect
       .poll(() =>
@@ -328,12 +333,17 @@ try {
     }
     await page.getByRole("button", { name: "Lock phone", exact: true }).click();
     await expect(page.getByLabel("Phone PIN", { exact: true })).toBeVisible();
+    assert.deepEqual(
+      await page.evaluate(() => window.layoutFixture.unlocks),
+      ["unlockSaved"],
+      "Locking during a session must not trigger automatic unlock",
+    );
     await stable(page, baseline);
     await page.getByLabel("Phone PIN", { exact: true }).fill("1234");
     await page
       .getByRole("button", { name: "Unlock phone", exact: true })
       .click();
-    await expect(page.getByLabel("Phone PIN", { exact: true })).toBeHidden();
+    await expect(page.locator(".screen-overlay")).toBeHidden();
     await stable(page, baseline);
     await page.evaluate(() => window.layoutFixture.failNext());
     await page.getByRole("button", { name: "Back", exact: true }).click();
@@ -549,6 +559,169 @@ try {
     });
     console.log(
       `${name}: lock/unlock, messages, permission loss, rotation and dialogs keep geometry and scroll stable`,
+    );
+    await context.close();
+  }
+  // Exercise the actual React unlock flow, including StrictMode effect replay,
+  // persisted uncertainty across reloads and native recovery state.
+  for (const scenario of [
+    "deferred",
+    "unavailable",
+    "failed",
+    "lost",
+    "disconnected",
+    "no-pin",
+    "not-allowed",
+    "no-accessibility",
+    "blocked",
+    "unlocked",
+    "no-storage",
+  ] as const) {
+    const context: BrowserContext = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+    });
+    if (scenario === "no-storage")
+      await context.addInitScript(() => {
+        Storage.prototype.setItem = () => {
+          throw Error("Storage unavailable");
+        };
+      });
+    const page: Page = await context.newPage();
+    activePage = page;
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    const query = new URLSearchParams({ unlock: scenario });
+    if (scenario === "no-pin") query.set("savedPin", "false");
+    if (scenario === "not-allowed") query.set("unlockAllowed", "false");
+    if (scenario === "no-accessibility") query.set("accessibility", "false");
+    if (scenario === "blocked") query.set("unlockBlocked", "true");
+    if (scenario === "unlocked") query.set("locked", "false");
+    await page.goto(`http://127.0.0.1:${address.port}/layout-proof?${query}`);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+      "Test phone",
+    );
+    const baseline = await geometry(page);
+    const calls = () => page.evaluate(() => window.layoutFixture.unlocks);
+    if (scenario === "deferred") {
+      await expect(page.getByRole("status")).toHaveText(
+        "Unlocking with saved PIN…",
+      );
+      await expect(page.getByLabel("Phone PIN", { exact: true })).toBeHidden();
+      await expect.poll(calls).toEqual(["unlockSaved"]);
+      await page.evaluate(() => window.layoutFixture.finishUnlock());
+      await expect(page.locator(".screen-overlay")).toBeHidden();
+      await expect
+        .poll(() =>
+          page.evaluate(() =>
+            localStorage.getItem(`yepcontrol-unlock-attempt:${"a".repeat(64)}`),
+          ),
+        )
+        .toBeNull();
+    } else if (
+      ["unavailable", "failed", "lost", "disconnected"].includes(scenario)
+    ) {
+      const expected =
+        scenario === "unavailable"
+          ? "Couldn’t enter the saved PIN."
+          : scenario === "failed"
+            ? "We couldn’t unlock the phone using the saved PIN."
+            : "Couldn’t confirm whether the phone unlocked.";
+      await expect(page.getByRole("status")).toContainText(expected);
+      await expect(page.locator(".screen-panel")).toContainText(expected);
+      await expect.poll(calls).toEqual(["unlockSaved"]);
+      if (scenario === "disconnected")
+        await expect
+          .poll(() => page.evaluate(() => window.layoutFixture.ended))
+          .toContain("Couldn’t confirm whether the phone unlocked");
+      if (scenario === "failed") {
+        await expect(
+          page.getByRole("button", { name: "Unlock phone", exact: true }),
+        ).toBeDisabled();
+        await expect(
+          page.getByRole("button", { name: "Use saved PIN", exact: true }),
+        ).toHaveCount(0);
+        await expect(page.locator(".screen-panel")).toContainText(
+          "Unlock the phone locally",
+        );
+      } else {
+        await expect(
+          page.getByRole("button", { name: "Unlock phone", exact: true }),
+        ).toBeEnabled();
+      }
+      await stable(page, baseline);
+      await page.screenshot({
+        path: path.join(artifacts, `unlock-${scenario}.png`),
+      });
+      await page.reload();
+      await expect(page.getByRole("status")).toContainText(
+        "It was not retried automatically",
+      );
+      assert.deepEqual(
+        await calls(),
+        [],
+        "Reload must not replay an unsuccessful or uncertain unlock",
+      );
+      if (scenario === "unavailable") {
+        await page.getByLabel("Phone PIN", { exact: true }).fill("1234");
+        await page
+          .getByRole("button", { name: "Unlock phone", exact: true })
+          .click();
+        await expect(page.locator(".screen-overlay")).toBeHidden();
+        assert.deepEqual(
+          await calls(),
+          ["unlock"],
+          "Pre-entry failure permits an explicit manual attempt",
+        );
+        await expect
+          .poll(() =>
+            page.evaluate(() =>
+              localStorage.getItem(
+                `yepcontrol-unlock-attempt:${"a".repeat(64)}`,
+              ),
+            ),
+          )
+          .toBeNull();
+      }
+    } else {
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () =>
+              window.layoutFixture.trace.filter((op) =>
+                op.startsWith("status:"),
+              ).length,
+          ),
+        )
+        .toBeGreaterThan(2);
+      assert.deepEqual(
+        await calls(),
+        [],
+        "Automatic unlock requires saved PIN, permission, screen access, locked state and a clear guard",
+      );
+      if (scenario === "no-pin")
+        await expect(
+          page.getByLabel("Phone PIN", { exact: true }),
+        ).toBeVisible();
+      if (scenario === "no-storage") {
+        await expect(page.getByRole("status")).toContainText(
+          "this browser couldn’t save the attempt",
+        );
+        await page
+          .getByRole("button", { name: "Use saved PIN", exact: true })
+          .click();
+        await expect(page.locator(".screen-overlay")).toBeHidden();
+        assert.deepEqual(
+          await calls(),
+          ["unlockSaved"],
+          "Unavailable browser storage still permits an explicit unlock protected by the native guard",
+        );
+      }
+    }
+    await stable(page, baseline);
+    assert.deepEqual(errors, []);
+    results.push({ unlockScenario: scenario, errors });
+    console.log(
+      `unlock ${scenario}: automatic attempt and recovery checks passed`,
     );
     await context.close();
   }

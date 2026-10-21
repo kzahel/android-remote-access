@@ -12,11 +12,11 @@ function lane() {
   let id = 0,
     op = 0;
   const sent: number[] = [];
-  let loseTapReply = false;
+  let lostReplyOp: number | undefined;
   return {
     sent,
-    loseTap() {
-      loseTapReply = true;
+    loseReply(op: number) {
+      lostReplyOp = op;
     },
     close: vi.fn(),
     send: vi.fn(async (bytes: Uint8Array<ArrayBuffer>) => {
@@ -30,7 +30,7 @@ function lane() {
       sent.push(op);
     }),
     read: vi.fn(async () => {
-      if (op === 4 && loseTapReply)
+      if (op === lostReplyOp)
         throw new Error("Reply lost after possible native delivery");
       const payload =
         op === 19
@@ -109,7 +109,10 @@ describe("control path recovery", () => {
     expect((await session.command({ op: "status" })).kind).toBe("state");
     session.close();
   });
-  it("falls back after an uncertain direct input without replaying it", async () => {
+  it.each([
+    "tap",
+    "unlockSaved",
+  ] as const)("falls back after an uncertain direct %s without replaying it", async (op) => {
     const hosted = lane(),
       direct = lane();
     mocks.relay.mockResolvedValue(hosted);
@@ -120,14 +123,15 @@ describe("control path recovery", () => {
     const session = await connect();
     await vi.advanceTimersByTimeAsync(1000);
     expect(session.path).toBe("direct");
-    direct.loseTap();
+    const opcode = op === "tap" ? 4 : 14;
+    direct.loseReply(opcode);
     await expect(
-      session.command({ op: "tap", scene: 1, x: 20, y: 30 }),
+      session.command(op === "tap" ? { op, scene: 1, x: 20, y: 30 } : { op }),
     ).rejects.toThrow("not retried");
     expect(session.path).toBe("relay");
     expect(session.connected).toBe(true);
-    expect(hosted.sent.filter((op) => op === 4)).toHaveLength(0);
-    expect(direct.sent.filter((op) => op === 4)).toHaveLength(1);
+    expect(hosted.sent.filter((op) => op === opcode)).toHaveLength(0);
+    expect(direct.sent.filter((op) => op === opcode)).toHaveLength(1);
     expect((await session.command({ op: "status" })).kind).toBe("state");
     expect(direct.close).toHaveBeenCalledOnce();
     session.close();

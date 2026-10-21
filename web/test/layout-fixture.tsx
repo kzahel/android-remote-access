@@ -1,4 +1,5 @@
 import type { Command, ControlState, Reply } from "@remote/protocol/control";
+import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { AppShell } from "../src/app-shell.js";
 import type { RemoteSession } from "../src/control-session.js";
@@ -26,6 +27,18 @@ const state: ControlState = {
   savedPin: true,
   unlockBlocked: false,
 };
+const params = new URLSearchParams(location.search);
+for (const flag of [
+  "locked",
+  "savedPin",
+  "unlockAllowed",
+  "unlockBlocked",
+  "accessibility",
+] as const) {
+  if (params.has(flag)) state[flag] = params.get(flag) === "true";
+}
+const unlockOutcome = params.get("unlock") || "success";
+let finishUnlock = () => {};
 const source = document.createElement("canvas");
 source.width = 108;
 source.height = 240;
@@ -41,18 +54,26 @@ const jpeg = new Uint8Array(
 );
 let failNext = false;
 const trace: string[] = [];
+const unlocks: string[] = [];
 window.layoutFixture = {
   unmount: () => rendered.unmount(),
   trace,
+  unlocks,
+  ended: "",
+  finishUnlock: () => finishUnlock(),
   patch: (patch) => Object.assign(state, patch),
   failNext: () => {
     failNext = true;
   },
 };
+let connected = true;
 const session = {
   path: "relay",
-  connected: true,
+  get connected() {
+    return connected;
+  },
   async command(command: Command): Promise<Reply> {
+    if (!connected) throw Error("Session ended");
     trace.push(`${command.op}: locked=${state.locked}`);
     if (trace.length > 30) trace.shift();
     if (command.op === "status")
@@ -63,8 +84,26 @@ const session = {
         "This is a deliberately long connection message. The action was not retried. Reconnect to continue when the phone is available.",
       );
     }
-    if (command.op === "unlockSaved" || command.op === "unlock")
+    if (command.op === "unlockSaved" || command.op === "unlock") {
+      unlocks.push(command.op);
+      if (unlockOutcome === "deferred")
+        await new Promise<void>((resolve) => {
+          finishUnlock = resolve;
+        });
+      if (unlockOutcome === "unavailable" && command.op === "unlockSaved")
+        return { id: 1, kind: "result", code: 4 };
+      if (unlockOutcome === "failed") {
+        state.unlockBlocked = true;
+        state.savedPin = false;
+        return { id: 1, kind: "result", code: 9 };
+      }
+      if (unlockOutcome === "lost") throw Error("Unlock reply lost");
+      if (unlockOutcome === "disconnected") {
+        connected = false;
+        throw Error("Connection lost after possible PIN delivery");
+      }
       state.locked = false;
+    }
     if (command.op === "sleep") state.locked = true;
     if (command.op === "capture") {
       if (state.locked) return { id: 1, kind: "result", code: 3 };
@@ -106,15 +145,21 @@ const phone: SavedPhone = {
 };
 const rendered = createRoot(root);
 rendered.render(
-  <AppShell phones={[phone]} current={phone}>
-    <main className="connected-viewer">
-      <RemoteScreen
-        session={session}
-        initial={{ ...state }}
-        disconnect={() => {}}
-      />
-    </main>
-  </AppShell>,
+  <StrictMode>
+    <AppShell phones={[phone]} current={phone}>
+      <main className="connected-viewer">
+        <RemoteScreen
+          phoneId={phone.id}
+          session={session}
+          initial={{ ...state }}
+          disconnect={() => {}}
+          onEnded={(message) => {
+            window.layoutFixture.ended ||= message || "Connection ended";
+          }}
+        />
+      </main>
+    </AppShell>
+  </StrictMode>,
 );
 
 declare global {
@@ -123,7 +168,10 @@ declare global {
       unmount: () => void;
       patch: (patch: Partial<ControlState>) => void;
       failNext: () => void;
+      finishUnlock: () => void;
       trace: string[];
+      unlocks: string[];
+      ended: string;
     };
   }
 }

@@ -174,6 +174,37 @@ disabled after the guard blocks another attempt. Hosted control fixtures no
 longer auto-accept the removed confirmation. This is a website change and needs
 no Android reinstall.
 
+### Automatic saved-PIN unlock — 2026-10-21
+
+The owner authorized trying the saved phone-local PIN automatically when opening
+a control connection to a locked phone. Screen access, this browser's unlock
+permission and a clear native attempt guard are required. The connection preview
+and routine connection checks do not unlock. The viewer shows **Unlocking with
+saved PIN…** during the attempt; pressing **Lock phone** within a session leaves
+the phone locked, with explicit saved/manual unlock controls available.
+
+A non-secret browser marker is persisted per phone before sending an unlock.
+Unsuccessful or uncertain attempts are not automatically repeated on reconnect,
+refresh or React effect replay. Observing the phone unlocked clears the marker.
+If browser storage is unavailable, automatic unlock is skipped; explicit unlock
+still uses the native guard. No PIN is stored in the browser by this feature.
+
+Existing Android result codes distinguish an unavailable PIN-entry path from
+an unsuccessful or uncertain entry. Before-entry failures expose the manual form;
+after-entry failures retain the native local-recovery requirement and forgetting
+of the saved PIN. The viewer says **We couldn’t unlock the phone using the saved
+PIN**, rather than claiming the PIN was incorrect. Lost replies say **Couldn’t
+confirm whether the phone unlocked**. The existing keyguard observation and
+native guard are unchanged; this website change needs no Android reinstall and
+does not resolve the intermittent native unlock failure recorded above.
+
+The isolated Chromium fixture checks automatic success, progress, pre-entry
+manual fallback, failed/unknown outcomes, reload suppression, permissions,
+storage failure and stable viewer geometry, including React StrictMode. The
+session unit test checks that an uncertain saved-PIN command is not replayed
+after direct-transport loss. These are browser/protocol tests, not new physical
+unlock or OEM qualification.
+
 ### Automatic refresh and screen preview — 2026-10-20
 
 Opening a saved phone page checks its encrypted connection once, without a

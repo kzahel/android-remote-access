@@ -245,9 +245,7 @@ export async function controlAcceptance(f: Fixture) {
       .waitFor({ timeout: 80000 });
     if (idleWake) {
       await idleWake.verifyReceipt();
-      await page
-        .getByRole("button", { name: "Use saved PIN", exact: true })
-        .click();
+      // Connecting to the locked phone uses its saved PIN automatically.
       await until(
         () =>
           adb("shell", "dumpsys", "window", "policy").match(

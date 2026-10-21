@@ -204,17 +204,18 @@ export function PhonePage({
     <main className="connected-viewer">
       {remote ? (
         <RemoteScreen
+          phoneId={phone.id}
           session={remote.session}
           initial={remote.state}
           name={phoneName(phone)}
           notice={storageWarning}
           aspect={defaultScreenAspect}
           onContact={(state) => recordContact(state.device)}
-          onEnded={() => {
+          onEnded={(message) => {
             close();
             setRemote(undefined);
             setPending(undefined);
-            setStatus("Connection ended");
+            setStatus(message || "Connection ended");
           }}
           disconnect={disconnect}
         />
