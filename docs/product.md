@@ -3,6 +3,67 @@
 Research notes, 2026-10-18. These are user motivations, hypotheses and open
 decisions, not a committed feature roadmap. [Platform limits](android-platform.md)
 and [competitive evidence](competitors.md) constrain what can be promised.
+The proposed product-family direction below was recorded on 2026-10-20.
+
+## Proposed direction: YepControl
+
+**Proposal, 2026-10-20:** the owner asked to record YepControl as the proposed
+direction after discussing its relationship to YepAnywhere and Machine Control.
+This records intent for further development, not a completed brand selection,
+repository merger or integration.
+
+| Name | Proposed role |
+| --- | --- |
+| YepControl | Public device-access/control brand, beginning with this standalone Android app and browser viewer. |
+| Machine Control | Reusable control toolkit, native platform implementations and CLI; its desktop app could gradually adopt YepControl branding. |
+| YepAnywhere | Agent sessions, projects and supervision, including the experimental Android-host distribution that runs agents on the phone. |
+
+**YepControl — Remote Phone** is a candidate first Play listing name. Broader
+branding leaves room for computer/device control as those product experiences
+are implemented and qualified. Existing Machine Control repository and command
+names can remain compatible during a partial public rebrand. Domain acquisition,
+final listing identity and any desktop rebrand are still open; the naming
+discussion did not register a domain or authorize publication.
+
+### Shared Android capabilities
+
+Prefer one reusable implementation of Android device primitives in Machine
+Control's existing Android platform area, exposed through a focused Kotlin
+module where appropriate. Candidate extractions from this app include
+wake/keyguard observation, supported keypad discovery, accessibility input,
+guarded one-attempt PIN delivery and attempt-state handling, together with
+their meaningful regression/acceptance tests.
+
+Machine Control's existing ADB helper and this app's accessibility route have
+different authorities and operating limits. Preserve those provider distinctions
+and qualify each consumer instead of assuming identical behavior. Extraction
+should follow a concrete integration that proves reuse. The browser viewer,
+consumer pairing, hosted relay and Play onboarding remain this product's work.
+
+Each consumer retains its own grants and credential custody. Sharing a library
+does not share a saved PIN, authorize an agent to unlock a phone, or transfer a
+browser's unlock permission to another application. Phone-local saved-PIN
+storage, local forgetting, one-attempt behavior and first-unlock limits remain
+explicit product requirements.
+
+### Relationship to YepAnywhere Android host
+
+The experimental [Android host](../../yepanywhere/topics/android-host.md)
+runs YepAnywhere and provider processes on the phone. It is a related consumer
+of native device capabilities, alongside this app's manual remote-control
+experience. A concrete complementary use is reaching the phone to repair a
+provider sign-in or inspect a stalled host when an agent cannot help.
+
+Shared native capabilities and later product entry points are possible. The
+integration mechanism and APK packaging remain open. This proposal does not
+make the phone viewer depend on a YA session, AI account, Alpine/PRoot runtime
+or subscription, and it does not add autonomous phone control to this product.
+See [sibling relationships](sibling-repositories.md#proposed-yepcontrol-relationship).
+
+The proposed sequence is to develop the Android product under YepControl,
+extract reusable Android capabilities with an actual Machine Control consumer,
+and consider gradual desktop branding afterward. These are proposed follow-ups,
+not changes implemented by recording this direction.
 
 ## The originating problem
 
@@ -20,9 +81,10 @@ phone introduces an unnecessary dependency: its login, subscription or inference
 service can fail. Manual remote access would remain useful in that failure.
 
 The central job is: **“Let me use the phone I left somewhere, and tell me before
-I leave whether I'll actually be able to reach it.”** The product could have a
-completely separate consumer brand. YA auth repair is an example, not a chosen
-integration or market boundary.
+I leave whether I'll actually be able to reach it.”** YepControl is now the
+proposed consumer brand within the related product family described above.
+YA auth repair is a complementary use case; integration remains proposed and
+does not define the market boundary.
 
 ## Use cases and evidence of success
 

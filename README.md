@@ -1,7 +1,8 @@
 # Android Remote Access
 
-Research for an approachable, standalone way to reach an Android phone left
-somewhere else. The repository name is a working name, not a chosen brand.
+An approachable, standalone way to reach an Android phone left somewhere else.
+**YepControl is the proposed product name.** The repository retains its working
+name while the branding and relationship to sibling products are developed.
 
 The motivating example is an old phone in an RV: open the battery vendor's app
 and check whether solar is charging the big power station. Other examples are
@@ -25,6 +26,30 @@ broader OEM/network qualification remain; see the
 Android manages browser nicknames, per-browser/global access and SQLite activity
 history; see [mobile management](docs/mobile-management.md).
 This project is independent of Yep Anywhere and needs no AI runtime.
+
+## Proposed direction: YepControl
+
+Recorded **2026-10-20** at the owner's request; this is a proposal, not a
+completed rebrand or integration.
+
+- **YepControl** would be the public device-access/control brand, starting with
+  this Android app and browser viewer. **YepControl — Remote Phone** is a
+  candidate initial listing name; wider device support can follow implementation.
+- **Machine Control** would remain the reusable control toolkit and CLI. Its
+  desktop app could later adopt YepControl branding while existing commands,
+  repository names and documentation remain compatible. Reusable Android
+  wake, input and guarded PIN-unlock components could move into its Android
+  platform implementation and be consumed here.
+- **YepAnywhere**, including its experimental **Android host**, would remain
+  the agent/session product. Android host runs agents on the phone; YepControl
+  provides manual access to the phone, including repairing a host/provider
+  login when agent authentication has failed. Shared native components could
+  support both experiences with separate permissions and credential custody.
+
+Manual phone access remains useful on its own. Module extraction, sibling
+integration, desktop rebranding, domain registration and publication remain
+future work. See the [product direction](docs/product.md#proposed-direction-yepcontrol)
+and [sibling relationships](docs/sibling-repositories.md#proposed-yepcontrol-relationship).
 
 ## Develop
 
