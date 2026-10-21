@@ -13,10 +13,11 @@ uncommitted work; revision pins identify the committed baseline only.
 | [agent-auth-router](../../agent-auth-router/) | `263bbf2` | Inference authentication infrastructure and the failure mode that motivates manual repair | Context only; no inference service should be a runtime prerequisite |
 | [web-server-chrome](../../web-server-chrome/) | Unpinned orientation reference | Android bootstrap, simple user-facing server setup and private native bridging | Candidate for a focused later source review; no implementation acceptance claimed here |
 
-## Proposed YepControl relationship
+## YepControl relationship
 
-**Proposal recorded 2026-10-20:** [YepControl](product.md#proposed-direction-yepcontrol)
-would be the public device-control brand, initially for this Android product.
+**Proposal recorded 2026-10-20; name adopted 2026-10-21:**
+[YepControl](product.md#product-direction-yepcontrol) is the public
+device-control brand, initially for this Android product.
 Machine Control could supply shared Android primitives and later adopt the
 brand on its desktop application while retaining compatible toolkit/CLI names.
 No module extraction or sibling rebrand has been performed for this proposal.
@@ -34,7 +35,7 @@ Potential shared work includes wake/keyguard state, accessibility input and
 guarded PIN unlock, retaining the differences between ADB and app-resident
 providers. Each consuming app keeps its own authorization and secret custody;
 APK packaging and any direct product integration remain open. The
-[product direction](product.md#proposed-direction-yepcontrol) owns the proposal;
+[product direction](product.md#product-direction-yepcontrol) owns the proposal;
 the source-review records below retain their original pins and evidence limits.
 
 ## Buddy Android: primary phone-resident reference

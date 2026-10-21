@@ -3,14 +3,17 @@
 Research notes, 2026-10-18. These are user motivations, hypotheses and open
 decisions, not a committed feature roadmap. [Platform limits](android-platform.md)
 and [competitive evidence](competitors.md) constrain what can be promised.
-The proposed product-family direction below was recorded on 2026-10-20.
+The product-family direction below was recorded on 2026-10-20; the name was
+adopted on 2026-10-21.
 
-## Proposed direction: YepControl
+## Product direction: YepControl
 
 **Proposal, 2026-10-20:** the owner asked to record YepControl as the proposed
 direction after discussing its relationship to YepAnywhere and Machine Control.
-This records intent for further development, not a completed brand selection,
-repository merger or integration.
+**Decision, 2026-10-21:** YepControl is the product name, and the Android app
+and browser viewer use it. The application ID, repository and package names keep
+their working names for now. The roles of Machine Control and YepAnywhere below
+remain proposals, not a repository merger or integration.
 
 | Name | Proposed role |
 | --- | --- |
@@ -58,7 +61,7 @@ Shared native capabilities and later product entry points are possible. The
 integration mechanism and APK packaging remain open. This proposal does not
 make the phone viewer depend on a YA session, AI account, Alpine/PRoot runtime
 or subscription, and it does not add autonomous phone control to this product.
-See [sibling relationships](sibling-repositories.md#proposed-yepcontrol-relationship).
+See [sibling relationships](sibling-repositories.md#yepcontrol-relationship).
 
 The proposed sequence is to develop the Android product under YepControl,
 extract reusable Android capabilities with an actual Machine Control consumer,
@@ -81,8 +84,8 @@ phone introduces an unnecessary dependency: its login, subscription or inference
 service can fail. Manual remote access would remain useful in that failure.
 
 The central job is: **“Let me use the phone I left somewhere, and tell me before
-I leave whether I'll actually be able to reach it.”** YepControl is now the
-proposed consumer brand within the related product family described above.
+I leave whether I'll actually be able to reach it.”** YepControl is the
+consumer brand within the related product family described above.
 YA auth repair is a complementary use case; integration remains proposed and
 does not define the market boundary.
 

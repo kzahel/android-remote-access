@@ -1,8 +1,9 @@
-# Android Remote Access
+# YepControl
 
 An approachable, standalone way to reach an Android phone left somewhere else.
-**YepControl is the proposed product name.** The repository retains its working
-name while the branding and relationship to sibling products are developed.
+**YepControl is the product name** (owner decision, 2026-10-21). The repository,
+Android application ID (`dev.remoteaccess.host`), Kotlin namespace and package
+names keep their working names for now.
 
 The motivating example is an old phone in an RV: open the battery vendor's app
 and check whether solar is charging the big power station. Other examples are
@@ -27,14 +28,16 @@ Android manages browser nicknames, per-browser/global access and SQLite activity
 history; see [mobile management](docs/mobile-management.md).
 This project is independent of Yep Anywhere and needs no AI runtime.
 
-## Proposed direction: YepControl
+## Product direction: YepControl
 
-Recorded **2026-10-20** at the owner's request; this is a proposal, not a
-completed rebrand or integration.
+Proposed **2026-10-20**; the owner adopted the name on **2026-10-21**. The
+relationships to sibling products below remain proposals, not completed
+integrations.
 
-- **YepControl** would be the public device-access/control brand, starting with
-  this Android app and browser viewer. **YepControl — Remote Phone** is a
-  candidate initial listing name; wider device support can follow implementation.
+- **YepControl** is the public device-access/control brand, starting with this
+  Android app and browser viewer, which now use the name. **YepControl — Remote
+  Phone** is a candidate initial listing name; wider device support can follow
+  implementation.
 - **Machine Control** would remain the reusable control toolkit and CLI. Its
   desktop app could later adopt YepControl branding while existing commands,
   repository names and documentation remain compatible. Reusable Android
@@ -47,9 +50,9 @@ completed rebrand or integration.
   support both experiences with separate permissions and credential custody.
 
 Manual phone access remains useful on its own. Module extraction, sibling
-integration, desktop rebranding, domain registration and publication remain
-future work. See the [product direction](docs/product.md#proposed-direction-yepcontrol)
-and [sibling relationships](docs/sibling-repositories.md#proposed-yepcontrol-relationship).
+integration, desktop rebranding, domain registration, listing identity and
+publication remain future work. See the [product direction](docs/product.md#product-direction-yepcontrol)
+and [sibling relationships](docs/sibling-repositories.md#yepcontrol-relationship).
 
 ## Develop
 

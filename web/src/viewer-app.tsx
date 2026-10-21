@@ -26,7 +26,7 @@ export function ViewerApp({
   const id = /^\/phones\/([a-f0-9]{64})\/?$/.exec(route)?.[1];
   const phone = phones?.find((entry) => entry.id === id);
   useEffect(() => {
-    document.title = `${phone ? phoneName(phone) : route === "/pair" ? "Add phone" : "Your phones"} · Remote access`;
+    document.title = `${phone ? phoneName(phone) : route === "/pair" ? "Add phone" : "Your phones"} · YepControl`;
   }, [phone]);
   useEffect(() => {
     let stopped = false;

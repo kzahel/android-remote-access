@@ -449,7 +449,7 @@ class MainActivity : ComponentActivity() {
         }
         AlertDialog.Builder(this).setTitle("Allow remote screen access?")
             .setMessage(
-                "Android Remote Access uses accessibility to capture this phone’s screen, read the focused field, " +
+                "YepControl uses accessibility to capture this phone’s screen, read the focused field, " +
                     "and perform taps, gestures and typing that you request from a paired device. " +
                     "Screen content and actions are encrypted between this phone and your device " +
                     "and pass through our relay when needed. " +
@@ -590,7 +590,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun about(layout: LinearLayout) {
-        text(layout, "Android Remote Access ${BuildConfig.VERSION_NAME}", 14f)
+        text(layout, "YepControl ${BuildConfig.VERSION_NAME}", 14f)
         text(layout, "Pair devices to view and control this phone securely.", 14f)
         text(
             layout,

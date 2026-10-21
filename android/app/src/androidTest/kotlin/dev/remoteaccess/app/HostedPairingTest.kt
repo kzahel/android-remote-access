@@ -179,12 +179,12 @@ class HostedPairingTest {
                         settings()
                         click("screen_access")
                         tap(By.res("android:id/button1"))
-                        val service = By.text("Remote screen access")
+                        val service = By.text("YepControl")
                         if (!device.wait(Until.hasObject(service), 2000)) {
                             tap(By.text(java.util.regex.Pattern.compile("Downloaded apps|Installed apps|Downloaded services")))
                         }
                         tap(service)
-                        tap(By.textStartsWith("Use Remote screen access"))
+                        tap(By.textStartsWith("Use YepControl"))
                         tap(By.text("Allow"))
                         waitFor { dev.remoteaccess.app.control.ScreenAccessService.current != null }
                     }

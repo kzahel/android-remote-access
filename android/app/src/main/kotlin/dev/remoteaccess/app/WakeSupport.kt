@@ -87,7 +87,7 @@ internal object WakeSupport {
             )
         context.getSystemService(NotificationManager::class.java).notify(
             NOTIFICATION,
-            Notification.Builder(context, CHANNEL).setSmallIcon(android.R.drawable.ic_lock_lock).setContentTitle("Android Remote Access")
+            Notification.Builder(context, CHANNEL).setSmallIcon(android.R.drawable.ic_lock_lock).setContentTitle("YepControl")
                 .setContentText(text).setContentIntent(pending).setAutoCancel(true).setTimeoutAfter(120000).build(),
         )
     }

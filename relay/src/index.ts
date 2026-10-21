@@ -19,7 +19,7 @@ const relay = createRelay({
   trustProxy: process.env.TRUST_PROXY === "loopback",
 });
 relay.server.listen(port, "127.0.0.1", () =>
-  console.log("Remote access development relay listening"),
+  console.log("YepControl development relay listening"),
 );
 for (const signal of ["SIGINT", "SIGTERM"] as const)
   process.once(signal, () => {

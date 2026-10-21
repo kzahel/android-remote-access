@@ -1,10 +1,13 @@
-# Android Remote Access — agent instructions
+# YepControl — agent instructions
 
 ## Product intent
 
 Build understanding of a potential standalone consumer product for remotely
-reaching an Android phone. Its brand, distribution, architecture and business
-model are open. Do not fold it into Yep Anywhere merely because YA and Machine
+reaching an Android phone. Its name is **YepControl** (owner decision,
+2026-10-21); use it in user-facing text. The application ID
+`dev.remoteaccess.host`, repository and package names keep their working names
+until the owner asks otherwise. Distribution, architecture details and business
+model remain open. Do not fold it into Yep Anywhere merely because YA and Machine
 Control contain useful pieces.
 
 The inspiration is a phone left in an RV near an Anker power station: the owner

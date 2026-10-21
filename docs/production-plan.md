@@ -21,12 +21,13 @@ Manual, human-directed control remains the product. Autonomous or AI control,
 MDM, a combined camera/Bluetooth product and a remote-support suite are out of
 scope.
 
-The owner requested recording [YepControl as the proposed product-family
-direction](product.md#proposed-direction-yepcontrol) on 2026-10-20: this app is
-the initial manual-access product, Machine Control is the proposed owner of
-reusable Android primitives, and YepAnywhere Android host is a related agent
-runtime/consumer. Branding, module extraction and sibling integration remain
-proposed; the existing implementation and release gates below still apply.
+The owner recorded the [YepControl product-family
+direction](product.md#product-direction-yepcontrol) on 2026-10-20 and adopted
+the YepControl name on 2026-10-21: this app is the initial manual-access product,
+Machine Control is the proposed owner of reusable Android primitives, and
+YepAnywhere Android host is a related agent runtime/consumer. Module extraction
+and sibling integration remain proposed; the existing implementation and release
+gates below still apply.
 
 ## Decisions made so far
 
@@ -342,7 +343,7 @@ emulator screenshots.
 
 ## Open owner decisions
 
-- Name and brand.
+- Listing identity and domain. The name, YepControl, was decided on 2026-10-21.
 - First audience: spare-phone owners, owners of remote Android workloads, or
   broader remote support.
 - Saved-PIN unlock and smooth video are included by the owner’s completion request;

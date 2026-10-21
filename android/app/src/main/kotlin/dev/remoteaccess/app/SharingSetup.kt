@@ -59,7 +59,7 @@ internal object SharingSetup {
         }
         button("Copy link", R.id.copy_website) {
             activity.getSystemService(ClipboardManager::class.java)
-                .setPrimaryClip(ClipData.newPlainText("Remote access website", website))
+                .setPrimaryClip(ClipData.newPlainText("YepControl website", website))
         }
         button("Share link", R.id.share_website) {
             activity.startActivity(
