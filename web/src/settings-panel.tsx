@@ -51,19 +51,6 @@ export function SettingsPanel() {
           />
         </label>
       </fieldset>
-      <fieldset>
-        <legend>Navigation</legend>
-        <label className="setting-toggle">
-          <span>Show sidebar on desktop</span>
-          <input
-            type="checkbox"
-            checked={settings.desktopSidebar}
-            onChange={(event) =>
-              change({ desktopSidebar: event.target.checked })
-            }
-          />
-        </label>
-      </fieldset>
       {error && <p role="alert">{error}</p>}
     </div>
   );

@@ -1,5 +1,4 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { updateClientSettings, useClientSettings } from "./client-settings.js";
 import { ControlIcon } from "./control-icon.js";
 import { usePhoneActivity } from "./phone-activity.js";
 import { PhoneManagement } from "./phone-management.js";
@@ -16,7 +15,7 @@ export function AppShell({
   current?: SavedPhone | undefined;
   children: ReactNode;
 }) {
-  const settings = useClientSettings();
+  // Wide windows always show the sidebar; narrow ones use the drawer.
   const [wide, setWide] = useState(
     () => matchMedia("(min-width: 900px)").matches,
   );
@@ -112,40 +111,29 @@ export function AppShell({
   );
   return (
     <HeadingTarget.Provider value={heading}>
-      <div
-        className="app-shell"
-        data-sidebar={wide && settings.desktopSidebar ? "open" : "closed"}
-      >
+      <div className="app-shell" data-sidebar={wide ? "open" : "closed"}>
         <header className="app-topbar">
-          <button
-            className="icon-button menu-toggle"
-            type="button"
-            aria-label="Toggle navigation"
-            title="Toggle navigation"
-            aria-controls="app-sidebar"
-            aria-expanded={wide ? settings.desktopSidebar : drawerOpen}
-            onClick={() => {
-              if (wide)
-                updateClientSettings({
-                  desktopSidebar: !settings.desktopSidebar,
-                });
-              else {
+          {!wide && (
+            <button
+              className="icon-button menu-toggle"
+              type="button"
+              aria-label="Toggle navigation"
+              title="Toggle navigation"
+              aria-controls="app-sidebar"
+              aria-expanded={drawerOpen}
+              onClick={() => {
                 drawer.current?.showModal();
                 setDrawerOpen(true);
-              }
-            }}
-          >
-            <ControlIcon name="menu" />
-          </button>
+              }}
+            >
+              <ControlIcon name="menu" />
+            </button>
+          )}
           <div className="topbar-heading" ref={setHeading} />
           {current && <PhoneManagement phone={current} />}
         </header>
         {wide ? (
-          <aside
-            id="app-sidebar"
-            className="app-sidebar"
-            hidden={!settings.desktopSidebar}
-          >
+          <aside id="app-sidebar" className="app-sidebar">
             {navigation}
           </aside>
         ) : (

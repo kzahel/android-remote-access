@@ -107,12 +107,14 @@ try {
       "Controls sit to the right of the screen",
     );
     assert.ok(stage.y + stage.height <= height, "Screen fits the viewport");
-    await page.getByRole("button", { name: "Toggle navigation" }).click();
     if (width >= 900) {
-      await expect(page.locator(".app-sidebar")).toBeHidden();
-      await page.getByRole("button", { name: "Toggle navigation" }).click();
+      // Wide windows always show the sidebar and offer no menu toggle.
       await expect(page.locator(".app-sidebar")).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "Toggle navigation" }),
+      ).toHaveCount(0);
     } else {
+      await page.getByRole("button", { name: "Toggle navigation" }).click();
       await expect(
         page.getByRole("dialog", { name: "Navigation", exact: true }),
       ).toBeVisible();

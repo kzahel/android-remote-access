@@ -89,8 +89,9 @@ were 184 and 238 ms; these are measurements, not wake availability guarantees.
 ## Responsive navigation and client settings — 2026-10-20
 
 The website uses one shared shell. At desktop widths (900px and up), the sidebar
-lists saved phones, All phones, Add phone and Settings. The top-left menu button
-can collapse it. Smaller viewports use a modal navigation drawer, with native
+lists saved phones, All phones, Add phone and Settings, and is always shown;
+there is no menu button. Smaller viewports use a modal navigation drawer, opened
+from the top-left menu button, with native
 focus containment, Escape, a close button and outside-tap dismissal. Phone links
 remain real `/phones/<phoneId>` links, including opening another phone in a new
 tab. An information button opens local name/model/contact details without
@@ -110,7 +111,7 @@ windows retain enough width for unlock/setup controls. Canvas aspect ratio and i
 
 Settings opens over the viewer and preserves the live session. Appearance defaults
 to System and follows live OS changes; Light and Dark override it. Optional control
-labels and desktop sidebar visibility are also local preferences. These values
+labels are also a local preference. These values
 use `remote-access-preferences-v1` in localStorage, synchronize between tabs and
 survive reloads. Pairings and private browser keys remain in IndexedDB. An
 external same-origin appearance bootstrap applies an override before rendering
@@ -119,7 +120,7 @@ malformed preference storage falls back to defaults; failed preference writes
 show an error in Settings.
 
 The five-size isolated layout suite (including a wide desktop) passes drawer dismissal/focus restoration,
-desktop collapsing, breakpoint changes, right-side rail placement, stable
+an always-visible desktop sidebar without a menu button, breakpoint changes, right-side rail placement, stable
 lock/unlock/error/rotation/dialog geometry, sequential text entry, appearance
 changes, saved overrides and cross-tab settings. The phone-library suite passes
 cross-tab lease indicators, local phone details, sequential rename entry and

@@ -4,14 +4,12 @@ export type Theme = "system" | "light" | "dark";
 export interface ClientSettings {
   theme: Theme;
   controlLabels: boolean;
-  desktopSidebar: boolean;
 }
 // The small parser-blocking public/appearance.js uses the same key before paint.
 const key = "remote-access-preferences-v1";
 const defaults: ClientSettings = {
   theme: "system",
   controlLabels: false,
-  desktopSidebar: true,
 };
 function read(): ClientSettings {
   try {
@@ -24,7 +22,6 @@ function read(): ClientSettings {
           ? value.theme
           : "system",
       controlLabels: value?.controlLabels === true,
-      desktopSidebar: value?.desktopSidebar !== false,
     };
   } catch {
     return { ...defaults };
