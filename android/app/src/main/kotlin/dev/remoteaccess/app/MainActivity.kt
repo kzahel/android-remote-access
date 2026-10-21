@@ -2,8 +2,12 @@ package dev.remoteaccess.app
 
 import android.Manifest
 import android.app.AlertDialog
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.content.res.ColorStateList
+import android.graphics.Bitmap
+import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
@@ -22,6 +26,8 @@ import android.view.Gravity
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.RadioButton
@@ -35,6 +41,8 @@ import androidx.core.content.PackageManagerCompat
 import androidx.core.content.UnusedAppRestrictionsConstants
 import androidx.core.net.toUri
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.qrcode.QRCodeWriter
 import dev.remoteaccess.app.control.ScreenAccessService
 import dev.remoteaccess.app.unlock.PinVault
 import dev.remoteaccess.app.unlock.UnlockSetup
@@ -52,7 +60,7 @@ class MainActivity : ComponentActivity() {
 
     /** The invitation being granted; cleared by Cancel so a late result does not move the screen. */
     @Volatile private var granting: Enrollment? = null
-    private var sharingDialog: AlertDialog? = null
+    private var websiteQr = false
     private val foregroundOwner = Any()
     private var notice: String? = null
     private var busy = false
@@ -93,14 +101,13 @@ class MainActivity : ComponentActivity() {
         deviceId = savedInstanceState?.getString("deviceId")
         if (page == "grant") page = "home" // Never persist QR secrets in activity state.
         backStack.addAll(savedInstanceState?.getStringArrayList("navigation") ?: emptyList())
-        shell = ManagementShell(this, ::goBack, { navigate(it) }, ::showSharingSetup)
+        shell = ManagementShell(this, ::goBack) { navigate(it) }
         HostRuntime.io.execute {
             store.load()
             runOnUiThread {
                 loaded = true
                 intent.dataString?.let { showInvitation(it) } ?: render()
                 refreshSystemReadiness()
-                if (intent.dataString == null && savedInstanceState?.getBoolean("sharing") == true) showSharingSetup()
             }
         }
         render()
@@ -172,14 +179,12 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        sharingDialog?.dismiss()
         super.onDestroy()
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        sharingDialog?.dismiss()
         intent.dataString?.let { showInvitation(it) }
     }
 
@@ -187,7 +192,6 @@ class MainActivity : ComponentActivity() {
         outState.putStringArrayList("navigation", ArrayList(backStack))
         outState.putString("page", page)
         outState.putString("deviceId", deviceId)
-        outState.putBoolean("sharing", sharingDialog?.isShowing == true)
         super.onSaveInstanceState(outState)
     }
 
@@ -267,7 +271,7 @@ class MainActivity : ComponentActivity() {
         val status =
             when {
                 !state.settings.armed -> "Remote access is off"
-                devices.isEmpty() -> "Connect from another device to get started"
+                devices.isEmpty() -> "Scan a pairing code to get started"
                 live != null -> "${store.device(live.deviceId)?.nickname ?: "Device"} · ${sessionStatus(live.status)}"
                 devices.none { it.enabled } -> "Access is paused for all paired devices"
                 !state.settings.automatic -> "Available while this app is open"
@@ -302,34 +306,136 @@ class MainActivity : ComponentActivity() {
         if (state.settings.armed && devices.isNotEmpty() && devices.none { it.enabled }) {
             row(layout, "Devices", "Choose which devices can connect", R.id.manage_access) { navigate("devices") }
         }
-        button(layout, "Connect from another device", R.id.pair_device) { showSharingSetup() }
-        text(
-            layout,
-            "Open the website on another device, then pair it with this phone. Paired devices can reconnect without scanning again.",
-            14f,
-        )
+        scanTile(layout)
+        websiteRow(layout)
+        if (devices.isNotEmpty()) {
+            text(layout, "Devices", 14f).setPadding(dp(4), dp(8), 0, dp(4))
+            devices.take(3).forEach { device -> row(layout, device.nickname, deviceSummary(device)) { navigate("device", device.id) } }
+            button(layout, "All devices", R.id.all_devices) { navigate("devices") }
+        }
     }
+
+    /** The main action: pair with a code already showing on the website. */
+    private fun scanTile(layout: LinearLayout) {
+        val tile =
+            LinearLayout(this).apply {
+                id = R.id.scan_pairing_code
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_HORIZONTAL
+                setPadding(dp(16), dp(24), dp(16), dp(20))
+                background =
+                    RippleDrawable(
+                        ColorStateList.valueOf(color(android.R.attr.colorControlHighlight)),
+                        GradientDrawable().apply {
+                            cornerRadius = dp(16).toFloat()
+                            setColor(color(R.attr.accentSurfaceColor))
+                        },
+                        null,
+                    )
+                isClickable = true
+                isFocusable = true
+                isEnabled = !busy
+                contentDescription = "Scan pairing code"
+                setOnClickListener { scanPairingCode() }
+            }
+        tile.addView(
+            ImageView(this).apply {
+                setImageResource(R.drawable.ic_qr_scan)
+                imageTintList = ColorStateList.valueOf(color(android.R.attr.textColorPrimary))
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            },
+            LinearLayout.LayoutParams(dp(72), dp(72)),
+        )
+        text(tile, "Scan pairing code", 20f).apply {
+            gravity = Gravity.CENTER
+            isAccessibilityHeading = false
+        }
+        val host = Website.current(this).removePrefix("https://")
+        text(tile, "Open $host on your computer, then scan its code", 14f).gravity = Gravity.CENTER
+        layout.addView(tile, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) })
+    }
+
+    /** The public website link, with copy, share and an optional QR to open it on another device. */
+    private fun websiteRow(layout: LinearLayout) {
+        val website = Website.current(this)
+        val card = section(layout)
+        val line = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        val labels = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        text(labels, "Website", 14f).setPadding(0, dp(2), 0, 0)
+        text(labels, website.removePrefix("https://")).apply {
+            id = R.id.sharing_website
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
+            setPadding(0, 0, 0, dp(2))
+        }
+        line.addView(labels, LinearLayout.LayoutParams(0, -2, 1f))
+
+        fun icon(
+            resource: Int,
+            drawable: Int,
+            label: String,
+            action: () -> Unit,
+        ) = line.addView(
+            ImageButton(this).apply {
+                id = resource
+                contentDescription = label
+                tooltipText = label
+                setImageResource(drawable)
+                imageTintList = ColorStateList.valueOf(color(android.R.attr.textColorPrimary))
+                background =
+                    RippleDrawable(
+                        ColorStateList.valueOf(color(android.R.attr.colorControlHighlight)), null,
+                        GradientDrawable().apply {
+                            cornerRadius = dp(24).toFloat()
+                            setColor(Color.WHITE)
+                        },
+                    )
+                setOnClickListener { action() }
+            },
+            LinearLayout.LayoutParams(dp(48), dp(48)),
+        )
+        icon(R.id.copy_website, R.drawable.ic_copy, "Copy link") {
+            getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("YepControl website", website))
+        }
+        icon(R.id.share_website, R.drawable.ic_share, "Share link") {
+            startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, website), null))
+        }
+        icon(R.id.show_website_qr, R.drawable.ic_qr, if (websiteQr) "Hide website QR" else "Show website QR") {
+            websiteQr = !websiteQr
+            render()
+        }
+        card.addView(line)
+        if (websiteQr) {
+            val matrix = QRCodeWriter().encode(website, BarcodeFormat.QR_CODE, 512, 512)
+            val pixels = IntArray(512 * 512) { at -> if (matrix[at % 512, at / 512]) Color.BLACK else Color.WHITE }
+            card.addView(
+                ImageView(this).apply {
+                    id = R.id.website_qr
+                    contentDescription = "Website QR code. Opens $website; does not grant access."
+                    setBackgroundColor(Color.WHITE)
+                    setImageBitmap(Bitmap.createBitmap(pixels, 512, 512, Bitmap.Config.ARGB_8888))
+                },
+                LinearLayout.LayoutParams(-1, dp(240)).apply { topMargin = dp(8) },
+            )
+        }
+    }
+
+    private fun deviceSummary(device: Device) =
+        when {
+            !device.enabled -> "Access paused"
+            !store.snapshot.settings.armed -> "Allowed · Remote access is off"
+            HostSessions.current.get()?.deviceId == device.id -> "Connected"
+            else -> lastConnected(device)
+        }
 
     private fun devices(layout: LinearLayout) {
         // A removed device is refused locally at once; telling the relay finishes in the background.
         val devices = store.snapshot.devices.filter { !it.revoked }
         if (devices.isEmpty()) text(layout, "No paired devices yet.")
         devices.forEach { device ->
-            val summary =
-                when {
-                    !device.enabled -> "Access paused"
-                    !store.snapshot.settings.armed -> "Allowed · Remote access is off"
-                    HostSessions.current.get()?.deviceId == device.id -> "Connected"
-                    else -> lastConnected(device)
-                }
-            row(layout, device.nickname, summary) { navigate("device", device.id) }
+            row(layout, device.nickname, deviceSummary(device)) { navigate("device", device.id) }
         }
-        button(layout, "Add device", R.id.pair_device) { showSharingSetup() }
-    }
-
-    private fun showSharingSetup() {
-        if (sharingDialog?.isShowing == true) return
-        sharingDialog = SharingSetup.show(this, store.snapshot.devices.none { !it.revoked }) { scanPairingCode() }
+        button(layout, "Add device", R.id.pair_device) { scanPairingCode() }
     }
 
     private fun scanPairingCode() {

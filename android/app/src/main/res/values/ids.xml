@@ -14,7 +14,7 @@
     <item name="appearance_system" type="id" />
     <item name="appearance_light" type="id" />
     <item name="appearance_dark" type="id" />
-    <item name="how_to_connect" type="id" />
+    <item name="all_devices" type="id" />
     <item name="sharing_website" type="id" />
     <item name="copy_website" type="id" />
     <item name="share_website" type="id" />

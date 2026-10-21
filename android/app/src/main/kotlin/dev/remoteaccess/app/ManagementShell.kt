@@ -21,7 +21,6 @@ internal class ManagementShell(
     private val activity: Activity,
     private val back: () -> Unit,
     private val navigate: (String) -> Unit,
-    private val connect: () -> Unit,
 ) {
     private fun dp(value: Int) = (value * activity.resources.displayMetrics.density).toInt()
 
@@ -118,24 +117,6 @@ internal class ManagementShell(
         link("devices", "Devices", R.id.open_devices, R.drawable.ic_devices)
         link("activity", "Activity", R.id.open_activity, R.drawable.ic_activity)
         link("settings", "Settings", R.id.open_settings, R.drawable.ic_settings)
-        sidebar.addView(View(activity), LinearLayout.LayoutParams(-1, 0, 1f))
-        sidebar.addView(
-            TextView(activity).apply {
-                setText(R.string.how_to_connect)
-                textSize = 16f
-                gravity = Gravity.CENTER_VERTICAL
-                minHeight = dp(56)
-                setPadding(dp(16), 0, dp(16), 0)
-                background = ripple()
-                isClickable = true
-                isFocusable = true
-                setOnClickListener {
-                    closeDrawer()
-                    connect()
-                }
-            },
-            LinearLayout.LayoutParams(-1, -2),
-        )
         activity.setContentView(drawer)
         val flags =
             android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or

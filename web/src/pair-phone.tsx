@@ -47,8 +47,7 @@ async function api(
 export function PairPhone() {
   const [invitation, setInvitation] = useState<Invitation>();
   const [status, setStatus] = useState("Creating a pairing code…");
-  const steps =
-    "Open YepControl on your phone, tap Set up sharing or Add device, then Scan pairing code.";
+  const steps = "Open YepControl on your phone and tap Scan pairing code.";
   const [failed, setFailed] = useState(false);
   const pair = useCallback(async () => {
     setFailed(false);

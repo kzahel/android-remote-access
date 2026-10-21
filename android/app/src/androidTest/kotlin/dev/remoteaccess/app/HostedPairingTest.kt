@@ -271,7 +271,6 @@ class HostedPairingTest {
                 }
                 "setup" -> {
                     start()
-                    click("pair_device")
                     val scan = assertNotNull(device.wait(Until.findObject(By.res("${context.packageName}:id/scan_pairing_code")), 10000))
                     assertTrue(scan.isEnabled)
                     click("copy_website")

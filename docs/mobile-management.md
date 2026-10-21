@@ -146,11 +146,13 @@ or deployed relay change was required.
 
 Owner direction, 2026-10-20:
 
-- Empty Home has one Set up sharing action; paired Home has Add browser and
-  How to connect. Instructions live in a dismissible native setup dialog.
-- The dialog gives the configured website, Copy/Android Share, optional website
-  QR, and Scan pairing code immediately. A website QR is a public navigation
-  link, never a pairing grant. Typing the address on a laptop remains supported.
+- Superseded 2026-10-21 by the owner: Home leads with a large Scan pairing code
+  tile that opens the scanner in one tap, then a website row (address, copy,
+  Android share, and a website QR that expands in place), then up to three paired
+  devices with All devices. The setup dialog and the drawer's How to connect entry
+  are gone; Devices › Add device also opens the scanner. A website QR is a public
+  navigation link, never a pairing grant. Typing the address on a laptop remains
+  supported.
 - Scanning/deep-link approval and durable browser trust have no accessibility,
   notification or capture prerequisite. After pairing, show a separate feature
   setup screen with a Done action. Each available feature explains its purpose
@@ -214,7 +216,8 @@ page and its parent stack survive Activity recreation. The drawer stays intact
 while connection/readiness updates refresh page content.
 
 - Home shows the global access switch, current connection/readiness, Stop
-  connection while connected, and Connect from another device. Specific repair
+  connection while connected, the Scan pairing code tile, the website row and
+  recent devices. Specific repair
   rows lead to the Settings checklist or Connection details. Choosing to connect
   only while the app is open is a valid configuration, not unfinished setup.
 - Settings opens with a setup checklist: recommended switches for Screen and

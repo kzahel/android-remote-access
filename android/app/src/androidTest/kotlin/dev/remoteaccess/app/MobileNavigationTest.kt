@@ -117,10 +117,8 @@ class MobileNavigationTest {
             // Restarting the task must retain the preference and native dialog styling.
             start()
             themed(true)
-            click("pair_device")
             assertTrue(device.wait(Until.hasObject(By.res("${context.packageName}:id/scan_pairing_code")), 10000))
-            shot("dark-sharing")
-            device.pressBack()
+            shot("dark-home-pairing")
             settings()
             click("appearance_settings")
             click("appearance_light")
