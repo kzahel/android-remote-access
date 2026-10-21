@@ -76,7 +76,7 @@ export async function mobileAcceptance(f: Fixture) {
         "-w",
         "-e",
         "class",
-        "dev.remoteaccess.app.HostedPairingTest#manageMultipleBrowsers",
+        "dev.remoteaccess.app.HostedPairingTest#manageMultipleDevices",
         `${app}.test/androidx.test.runner.AndroidJUnitRunner`,
       ],
       { stdio: ["ignore", log.fd, log.fd] },

@@ -83,3 +83,34 @@ Publisher regressions cover source/workflow mismatch, corruption, stale drafts,
 downgrade, production refusal, validation failure and unknown commit outcome.
 Live CI signing, Play access, listing setup and actual beta availability must be
 recorded below when verified; this document alone does not establish publication.
+
+
+## CI candidate receipt — 2026-10-21
+
+Source `23da3af464dd5724e1a6ba35e3d89b39a5e3d415` passes full
+[Checks 39648064549](https://github.com/kzahel/android-remote-access/actions/runs/39648064549).
+[Release artifacts 39648579086](https://github.com/kzahel/android-remote-access/actions/runs/39648579086)
+then builds and signs **0.6.0 / code 4** successfully. The downloaded artifact's
+receipt, checksum and strict JDK signature match the exact source/run/version
+and dedicated upload certificate. AAB SHA-256:
+`a8b81e12c87cac911b8f546acd7dbb571d46dbdb4416722b39ca75b3fd21c6e7`.
+Both 64-bit WebRTC ELF ABIs have load-segment alignment of at least 16 KiB;
+the two 32-bit ABIs have 4 KiB alignment. This is a binary inspection, not a
+claim of testing on a 16 KiB device or Play's server-side acceptance.
+
+The physical Pixel 7a (API 37) passes public QR/Grant pairing, encrypted reconnect,
+process-absent real FCM and revocation with the new app identity. A separate
+ordinary-control run passes viewing, input/text/navigation/app launch, H.264,
+quality changes, held dragging, long press, pinch/rotation gestures, native
+WebRTC and mid-drag direct loss with encrypted relay recovery/no replay. No
+physical PIN, reboot, Doze or lock/debugging changes are involved. Owned test
+packages are removed afterward. This is debug-build device evidence; it is
+separate from verification of an actual Play-installed release.
+The runner selectors now match the native management test's renamed method.
+
+The live privacy page and native navigation/theme suite pass. **Play app
+creation and publication remain pending** the owner's required policy/export
+declarations and app-scoped publisher grant. The CI signer is verified; live
+Google Play authentication/upload and Play's final signing fingerprint are not
+yet verified. No beta install link exists yet. Do not call this candidate a
+published or reviewed release.

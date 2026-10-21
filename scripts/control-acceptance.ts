@@ -185,7 +185,7 @@ export async function controlAcceptance(f: Fixture) {
         f.physical ? "yes" : "no",
         "-e",
         "class",
-        "dev.remoteaccess.app.HostedPairingTest#manageMultipleBrowsers",
+        "dev.remoteaccess.app.HostedPairingTest#manageMultipleDevices",
         `${app}.test/androidx.test.runner.AndroidJUnitRunner`,
       ],
       { stdio: ["ignore", log.fd, log.fd] },
