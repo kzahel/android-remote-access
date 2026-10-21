@@ -108,9 +108,24 @@ packages are removed afterward. This is debug-build device evidence; it is
 separate from verification of an actual Play-installed release.
 The runner selectors now match the native management test's renamed method.
 
-The live privacy page and native navigation/theme suite pass. **Play app
-creation and publication remain pending** the owner's required policy/export
-declarations and app-scoped publisher grant. The CI signer is verified; live
-Google Play authentication/upload and Play's final signing fingerprint are not
-yet verified. No beta install link exists yet. Do not call this candidate a
-published or reviewed release.
+The live privacy page and native navigation/theme suite pass.
+
+## Internal publication — 2026-10-21
+
+After the owner confirmed the policy/export declarations, the app was created
+and the dedicated publisher received only app-scoped information and testing
+release permissions. [CI access check](https://github.com/kzahel/yepcontrol/actions/runs/39654919172)
+passes through short-lived WIF authentication.
+[CI publication](https://github.com/kzahel/yepcontrol/actions/runs/39655110481)
+then submitted the exact signed code-4 bytes above to **internal testing**.
+Play Console confirms **Active / Available to internal testers**, version 0.6.0.
+The tester list is invitation-only; contacts and the enrollment link are kept in
+the private operational inventory. Accept the invitation with the phone's Google
+account, then open the Play listing. No production rollout was performed.
+
+This release is **not reviewed by Google** and initially appears as
+`com.yepcontrol.app (unreviewed)`. Store listing and policy setup are separate
+from internal availability. The website association now includes all three
+Play signing fingerprints copied from Console, while retaining the development
+certificate for owned fixtures. Play-installed device acceptance remains pending;
+the successful debug-build tests above do not establish it.

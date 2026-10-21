@@ -1,11 +1,16 @@
 [
   {
-    "relation": ["delegate_permission/common.handle_all_urls"],
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
     "target": {
       "namespace": "android_app",
       "package_name": "com.yepcontrol.app",
       "sha256_cert_fingerprints": [
-        "2C:15:D9:AB:07:33:E6:8D:7B:AE:FE:5B:71:65:FA:AB:2E:10:A1:12:69:43:37:53:CE:C4:BE:4B:EB:A2:F0:5C"
+        "2C:15:D9:AB:07:33:E6:8D:7B:AE:FE:5B:71:65:FA:AB:2E:10:A1:12:69:43:37:53:CE:C4:BE:4B:EB:A2:F0:5C",
+        "C1:7E:F3:35:84:F1:26:CB:23:66:78:0A:CF:88:94:9E:5C:BE:6E:12:92:59:61:F8:6B:85:88:BA:72:7D:F0:AD",
+        "7E:D6:1C:FB:2E:1E:08:63:FE:C6:15:85:50:32:F5:B7:AD:4D:0B:63:5F:64:73:E1:8E:14:0C:84:95:CA:9E:81",
+        "6A:BB:99:63:29:DB:A6:3C:D6:5E:D8:7B:1F:5A:6D:5F:BA:88:49:6F:B2:C6:5A:AA:D4:09:E7:EB:8D:E7:17:1F"
       ]
     }
   }

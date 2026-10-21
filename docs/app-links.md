@@ -34,9 +34,10 @@ stores it or sends it to analytics. After installing, open the app and scan a
 fresh code. This is not deferred deep linking; installation does not resume or
 approve a pairing. Scanner/browser behavior can vary.
 
-**There is no Play listing yet.** The page states this and offers **Check Google
-Play**; a working store install is pending publication. Change that copy when a
-listing is actually available. No publication is performed by this task.
+**The internal beta is available to invited testers.** Accept the tester
+invitation with the Google account used on the phone before opening the Play
+listing. The install page explains this restriction. Public availability and
+Google review remain separate from this internal release.
 
 ## Firebase and signing
 
@@ -45,12 +46,12 @@ registered for `com.yepcontrol.app`; its downloaded public client configuration
 is checked in. Merely editing the old package name in the config would not create
 this registration. No sender credentials or signing private keys belong in Git.
 
-The association currently trusts the existing development APK certificate only
-(the public SHA-256 is recorded in `assetlinks.json`). Other machines' debug keys
-will not verify automatically. Before a Play release, replace that development
-fingerprint with the **Play app signing certificate** from Play Console, rather
-than the upload certificate, and verify an actual store-installed build. There
-is no release signing key or Play certificate configured yet.
+The association trusts the existing development APK certificate and all three
+**Play app signing certificate** SHA-256 fingerprints copied from Play Console
+on 2026-10-21, including its quantum-ready signing lineage. The fingerprints are
+public in `assetlinks.json`; none is the upload certificate. Other machines'
+debug keys will not verify automatically. Actual Play-installed verification is
+recorded in the [beta guide](distribution/android-beta.md).
 
 ## Verification and sources
 
