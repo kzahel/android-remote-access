@@ -1,0 +1,3 @@
+name: Production components
+paths-ignore:
+  - spike/**

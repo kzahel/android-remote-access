@@ -21,8 +21,9 @@ restrictions. No account or AI service is required.
 
 ## Development
 
-Requires Node 22+, pnpm 10.30.3, JDK 17 and Android SDK platform 36 with build
-tools 35.0.0 or 36.0.0. Set `ANDROID_HOME`; the Gradle wrapper is included.
+Requires Node 24 LTS (pinned in `.node-version`), pnpm 10.30.3, JDK 17 and
+Android SDK platform 36 with build tools 35.0.0 or 36.0.0. Set `ANDROID_HOME`;
+the Gradle wrapper is included.
 
 ```sh
 pnpm install --frozen-lockfile
@@ -65,6 +66,11 @@ pnpm exec playwright install chromium
 | `pnpm test:mobile-ui` | Native navigation, setup and appearance. |
 | `pnpm test:hosted` | Hosted QR pairing, reconnect, FCM wake and revocation. |
 | `pnpm test:mobile` | Multiple browsers and native access management. |
+
+PRs and pushes run the browser layout and phone-management checks alongside
+builds, unit tests, lint and secret scanning. CodeQL scans production components.
+Owned-emulator crypto, native navigation and storage smoke tests run nightly,
+on manual dispatch and before building a signed Android release.
 
 Android acceptance runners own their emulators. Install the API 35 Google APIs
 system image for your host architecture; Linux also needs KVM. Hosted runners

@@ -1,4 +1,4 @@
-/** Native navigation/appearance acceptance. Owns an emulator; needs no relay or physical phone. */
+/** Native navigation/appearance and optional storage acceptance. Owns an emulator; needs no relay or physical phone. */
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -141,11 +141,42 @@ try {
     /OK \(2 tests\)/,
     "Native navigation acceptance failed; see private log/screenshots",
   );
+  const storage = process.argv.includes("--storage");
+  if (storage) {
+    // Independent state from UI tests; no hosted relay, credentials or physical phone.
+    adb("shell", "pm", "clear", app);
+    const storageResult = adb(
+      "shell",
+      "am",
+      "instrument",
+      "-w",
+      "-e",
+      "class",
+      [
+        "HostStoreTest",
+        "HostDatabaseMigrationTest",
+        "UnlockStorageTest",
+        "EnrollmentLinkTest",
+      ]
+        .map((name) => `dev.remoteaccess.app.${name}`)
+        .join(","),
+      `${app}.test/androidx.test.runner.AndroidJUnitRunner`,
+    );
+    await writeFile(path.join(state, "storage.log"), storageResult, {
+      mode: 0o600,
+    });
+    assert.match(
+      storageResult,
+      /OK \(8 tests\)/,
+      "Native storage acceptance failed; see private storage.log",
+    );
+  }
   await writeFile(
     path.join(state, "result.json"),
     JSON.stringify(
       {
         nativeNavigation: true,
+        storageAndMigrations: storage,
         drawerAndBack: true,
         fixedTitleBar: true,
         simpleHome: true,

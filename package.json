@@ -4,7 +4,7 @@
   "type": "module",
   "packageManager": "pnpm@10.30.3",
   "engines": {
-    "node": ">=22"
+    "node": "24.x"
   },
   "scripts": {
     "dev": "tsx scripts/dev.ts",
@@ -24,7 +24,8 @@
     "test:mobile-ui": "tsx scripts/mobile-ui-acceptance.ts",
     "test:mobile": "tsx scripts/hosted-acceptance.ts --multi",
     "test:viewer-layout": "tsx scripts/viewer-layout-acceptance.ts",
-    "test:viewer-phones": "tsx scripts/viewer-phones-acceptance.ts"
+    "test:viewer-phones": "tsx scripts/viewer-phones-acceptance.ts",
+    "test:mobile-smoke": "tsx scripts/mobile-ui-acceptance.ts --storage"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.8",

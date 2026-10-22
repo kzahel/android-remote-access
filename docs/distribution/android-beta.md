@@ -82,8 +82,9 @@ Play bundle; never reuse a consumed code for changed bytes. On clean `main`:
 1. Commit/push the candidate; wait for **Checks** to pass for that exact source.
 2. Dispatch **Android release artifacts** (`android-release.yml`) on `main`.
 3. The build job checks exact-source CI and builds/lints the actual release AAB
-   without credentials. A separate main-only `android-release` environment
-   signs the exact unsigned artifact using a dedicated project upload key.
+   without credentials, after the reusable owned-emulator crypto/navigation/storage
+   smoke suite passes for the same source. A separate main-only `android-release`
+   environment signs the exact unsigned artifact using a dedicated project upload key.
 4. Download `yepcontrol-play-CODE`: it contains the signed AAB, its public upload
    certificate, SHA-256 and source/version/run receipt. The private key is
    removed from the runner and never included in the artifact.

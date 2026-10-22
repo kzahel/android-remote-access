@@ -44,7 +44,7 @@ jobs:
       - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: '22'
+          node-version-file: .node-version
           cache: pnpm
       - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00
         with:
@@ -63,33 +63,26 @@ jobs:
       - run: pnpm build:android
       - run: npm --prefix spike ci --ignore-scripts
       - run: pnpm test:spike
-  browser-android-interop:
-    # Explicit full harness: owns and reaps its emulator, never adopts a device.
-    if: github.event_name == 'workflow_dispatch'
+  browser-acceptance:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: '22'
+          node-version-file: .node-version
           cache: pnpm
-      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00
-        with:
-          distribution: temurin
-          java-version: '17'
-      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
-      - run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0' 'build-tools;36.0.0' 'system-images;android-35;google_apis;x86_64' 'emulator'
-      - name: Enable KVM for the owned emulator
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm build
-      - run: pnpm build:android
-      - run: pnpm test:interop
+      - run: pnpm test:viewer-layout
+      - run: pnpm test:viewer-phones
+  browser-android-interop:
+    if: github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/emulator-smoke.yml
 
   hosted-pairing-acceptance:
     if: github.event_name == 'workflow_dispatch' && inputs.hosted_origin != ''
@@ -99,7 +92,7 @@ jobs:
       - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: '22'
+          node-version-file: .node-version
           cache: pnpm
       - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00
         with:
