@@ -229,6 +229,28 @@ try {
   await until(() => adb("shell", "getprop", "sys.boot_completed") === "1");
   if (!physical && adb("shell", "getprop", "ro.kernel.qemu") !== "1")
     throw new Error("Refusing non-emulator");
+  if (!physical) {
+    // Boot completion can precede the emulator's DNS service. Warm resolution
+    // before the single-use enrollment attempt; ICMP replies are not required.
+    await until(() => {
+      let output: string;
+      try {
+        output = adb(
+          "shell",
+          "ping",
+          "-c",
+          "1",
+          "-W",
+          "1",
+          new URL(origin).hostname,
+        );
+      } catch (error) {
+        output = String((error as { stdout?: unknown }).stdout ?? "");
+      }
+      return /^PING [^\n]+\([0-9a-fA-F:.]+\)/m.test(output);
+    });
+    console.log("Owned emulator DNS ready");
+  }
   if (
     control &&
     !physical &&
