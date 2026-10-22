@@ -50,12 +50,17 @@ jobs:
       # Each harness refuses occupied selectors and owns/reaps its emulator.
       - run: pnpm test:interop
       - run: pnpm test:mobile-smoke
-      - name: Hosted pairing, FCM and encrypted control release acceptance
+      - name: Hosted pairing and process-absent FCM wake
+        if: inputs.hosted_origin != ''
+        run: pnpm test:hosted
+        env:
+          HOSTED_ORIGIN: ${{ inputs.hosted_origin }}
+          HOSTED_FCM: '1'
+      - name: Hosted encrypted control release acceptance
         if: inputs.hosted_origin != ''
         run: pnpm exec tsx scripts/hosted-acceptance.ts --control
         env:
           HOSTED_ORIGIN: ${{ inputs.hosted_origin }}
-          HOSTED_FCM: '1'
           HOSTED_TOUCH: '1'
           HOSTED_UNLOCK: '1'
           HOSTED_VIDEO: '1'
