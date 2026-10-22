@@ -10,6 +10,7 @@ import { chromium } from "@playwright/test";
 import jsQR from "jsqr";
 import { PNG } from "pngjs";
 import { decodeInvitation } from "../protocol/src/enrollment.js";
+import { nativeFailure } from "./acceptance-diagnostics.js";
 import { controlAcceptance } from "./control-acceptance.js";
 import { mobileAcceptance } from "./mobile-management-acceptance.js";
 
@@ -80,21 +81,6 @@ const adb = (...args: string[]) =>
     stdio: ["ignore", "pipe", "pipe"],
   }).trim();
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-// Public CI may report code locations, never raw fixture output, QR data or grants.
-function nativeFailure(message: string, output: string): Error {
-  const frames = output.match(
-    /^\s*at dev\.remoteaccess\.[A-Za-z0-9_.$]+\([A-Za-z0-9_.-]+:\d+\)\s*$/gm,
-  );
-  return new Error(
-    `${message}\n${
-      frames
-        ?.slice(0, 8)
-        .map((line) => line.trim())
-        .join("\n") ??
-      "No application stack locations; private fixture log retained"
-    }`,
-  );
-}
 async function until<T>(
   work: () => T | Promise<T>,
   timeout = 120000,

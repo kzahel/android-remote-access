@@ -6,6 +6,7 @@ import path from "node:path";
 import { type Browser, expect } from "@playwright/test";
 import jsQR from "jsqr";
 import { PNG } from "pngjs";
+import { nativeFailure } from "./acceptance-diagnostics.js";
 import { prepareIdleWake } from "./control-recovery.js";
 
 type Fixture = {
@@ -112,7 +113,10 @@ export async function controlAcceptance(f: Fixture) {
         if (error instanceof assert.AssertionError) throw error;
       }
       if (native && native.exitCode !== null)
-        throw new Error("Native fixture exited; see private log");
+        throw nativeFailure(
+          "Native control fixture exited",
+          await readFile(path.join(f.state, "control-native.log"), "utf8"),
+        );
       await delay(250);
     }
     throw new Error("Control acceptance timed out");

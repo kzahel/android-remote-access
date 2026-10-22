@@ -47,11 +47,13 @@ class HostedPairingTest {
     private fun tap(selector: BySelector) {
         waitFor {
             try {
+                device.waitForIdle()
                 val view = device.findObject(selector)
                 if (view == null || !view.isEnabled) {
                     false
                 } else {
                     view.click()
+                    InstrumentationRegistry.getInstrumentation().waitForIdleSync()
                     true
                 }
             } catch (_: StaleObjectException) {
