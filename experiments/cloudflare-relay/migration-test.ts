@@ -5,13 +5,18 @@ import path from "node:path";
 import { convertV4MiniflareOptions, Miniflare } from "miniflare";
 import { grantBytes } from "../../protocol/src/enrollment.js";
 import { b64, createIdentity } from "../../protocol/src/index.js";
-import { digest, type Snapshot, validateSnapshot } from "./migration.js";
+import {
+  digest,
+  IMPORT_BATCH_SIZE,
+  type Snapshot,
+  validateSnapshot,
+} from "./migration.js";
 const directory = await mkdtemp(path.join(tmpdir(), "yepcontrol-import-"));
 const origin = "https://yepcontrol.com";
 const phone = await createIdentity(),
   viewer = await createIdentity();
 const snapshot: Snapshot = { version: 1, origin, rows: [] };
-for (let i = 1; i <= 3; i++) {
+for (let i = 1; i <= 35; i++) {
   const grant = {
     id: String(i).padStart(32, "0"),
     viewer: b64(viewer.publicKey),
@@ -96,8 +101,8 @@ function options(
   });
 }
 let mf = new Miniflare(options());
-const send = (body = raw, token = "test-only") =>
-  mf.dispatchFetch("https://import.invalid/import", {
+const send = (body = raw, token = "test-only", offset = 0) =>
+  mf.dispatchFetch(`https://import.invalid/import?offset=${offset}`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
     body,
@@ -116,21 +121,45 @@ try {
       .status,
     503,
   );
-  assert.equal((await send()).status, 200, "Real cross-Worker RPC import");
-  assert.deepEqual(await (await send()).json(), {
+  assert.equal(
+    (await send(raw, "test-only", IMPORT_BATCH_SIZE)).status,
+    409,
+    "Cannot skip a batch",
+  );
+  assert.equal(
+    (await send(raw, "test-only", 1)).status,
+    409,
+    "Invalid batch boundary",
+  );
+  const first = await send();
+  assert.equal(first.status, 200, "Real cross-Worker RPC batch");
+  assert.deepEqual(await first.json(), {
     sha256: hash,
-    pairs: 3,
-    revoked: 1,
-    paused: 1,
-    targets: 1,
-    verified: true,
+    nextOffset: IMPORT_BATCH_SIZE,
+    verified: false,
   });
   await mf.dispose();
   mf = new Miniflare(options());
+  // Repeat the acknowledged batch, then resume after a full process restart.
+  assert.equal((await send()).status, 200);
+  assert.equal((await send(raw, "test-only", IMPORT_BATCH_SIZE)).status, 200);
+  assert.deepEqual(
+    await (await send(raw, "test-only", IMPORT_BATCH_SIZE * 2)).json(),
+    {
+      sha256: hash,
+      pairs: 35,
+      revoked: 1,
+      paused: 1,
+      targets: 1,
+      verified: true,
+    },
+  );
+  await mf.dispose();
+  mf = new Miniflare(options());
   assert.equal(
-    (await send()).status,
+    (await send(raw, "test-only", IMPORT_BATCH_SIZE * 2)).status,
     200,
-    "Identical import resumes after a full runtime restart",
+    "Identical completed import resumes after a full runtime restart",
   );
   await mf.dispose();
   const altered = structuredClone(snapshot);

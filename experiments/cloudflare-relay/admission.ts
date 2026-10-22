@@ -1,5 +1,10 @@
 import { DurableObject } from "cloudflare:workers";
-import { digest, requireMigration, type MigrationEnv } from "./migration.js";
+import {
+  digest,
+  requireMigration,
+  type MigrationEnv,
+  IMPORT_BATCH_SIZE,
+} from "./migration.js";
 
 type Env = MigrationEnv & {
   PAIRING_CAPACITY?: string;
@@ -37,6 +42,69 @@ export class Admission extends DurableObject<Env> {
     ctx.storage.sql.exec(
       "CREATE TABLE IF NOT EXISTS migration (hash TEXT PRIMARY KEY, manifest TEXT NOT NULL)",
     );
+    ctx.storage.sql.exec(
+      "CREATE TABLE IF NOT EXISTS import_batches (offset INTEGER PRIMARY KEY, hash TEXT NOT NULL, count INTEGER NOT NULL, total INTEGER NOT NULL, manifest TEXT NOT NULL)",
+    );
+  }
+  async importBatch(
+    offset: number,
+    rows: { id: string; created: number }[],
+    total: number,
+    manifest: string,
+  ) {
+    requireMigration(this.env, manifest);
+    if (
+      !Number.isSafeInteger(offset) ||
+      offset < 0 ||
+      offset % IMPORT_BATCH_SIZE ||
+      !Number.isSafeInteger(total) ||
+      total < 0 ||
+      total > 500 ||
+      offset > total ||
+      rows.length !== Math.min(IMPORT_BATCH_SIZE, total - offset) ||
+      (offset === total && total !== 0)
+    )
+      throw new Error("Invalid batch");
+    const hash = await digest(JSON.stringify(rows));
+    requireMigration(this.env, manifest);
+    const sql = this.ctx.storage.sql;
+    this.ctx.storage.transactionSync(() => {
+      const prior = sql
+        .exec<{ hash: string; total: number; manifest: string }>(
+          "SELECT hash, total, manifest FROM import_batches WHERE offset = ?",
+          offset,
+        )
+        .toArray()[0];
+      if (prior) {
+        if (
+          prior.hash !== hash ||
+          prior.total !== total ||
+          prior.manifest !== manifest
+        )
+          throw new Error("Different batch");
+        return;
+      }
+      const batches = sql
+        .exec<{ count: number; total: number; manifest: string }>(
+          "SELECT count, total, manifest FROM import_batches",
+        )
+        .toArray();
+      if (
+        batches.some(
+          (batch) => batch.manifest !== manifest || batch.total !== total,
+        ) ||
+        batches.reduce((sum, batch) => sum + batch.count, 0) !== offset
+      )
+        throw new Error("Out of order");
+      sql.exec(
+        "INSERT INTO import_batches VALUES (?, ?, ?, ?, ?)",
+        offset,
+        hash,
+        rows.length,
+        total,
+        manifest,
+      );
+    });
   }
   async importRoutes(
     rows: { id: string; created: number }[],
@@ -56,6 +124,28 @@ export class Admission extends DurableObject<Env> {
       throw new Error("Invalid routes");
     const sorted = [...rows].sort((a, b) => a.id.localeCompare(b.id));
     const hash = await digest(JSON.stringify(sorted));
+    const batches = this.ctx.storage.sql
+      .exec<{ offset: number; hash: string; total: number; manifest: string }>(
+        "SELECT offset, hash, total, manifest FROM import_batches ORDER BY offset",
+      )
+      .toArray();
+    if (
+      batches.length !== Math.max(1, Math.ceil(rows.length / IMPORT_BATCH_SIZE))
+    )
+      throw new Error("Incomplete import");
+    for (const [index, batch] of batches.entries()) {
+      const offset = index * IMPORT_BATCH_SIZE;
+      if (
+        batch.offset !== offset ||
+        batch.manifest !== manifest ||
+        batch.total !== rows.length ||
+        batch.hash !==
+          (await digest(
+            JSON.stringify(rows.slice(offset, offset + IMPORT_BATCH_SIZE)),
+          ))
+      )
+        throw new Error("Batch verification");
+    }
     requireMigration(this.env, manifest);
     const sql = this.ctx.storage.sql;
     this.ctx.storage.transactionSync(() => {

@@ -41,7 +41,10 @@ for production. CI never enables migration authority.
    maintenance configuration. Deploy the temporary importer with bindings to
    that Worker's Pairing and Admission classes, the same hash/deadline, and a
    random secret bearer token. Its only HTTP operation is POST `/import`.
-5. Send the exact frozen manifest over HTTPS. The importer validates stored keys, signature encodings, policy and all rows
+5. Send the exact frozen manifest over HTTPS in sequential requests with
+   `?offset=0`, `?offset=16`, and so on. Each request imports at most 16 objects,
+   within the Free Workers per-request subrequest limit. Durable batch receipts
+   reject skipped, changed or incomplete batches and allow identical retries. The importer validates stored keys, signature encodings, policy and all rows
    before allocating objects. The SHA-256-pinned source database is existing
    authority, including historical grants signed under retired hostnames; it is
    not a new enrollment. Fresh socket authentication still binds the current
@@ -49,8 +52,7 @@ for production. CI never enables migration authority.
    destinations, checks each stored record's digest and the complete route
    directory, and reports only digest/counts. Identical retries resume; a changed
    manifest or existing destination authority refuses. This small-service tool
-   caps the manifest at 500 records / 8 MiB; larger migrations need a batched
-   implementation before use.
+   caps the manifest at 500 records / 8 MiB; larger migrations require revisiting the explicit cap before use.
 6. Remove this zone from the Pi DDNS desired state before switching the apex and
    `www` to Worker custom domains. Preserve other zones and services.
 7. Deploy the same verified bundle through CI with production admission. This

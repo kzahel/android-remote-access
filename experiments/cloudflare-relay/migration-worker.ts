@@ -2,6 +2,7 @@
 import type { Admission } from "./admission.js";
 import {
   digest,
+  IMPORT_BATCH_SIZE,
   requireMigration,
   type MigrationEnv,
   type Snapshot,
@@ -40,10 +41,10 @@ export default {
         chunks.push(next.value);
       }
       const bytes = new Uint8Array(size);
-      let offset = 0;
+      let byteOffset = 0;
       for (const chunk of chunks) {
-        bytes.set(chunk, offset);
-        offset += chunk.length;
+        bytes.set(chunk, byteOffset);
+        byteOffset += chunk.length;
       }
       const raw = new TextDecoder().decode(bytes);
       const hash = await digest(raw);
@@ -52,7 +53,19 @@ export default {
       await validateSnapshot(snapshot, env.PUBLIC_ORIGIN);
       // Validate everything before allocating destination objects. Sequential RPCs
       // keep subrequests bounded; identical retries resume without replacing authority.
-      for (const row of snapshot.rows) {
+      const parameter = new URL(req.url).searchParams.get("offset") ?? "0";
+      if (!/^(0|[1-9][0-9]*)$/.test(parameter)) throw new Error("Offset");
+      const offset = Number(parameter);
+      if (
+        !Number.isSafeInteger(offset) ||
+        offset % IMPORT_BATCH_SIZE ||
+        offset < 0 ||
+        (offset >= snapshot.rows.length &&
+          !(offset === 0 && snapshot.rows.length === 0))
+      )
+        throw new Error("Offset");
+      const batch = snapshot.rows.slice(offset, offset + IMPORT_BATCH_SIZE);
+      for (const row of batch) {
         const result = await env.PAIRINGS.getByName(row.pair.id).importState(
           row,
           hash,
@@ -64,6 +77,18 @@ export default {
         id: row.pair.id,
         created: row.created,
       }));
+      await env.ADMISSION.getByName("global").importBatch(
+        offset,
+        routes.slice(offset, offset + IMPORT_BATCH_SIZE),
+        routes.length,
+        hash,
+      );
+      const nextOffset = Math.min(
+        offset + IMPORT_BATCH_SIZE,
+        snapshot.rows.length,
+      );
+      if (nextOffset < snapshot.rows.length)
+        return Response.json({ sha256: hash, nextOffset, verified: false });
       await env.ADMISSION.getByName("global").importRoutes(routes, hash);
       return Response.json({
         sha256: hash,

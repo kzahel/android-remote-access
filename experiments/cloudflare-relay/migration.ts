@@ -16,6 +16,8 @@ export type Pair = Grant & {
 export type Target = { fid: string; generation?: string };
 export type MigrationRow = { pair: Pair; created: number; target?: Target };
 export type Snapshot = { version: 1; origin: string; rows: MigrationRow[] };
+// Below the Free plan's 50 outgoing subrequests, including directory RPCs.
+export const IMPORT_BATCH_SIZE = 16;
 export type MigrationEnv = {
   RELAY_MODE?: string;
   MIGRATION_SHA256?: string;
