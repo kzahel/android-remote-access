@@ -31,8 +31,19 @@ The [local runnable proof](../experiments/cloudflare-relay/README.md) passes
 signed pairing, the existing E2E handshake, encrypted forwarding, forced
 hibernation with authenticated sockets preserved, and durable revocation across
 a runtime restart. A synthetic 30-record/second stream of 16 KiB records ran at
-3.93 Mbps for three seconds. This was local Miniflare/workerd, not a deployed
-Cloudflare service or a real H.264/network benchmark.
+3.93 Mbps for three seconds. That first run used local Miniflare/workerd.
+Neither it nor the live protocol runs below are real H.264/native-client
+qualification.
+
+Two subsequent live protocol runs on an isolated workers.dev service passed
+bidirectional E2E, real idle hibernation, reconnect and revocation across actual
+redeployment. Both forwarded 900 × 16 KiB records over 30 seconds at 3.93 Mbps.
+Observed median/p95 latencies were 32.5/146.6 ms and 26.0/37.1 ms respectively.
+The second run recovered a five-second paused receiver and verified exact
+record-size acceptance/refusal. These are synthetic endpoints on one machine,
+not real phone video or a network-diversity qualification. The test gate was
+closed afterward; details and remaining limits are in the
+[live receipt](../experiments/cloudflare-relay/README.md#live-cloudflare-receipt--2026-10-22).
 
 A front Worker can route each pairing ID to one SQLite-backed Durable Object.
 The client must supply that ID when opening its socket; the proof uses
@@ -46,8 +57,8 @@ re-read after asynchronous verification. Ordinary timers can prevent hibernation
 These are [documented platform behaviors](https://developers.cloudflare.com/durable-objects/best-practices/websockets/);
 the local proof exercises explicit eviction, not production idle-time billing.
 Its authentication alarm produced a clean 4003 close observed at about 20 seconds
-for a 10-second deadline over loopback. Qualify actual hosted rejection and
-resource-cleanup timing before relying on that budget.
+for a 10-second deadline over loopback. The live protocol runs observed clean
+closes at 10.16 and 10.11 seconds, matching the configured 10-second deadline.
 
 FCM remains an outbound HTTPS operation. A Worker port could use OAuth access
 tokens and the [FCM HTTP v1 API](https://firebase.google.com/docs/cloud-messaging/send/v1-api),
@@ -78,11 +89,13 @@ video must be measured. For the hosted proof, record messages/bytes per second,
 active duration, storage reads/writes, wake attempts and actual usage. Local
 latency numbers cannot predict deployed latency or the final bill.
 
-The next evidence bar is an isolated hosted namespace/hostname with policy and
-wake parity, bounded admission, owned-emulator Android/browser acceptance,
-forced WebSocket H.264 fallback, rapid reconnect, revocation races, real idle
-hibernation and a slow/disconnected peer. Keep the current Pi service available
-while this is investigated. Avoid a generic multi-backend framework now.
+An isolated hosted namespace/hostname now passes the synthetic protocol suite,
+including actual hibernation, encrypted streaming and revocation across
+redeployment. The next evidence bar is policy and wake parity, bounded public
+admission, owned-emulator Android/browser acceptance, real WebSocket H.264
+fallback, network diversity, sustained slow-peer bounds and measured cost.
+Keep the current Pi service available while this is investigated. Avoid a
+generic multi-backend framework now.
 
 ## Pi coturn direction
 

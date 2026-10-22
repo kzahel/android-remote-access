@@ -375,6 +375,65 @@ try {
   };
   console.log(JSON.stringify(report.stream));
 
+  console.log(
+    "Checking a five-second paused receiver and record-size boundaries",
+  );
+  session.v.ws.pause();
+  const pausedAt = performance.now();
+  try {
+    for (let frame = 0; frame < 150; frame++) {
+      const plain = new Uint8Array(16384);
+      new DataView(plain.buffer).setUint32(0, frame);
+      session.p.ws.send(await session.phoneChannel.seal(plain));
+      await delay(
+        Math.max(0, pausedAt + ((frame + 1) * 1000) / 30 - performance.now()),
+      );
+    }
+  } finally {
+    session.v.ws.resume();
+  }
+  for (let frame = 0; frame < 150; frame++) {
+    const plain = await session.channel.open(
+      new Uint8Array((await session.v.next()) as ArrayBuffer),
+    );
+    assert.equal(plain.byteLength, 16384);
+    assert.equal(
+      new DataView(plain.buffer, plain.byteOffset).getUint32(0),
+      frame,
+    );
+  }
+  report.pausedReceiver = {
+    pauseMs: 5000,
+    records: 150,
+    bytesPerRecord: 16384,
+    recoveredInOrder: true,
+  };
+  const maximum = await session.phoneChannel.seal(new Uint8Array(1048576));
+  assert.equal(maximum.byteLength, 1048608);
+  session.p.ws.send(maximum);
+  assert.equal(
+    (
+      await session.channel.open(
+        new Uint8Array((await session.v.next()) as ArrayBuffer),
+      )
+    ).byteLength,
+    1048576,
+  );
+  const limitPhoneClosed = close(session.p.ws),
+    limitViewerClosed = close(session.v.ws);
+  session.p.ws.send(new Uint8Array(1048609));
+  assert.equal((await limitPhoneClosed).code, 4003);
+  assert.equal((await limitViewerClosed).code, 4001);
+  session.channel.close();
+  session.phoneChannel.close();
+  session = await connect();
+  await session.exchange("fresh session after oversized record refusal");
+  report.recordBoundary = {
+    acceptedBytes: 1048608,
+    rejectedBytes: 1048609,
+    recovered: true,
+  };
+
   const duplicate = socket();
   const duplicateClosed = close(duplicate.ws);
   await duplicate.authenticate(viewer, "viewer");
@@ -421,6 +480,7 @@ try {
   console.log(
     "Redeploying only the isolated proof Worker to check durable revocation",
   );
+  const redeployedBuild = `live-${crypto.randomUUID()}`;
   const redeploy = await promisify(execFile)(
     path.join(root, "node_modules/.bin/wrangler"),
     [
@@ -430,7 +490,7 @@ try {
       "--secrets-file",
       secretsPath,
       "--var",
-      "PROOF_BUILD:live-redeployed",
+      `PROOF_BUILD:${redeployedBuild}`,
     ],
     { cwd: root, timeout: 120000, maxBuffer: 2097152 },
   );
@@ -442,13 +502,13 @@ try {
   let current = await status();
   for (
     let attempt = 0;
-    attempt < 12 && current.build !== "live-redeployed";
+    attempt < 12 && current.build !== redeployedBuild;
     attempt++
   ) {
     await delay(1000);
     current = await status();
   }
-  assert.equal(current.build, "live-redeployed");
+  assert.equal(current.build, redeployedBuild);
   assert.equal(current.revoked, true);
   assert.equal((await api()).status, 410);
   assert.equal((await api("", creation)).status, 400);

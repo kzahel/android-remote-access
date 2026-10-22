@@ -1,12 +1,14 @@
 # Cloudflare relay runtime proof
 
-Local proof completed 2026-10-22. This is an isolated experiment, outside the
-production workspace and its dependency graph. It is not a deployable replacement
-for the Node relay. The checked-in Worker has no public route, workers.dev or
-preview URL, uses `https://proof.invalid`, and refuses all requests unless a
+Local and live protocol proofs completed 2026-10-22. This experiment is outside
+the production workspace and its dependency graph. It is not a deployable
+replacement for the Node relay. The checked-in Wrangler config disables public
+routes, workers.dev and preview URLs, uses `https://proof.invalid`, and refuses
+all requests unless a
 `PROOF_KEY` binding and matching fixture header are supplied. The test generates
-that key only in memory. No Cloudflare account, DNS, Firebase credential or real
-phone is involved.
+that key only in memory for local runs. The local suite needs no Cloudflare
+account, DNS, Firebase credential or real phone. Live runs use a separate gated
+workers.dev service; see the receipt below.
 
 With the repository's pinned Node 24 and pnpm:
 
@@ -24,7 +26,7 @@ Wrangler 4.149.0 uses Miniflare 5.20261006.1-alpha; this experiment pins the sam
 version and its development-only eviction API. Revisit that tooling before
 promoting any code. Production dependencies are unchanged.
 
-## What passed
+## What passed locally
 
 - Invalid creation signatures are rejected before allocating an object.
 - Signed enrollment and concurrent duplicate creation/completion have one winner.
@@ -67,13 +69,14 @@ design. Do not expose this Worker anonymously.
 FCM, push registration, access policy/generation synchronization, management
 sockets, detailed viewer refusal codes, held HTTP polls, slow-peer backpressure,
 heartbeat behavior, real Android/browser interoperability, real H.264 delivery,
-network measurements and live Cloudflare billing are **not implemented or
-qualified here**. The platform's 32 MiB receive limit does not replace our own
-1,048,608-byte binary-record limit. Keep that application bound.
+network diversity and live Cloudflare billing are **not implemented or
+qualified here**. Live synthetic network measurements are recorded below. The
+platform's 32 MiB receive limit does not replace our own 1,048,608-byte binary
+record limit. Keep that application bound.
 
-For the next hosted proof, use a separate namespace and hostname, preserve the
-current relay origin, add policy/wake parity and bounded admission first, then
-run the owned-emulator hosted/control suites with FCM and forced WebSocket
+For the next product acceptance proof, keep the separate namespace and hostname,
+preserve the current relay origin, and add policy/wake parity and bounded
+admission. Then run the owned-emulator hosted/control suites with FCM and forced WebSocket
 fallback. Capture payload/message rates, active duration, storage reads/writes,
 selected lane, recovery and actual billed usage before choosing production.
 See [hosting and TURN direction](../../docs/hosting-and-turn.md).
@@ -95,10 +98,65 @@ The default checked-in config remains local-only and closed.
 
 The live suite uses one synthetic pairing, actual HTTPS/WSS and the existing
 E2E implementation. It bounds streaming to 900 encrypted 16 KiB records over
-30 seconds, checks both directions, wrong keys/routing IDs, duplicates, idle
+30 seconds, checks both directions, a five-second paused receiver, the exact
+record-size boundary, wrong keys/routing IDs, duplicates, idle
 hibernation via a changed constructor boot ID, authentication alarms, abrupt
 loss/reconnect and revocation. It redeploys only that proof Worker to verify
 revocation survives code replacement. Every client socket is terminated and
 completed fixture authority is revoked during cleanup. Reports and deploy logs
 stay beside the private config. This runner does not implement Android, FCM or
 TURN support.
+
+## Live Cloudflare receipt — 2026-10-22
+
+Two bounded protocol runs passed against an actual deployed Worker and its own
+SQLite-backed Durable Object namespace, using synthetic endpoints over HTTPS/WSS.
+The Pi service and production hostname were unchanged. Invocation logging was
+disabled; fixture IDs, secrets, account details and raw evidence remain private.
+
+| Measurement | First run | Second run |
+| --- | --- | --- |
+| Stream | 900 × 16 KiB records / 30 seconds | Same |
+| Payload throughput | 3.93 Mbps | 3.93 Mbps |
+| Sender-to-receiver median | 32.5 ms | 26.0 ms |
+| Sender-to-receiver p95 | 146.6 ms | 37.1 ms |
+| Maximum observed latency | 359.5 ms | 96.9 ms |
+| Idle unauthenticated clean 4003 close | 10.16 seconds | 10.11 seconds |
+
+Both runs verified signed pairing with one concurrent winner, rejection of wrong
+keys/routing IDs, the actual bidirectional E2E handshake and records, duplicate
+viewer refusal without displacing the live session, abrupt disconnect with peer
+closure, fresh reconnect, and phone-signed revocation disconnecting both sides.
+Revoked state and refusal survived an actual Worker redeployment with a distinct
+build marker, not just a local runtime restart.
+
+Real hibernation was observed in both runs after 25 seconds without application
+traffic: the constructor boot ID changed, both authenticated socket attachments
+remained, and encrypted exchange resumed on those same sockets.
+
+The second run additionally paused the viewer's network reader for five seconds
+while sending 150 encrypted 16 KiB records; all were received and authenticated
+in order after resume. A maximum-size 1,048,608-byte encrypted record passed.
+A 1,048,609-byte message was rejected with 4003, its peer disconnected, and a
+fresh session worked. The bounded pause test does not qualify indefinitely slow
+peers or prove a production queue/memory bound.
+
+These are one machine's synthetic endpoints traversing Cloudflare, not two
+independent mobile networks or decoded H.264. The jitter difference between runs
+is part of the result. Do not use a single p95 sample as a video responsiveness
+or availability guarantee.
+
+Namespace-scoped GraphQL queries succeeded but returned no populated invocation
+or periodic counters during the test window. No zero-usage or measured-cost claim
+is made. Hosted billing and a longer representative usage sample remain open;
+see [Cloudflare metrics](https://developers.cloudflare.com/durable-objects/observability/metrics-and-analytics/).
+
+All test grants were revoked and client sockets closed. After testing, admission
+was closed by deploying an expired `PROOF_EXPIRES` value and verifying that even
+the valid fixture key receives 403. Reopening requires an explicit new short
+lease in the private config. The namespace is retained for further investigation;
+this is not a public service or production cutover.
+
+Next work remains Android/browser integration, policy/generation synchronization,
+process-absent FCM wake, real H.264 fallback, network diversity, sustained slow-peer
+behavior and measured cost. Pi coturn is still a separate, unimplemented direction.
