@@ -1,23 +1,11 @@
 import { randomBytes } from "node:crypto";
-import {
-  closeSync,
-  existsSync,
-  fsyncSync,
-  mkdirSync,
-  openSync,
-  readFileSync,
-  renameSync,
-  writeFileSync,
-} from "node:fs";
 import { createServer, type IncomingMessage } from "node:http";
-import path from "node:path";
 import {
   authBytes,
   createBytes,
   fromHex,
   type Grant,
   grantBytes,
-  keyBytes,
   originURL,
   revokeBytes,
   verifySignature,
@@ -25,12 +13,8 @@ import {
 import { WebSocket, WebSocketServer } from "ws";
 import { PushRegistry, type Sender, type Wake } from "./push.js";
 
-type Stored = Grant & {
-  viewerSignature: string;
-  revoked: boolean;
-  accessEnabled?: boolean;
-  accessGeneration?: string;
-};
+import { RelayState, type Stored } from "./state.js";
+
 type Pending = {
   id: string;
   viewer: string;
@@ -60,59 +44,14 @@ export interface Options {
 }
 export function createRelay(options: Options) {
   const origin = originURL(options.origin);
-  mkdirSync(options.stateDir, { recursive: true, mode: 0o700 });
-  const file = path.join(options.stateDir, "pairings-v1.json");
-  const pairs: Record<string, Stored> = Object.create(null);
-  if (existsSync(file)) {
-    const saved = JSON.parse(readFileSync(file, "utf8")) as {
-      version: number;
-      pairs: Record<string, Stored>;
-    };
-    if (saved.version !== 1 || !saved.pairs || typeof saved.pairs !== "object")
-      throw new Error("Invalid authority state");
-    for (const [id, row] of Object.entries(saved.pairs)) {
-      fromHex(id, 16);
-      keyBytes(row.phone);
-      keyBytes(row.viewer);
-      if (row.id !== id || typeof row.revoked !== "boolean")
-        throw new Error("Invalid authority state");
-      if (
-        row.accessEnabled !== undefined &&
-        typeof row.accessEnabled !== "boolean"
-      )
-        throw new Error("Invalid access policy");
-      if (row.accessGeneration !== undefined) fromHex(row.accessGeneration, 16);
-      if (
-        (row.accessEnabled === undefined) !==
-        (row.accessGeneration === undefined)
-      )
-        throw new Error("Incomplete access policy");
-      pairs[id] = row;
-    }
-  }
-  const persist = () => {
-    const temporary = `${file}.next`;
-    writeFileSync(temporary, JSON.stringify({ version: 1, pairs }), {
-      mode: 0o600,
-    });
-    const fd = openSync(temporary, "r");
-    try {
-      fsyncSync(fd);
-    } finally {
-      closeSync(fd);
-    }
-    renameSync(temporary, file);
-    const dir = openSync(options.stateDir, "r");
-    try {
-      fsyncSync(dir);
-    } finally {
-      closeSync(dir);
-    }
-  };
+  const state = new RelayState(options.stateDir);
+  // Preserve shared row identity across async signature checks and revocations.
+  const pairs = state.pairs();
   let unhealthy = false;
-  const durable = () => {
+  const durable = (row: Stored) => {
     try {
-      persist();
+      if (row.revoked) state.revoke(row);
+      else state.putPair(row);
     } catch {
       unhealthy = true;
       for (const ws of wss.clients) ws.terminate();
@@ -120,7 +59,7 @@ export function createRelay(options: Options) {
     }
   };
   const push = new PushRegistry(
-    options.stateDir,
+    state,
     options.sender,
     Date.now,
     options.wakeCooldownMs,
@@ -155,7 +94,10 @@ export function createRelay(options: Options) {
     watchers.delete(id);
     for (const finish of waiting ?? []) finish();
   };
-  const buckets = new Map<string, { until: number; count: number }>();
+  const buckets = new Map<
+    string,
+    { until: number; count: number; enrollments: number }
+  >();
   const routes = new Map<
     string,
     Partial<Record<"phone" | "viewer", WebSocket>>
@@ -188,8 +130,14 @@ export function createRelay(options: Options) {
     let bucket = buckets.get(ip);
     if (!bucket || bucket.until <= now) {
       if (buckets.size >= 10000) return false;
-      bucket = { until: now + 60000, count: 0 };
+      bucket = { until: now + 60000, count: 0, enrollments: 0 };
       buckets.set(ip, bucket);
+    }
+    if (
+      req.method === "POST" &&
+      /^\/api\/pair\/[0-9a-f]{32}$/.test(req.url ?? "")
+    ) {
+      if (++bucket.enrollments > 10) return false;
     }
     return ++bucket.count <= 240;
   }
@@ -303,7 +251,13 @@ export function createRelay(options: Options) {
           createBytes(origin, { id, viewer, expires }),
           text("signature"),
         );
-        if (pairs[id] || pending.has(id) || unhealthy)
+        if (
+          pairs[id] ||
+          pending.has(id) ||
+          pending.size >= 1000 ||
+          expires * 1000 <= Date.now() ||
+          unhealthy
+        )
           throw new Error("Unavailable");
         pending.set(id, { id, viewer, expires });
         reply(201, { state: "waiting" });
@@ -358,8 +312,14 @@ export function createRelay(options: Options) {
           unhealthy
         )
           throw new Error("Unavailable");
+        // Recheck after verification: no await between admission and durable insert.
+        if (!state.canEnroll()) {
+          res.setHeader("Retry-After", "3600");
+          reply(429, { error: "Enrollment temporarily unavailable" });
+          return;
+        }
         pairs[id] = { ...p.offer, viewerSignature, revoked: false };
-        durable();
+        durable(pairs[id]);
         pending.delete(id);
         reply(200, { state: "paired", grant: pairs[id] });
         changed(id);
@@ -372,7 +332,7 @@ export function createRelay(options: Options) {
         );
         if (unhealthy) throw new Error("Unavailable");
         existing.revoked = true;
-        durable();
+        durable(existing);
         disconnect(id, ACCESS_REMOVED);
         push.remove(id);
         reply(200, { state: "revoked" });
@@ -392,14 +352,22 @@ export function createRelay(options: Options) {
     maxPayload: 1048608,
     perMessageDeflate: false,
   });
+  const unauthenticated = new Set<WebSocket>();
+  const managers = new Map<string, WebSocket>();
   server.on("upgrade", (req, socket, head) => {
-    if (req.url !== "/api/socket" || !admit(req) || wss.clients.size >= 1000) {
+    if (
+      req.url !== "/api/socket" ||
+      !admit(req) ||
+      wss.clients.size >= 1000 ||
+      unauthenticated.size >= 64
+    ) {
       socket.destroy();
       return;
     }
     wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws));
   });
   wss.on("connection", (ws: WebSocket) => {
+    unauthenticated.add(ws);
     const nonce = randomBytes(32).toString("hex");
     ws.send(JSON.stringify({ type: "challenge", nonce }));
     let id: string | undefined;
@@ -430,6 +398,8 @@ export function createRelay(options: Options) {
     });
     ws.on("error", () => ws.terminate());
     ws.on("close", () => {
+      unauthenticated.delete(ws);
+      if (id && managers.get(id) === ws) managers.delete(id);
       clearTimeout(timeout);
       clearTimeout(lifetime);
       clearInterval(heartbeat);
@@ -477,10 +447,13 @@ export function createRelay(options: Options) {
               message.requestId !== undefined
             )
               throw new Error("Invalid mode");
+            if (managers.has(message.id)) throw new Error("Already managing");
+            managers.set(message.id, ws);
             id = message.id;
             role = "phone";
             managementOnly = true;
             authenticated = true;
+            unauthenticated.delete(ws);
             clearTimeout(timeout);
             ws.send(JSON.stringify({ type: "authenticated" }));
             return;
@@ -512,6 +485,7 @@ export function createRelay(options: Options) {
           route[role] = ws;
           routes.set(id, route);
           authenticated = true;
+          unauthenticated.delete(ws);
           clearTimeout(timeout);
           ws.send(JSON.stringify({ type: "authenticated" }));
           if (options.sender && role === "viewer" && !route.phone) {
@@ -598,7 +572,7 @@ export function createRelay(options: Options) {
                 const first = pair.accessGeneration === undefined;
                 pair.accessGeneration = registration.generation;
                 pair.accessEnabled = registration.enabled;
-                durable();
+                durable(pair);
                 if (!first || !registration.enabled) {
                   disconnect(
                     pair.id,
@@ -669,6 +643,7 @@ export function createRelay(options: Options) {
       await new Promise<void>((resolve, reject) =>
         server.close((e) => (e ? reject(e) : resolve())),
       );
+      state.close();
     },
   };
 }

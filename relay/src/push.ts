@@ -1,11 +1,11 @@
-import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import path from "node:path";
 import {
   applicationDefault,
   deleteApp,
   initializeApp,
 } from "firebase-admin/app";
 import { getMessaging, type Message } from "firebase-admin/messaging";
+
+import type { RelayState } from "./state.js";
 
 export type Wake = {
   requestId: string;
@@ -66,40 +66,17 @@ export class PushRegistry {
   private targets: Record<string, { fid: string; generation?: string }> =
     Object.create(null);
   private readonly cooldown = new Map<string, number>();
-  private readonly file: string;
+  private readonly state: RelayState;
   private window = 0;
   private sends = 0;
   constructor(
-    directory: string,
+    state: RelayState,
     private readonly send?: Sender,
     private readonly now = Date.now,
     private readonly cooldownMs = 30000,
   ) {
-    this.file = path.join(directory, "push-registrations-v1.json");
-    if (existsSync(this.file)) {
-      const saved = JSON.parse(readFileSync(this.file, "utf8")) as {
-        version: number;
-        targets: Record<string, string | { fid: string; generation?: string }>;
-      };
-      if (
-        saved.version !== 1 ||
-        !saved.targets ||
-        Object.keys(saved.targets).length > 10000
-      )
-        throw new Error("Invalid push state");
-      for (const [id, value] of Object.entries(saved.targets)) {
-        const target = typeof value === "string" ? { fid: value } : value;
-        const fid = target.fid;
-        if (
-          target.generation !== undefined &&
-          !/^[0-9a-f]{32}$/.test(target.generation)
-        )
-          throw new Error("Invalid push generation");
-        if (!/^[0-9a-f]{32}$/.test(id) || !validFid(fid))
-          throw new Error("Invalid push state");
-        this.targets[id] = target;
-      }
-    }
+    this.state = state;
+    this.targets = state.targets();
   }
   register(id: string, fid: string, generation?: string) {
     if (!validFid(fid)) throw new Error("Invalid registration");
@@ -110,20 +87,13 @@ export class PushRegistry {
       this.targets[id]?.generation === generation
     )
       return;
-    this.targets[id] = { fid, ...(generation ? { generation } : {}) };
-    this.persist();
+    const target = { fid, ...(generation ? { generation } : {}) };
+    this.state.putTarget(id, target);
+    this.targets[id] = target;
   }
   remove(id: string) {
+    this.state.removeTarget(id);
     delete this.targets[id];
-    this.persist();
-  }
-  private persist() {
-    writeFileSync(
-      `${this.file}.next`,
-      JSON.stringify({ version: 1, targets: this.targets }),
-      { mode: 0o600 },
-    );
-    renameSync(`${this.file}.next`, this.file);
   }
   retryAfterMs(id: string): number {
     return Math.max(0, (this.cooldown.get(id) ?? 0) - this.now());

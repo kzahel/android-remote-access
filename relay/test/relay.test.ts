@@ -1,5 +1,5 @@
 import { once } from "node:events";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
@@ -28,6 +28,17 @@ import { afterEach, beforeEach, expect, it } from "vitest";
 import { WebSocket } from "ws";
 import type { Options } from "../src/server.js";
 import { createRelay } from "../src/server.js";
+
+import { RelayState } from "../src/state.js";
+
+function pushState() {
+  const state = new RelayState(directory);
+  try {
+    return JSON.stringify(state.targets());
+  } finally {
+    state.close();
+  }
+}
 
 const origin = "https://example.test";
 let directory: string;
@@ -182,10 +193,9 @@ afterEach(async () => {
 });
 it("pairs only after both endpoint signatures and never stores the QR secret", async () => {
   await enroll();
-  const stored = await readFile(
-    path.join(directory, "pairings-v1.json"),
-    "utf8",
-  );
+  const state = new RelayState(directory);
+  const stored = JSON.stringify(state.pairs());
+  state.close();
   expect(stored).not.toContain(invitation.secret);
   expect((await create()).status).toBe(400);
   expect((await api()).status).toBe(200);
@@ -627,9 +637,7 @@ it("rejects delayed, expired and revoked wake requests", async () => {
   await expect(
     revoked.login(phone, "phone", { requestId: sent?.requestId }),
   ).rejects.toThrow();
-  expect(
-    await readFile(path.join(directory, "push-registrations-v1.json"), "utf8"),
-  ).not.toContain(fid);
+  expect(pushState()).not.toContain(fid);
 });
 
 it("lets the phone disable delivery but refuses viewer registration", async () => {
@@ -643,9 +651,7 @@ it("lets the phone disable delivery but refuses viewer registration", async () =
   await p.login(phone, "phone", { mode: "registration" });
   p.socket.send(JSON.stringify({ type: "unregisterPush" }));
   expect((await p.json()).type).toBe("pushRemoved");
-  expect(
-    await readFile(path.join(directory, "push-registrations-v1.json"), "utf8"),
-  ).not.toContain(fid);
+  expect(pushState()).not.toContain(fid);
 });
 it("registration-only connections cannot inject records into a live route", async () => {
   await enroll();
@@ -776,4 +782,72 @@ it("independently enrolls and revokes two browsers for the same phone", async ()
   expect((await unaffected.login(secondViewer, "viewer")).type).toBe(
     "authenticated",
   );
+});
+
+it("limits pairing starts separately from existing-session traffic", async () => {
+  for (let i = 0; i < 10; i++) {
+    invitation.id = i.toString(16).padStart(32, "0");
+    expect((await create()).status).toBe(201);
+  }
+  invitation.id = "ff".repeat(16);
+  expect((await create()).status).toBe(429);
+  expect((await api()).status).toBe(404);
+});
+it("bounds unauthenticated sockets and releases admission after close", async () => {
+  const idle = Array.from({ length: 64 }, () => client());
+  await Promise.all(idle.map((c) => c.json()));
+  await expect(client().next()).rejects.toThrow();
+  const first = idle[0];
+  if (!first) throw new Error("Missing fixture");
+  const closed = once(first.socket, "close");
+  first.socket.close();
+  await closed;
+  expect((await client().json()).type).toBe("challenge");
+});
+it("allows one phone management connection without displacing it", async () => {
+  await enroll();
+  const first = client();
+  await first.login(phone, "phone", { mode: "registration" });
+  await expect(
+    client().login(phone, "phone", { mode: "registration" }),
+  ).rejects.toThrow();
+  expect(first.socket.readyState).toBe(WebSocket.OPEN);
+});
+it("keeps existing routes usable when the persistent enrollment budget is full", async () => {
+  await enroll();
+  const state = new RelayState(directory);
+  const row = state.pairs()[invitation.id];
+  if (!row) throw new Error("Missing fixture");
+  for (let i = 0; i < 99; i++)
+    state.putPair({ ...row, id: i.toString(16).padStart(32, "0") });
+  state.close();
+  await relay.close();
+  await start();
+  expect((await client().login(viewer, "viewer")).type).toBe("authenticated");
+  invitation.id = "fe".repeat(16);
+  expect((await create()).status).toBe(201);
+  const grant = await offer();
+  expect((await api("/offer", grant)).status).toBe(202);
+  const response = await api("/complete", {
+    viewerSignature: b64(await viewer.sign(grantBytes(origin, grant))),
+  });
+  expect(response.status).toBe(429);
+  expect(response.headers.get("retry-after")).toBe("3600");
+});
+it("fails closed when a durable authority write fails", async () => {
+  await enroll();
+  const state = new RelayState(directory);
+  state.db.exec(
+    "CREATE TRIGGER reject_write BEFORE UPDATE ON pairings BEGIN SELECT RAISE(ABORT, 'fixture'); END",
+  );
+  state.close();
+  expect(
+    (
+      await api("/revoke", {
+        signature: b64(await phone.sign(revokeBytes(origin, invitation.id))),
+      })
+    ).status,
+  ).toBe(503);
+  expect((await fetch(`${base}/health`)).status).toBe(503);
+  await expect(client().next()).rejects.toThrow();
 });

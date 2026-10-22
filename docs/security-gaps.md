@@ -12,7 +12,7 @@ implementation is outside this review.
 | --- | --- | --- | --- |
 | SG-1 | Paired-controller authority | Intentional product behavior | Explain the trust granted to an active controller. |
 | SG-2 | Enrollment-origin pinning | Implemented in source; release delivery pending | Ship the origin-pinned Android build. |
-| SG-3 | Relay enrollment-storage exhaustion | Open, high priority | Bound durable public state and make abuse unable to deny enrollment service-wide. |
+| SG-3 | Relay enrollment-storage exhaustion | Mitigated for development/self-hosting; public-service policy open | SQLite and small admission budgets bound work; distributed abuse can still deny new enrollment. |
 | SG-4 | FCM before the end-to-end session | Protocol behavior accepted; abuse controls open | Preserve endpoint authentication while adding fair wake quotas and monitoring. |
 | SG-5 | Pair-again semantics | Open, high priority | Do not present another pairing as revocation or repair. Define an explicit replacement flow. |
 | SG-6 | Hosted viewer origin | Intentional trust boundary | Treat deployment integrity as endpoint security. |
@@ -69,12 +69,20 @@ The existing Play beta is unchanged until a new Android build is released.
 The accountless relay lets a client create both endpoints and complete a
 cryptographically valid pairing without access to a victim. Pending requests
 are bounded, but completed and revoked pair records share a fixed durable cap.
-They survive restart, count against the cap indefinitely under the current
-protocol and are rewritten as part of the relay's JSON state. A distributed
-client can therefore fill the durable record limit, deny new enrollment for
-everyone and amplify disk and event-loop work. Recovery currently requires
-operator intervention; ordinary protocol use does not free the capacity.
+They survive restart and count against the cap indefinitely under the current
+protocol. On 2026-10-22, the Node relay moved pairing/policy/tombstone and push
+state to SQLite row writes, preserving existing grants through a one-time import.
+Pairing starts have a separate 10/IP/minute budget; completed pairings share a
+persistent rolling limit of 100/hour and the existing 10,000 lifetime cap.
+Admission is rechecked after asynchronous verification. There are at most 64
+unauthenticated sockets and one authenticated management socket per pairing.
+See [the bounded relay hardening](relay-storage.md).
 
+This is deliberately a small development/self-hosting investment. A distributed
+client can still consume the completion budget or eventually fill the durable
+cap and deny new enrollment. Existing grants remain usable at capacity; no
+pairings or tombstones are silently expired. SQLite removes whole-file rewrite
+amplification, not accountless enrollment abuse.
 Before broader public use, move this state to storage with bounded mutation
 cost, set defensible lifecycle and capacity rules, apply edge and per-principal
 quotas where a meaningful principal exists, and alert on growth and rejection
