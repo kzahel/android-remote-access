@@ -356,14 +356,8 @@ export function createRelay(options: Options) {
   const unauthenticated = new Set<WebSocket>();
   const managers = new Map<string, WebSocket>();
   server.on("upgrade", (req, socket, head) => {
-    const url = new URL(req.url ?? "/", origin);
-    const routeId = url.searchParams.get("id");
     if (
-      url.pathname !== "/api/socket" ||
-      (url.search &&
-        (url.searchParams.size !== 1 ||
-          !routeId ||
-          !/^[0-9a-f]{32}$/.test(routeId))) ||
+      !/^\/api\/socket(?:\?id=[0-9a-f]{32})?$/.test(req.url ?? "") ||
       !admit(req) ||
       wss.clients.size >= 1000 ||
       unauthenticated.size >= 64

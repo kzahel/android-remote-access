@@ -83,6 +83,13 @@ client can still consume the completion budget or eventually fill the durable
 cap and deny new enrollment. Existing grants remain usable at capacity; no
 pairings or tombstones are silently expired. SQLite removes whole-file rewrite
 amplification, not accountless enrollment abuse.
+
+The isolated Cloudflare backend now uses a bounded admission directory before
+pairing-object allocation, durable request/upgrade and socket-lease budgets, and
+receive-credit bounds across hibernation. These contain staging growth while
+its fixture gate stays closed; they do not resolve anonymous enrollment fairness
+or authorize public exposure. See [Cloudflare limits and tests](cloudflare-hardening.md).
+
 Before broader public use, move this state to storage with bounded mutation
 cost, set defensible lifecycle and capacity rules, apply edge and per-principal
 quotas where a meaningful principal exists, and alert on growth and rejection

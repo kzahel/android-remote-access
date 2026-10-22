@@ -128,7 +128,14 @@ function socket() {
     if (binary) {
       assert.ok(data instanceof ArrayBuffer);
       queue.push(data);
-    } else queue.push(data.toString());
+    } else {
+      const value = JSON.parse(data.toString());
+      if (value.type === "relayReceipt") {
+        ws.send(JSON.stringify({ type: "relayAck", nonce: value.nonce }));
+        return;
+      }
+      queue.push(data.toString());
+    }
     wake?.();
   });
   ws.on("close", () => {

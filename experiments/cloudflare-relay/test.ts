@@ -34,6 +34,17 @@ const options = convertV4MiniflareOptions({
   durableObjects: {
     PAIRINGS: { className: "Pairing", useSQLite: true },
     WAKE_BUDGET: { className: "WakeBudget", useSQLite: true },
+    ADMISSION: { className: "Admission", useSQLite: true },
+  },
+  ratelimits: {
+    HTTP_LIMITER: {
+      namespace_id: "340001",
+      simple: { limit: 240, period: 60 },
+    },
+    START_LIMITER: {
+      namespace_id: "340002",
+      simple: { limit: 10, period: 60 },
+    },
   },
   resourcePersistencePath: directory,
   bindings: { PUBLIC_ORIGIN: origin, PROOF_KEY: fixtureKey },
@@ -60,7 +71,7 @@ async function api(action = "", value?: unknown, routeId = id) {
         },
   );
 }
-async function socket() {
+async function socket(acknowledge = true) {
   const address = await mf.ready;
   const url = new URL(`/api/socket?id=${id}`, address);
   url.protocol = "ws:";
@@ -73,7 +84,15 @@ async function socket() {
     if (binary) {
       assert.ok(data instanceof ArrayBuffer);
       queue.push(data);
-    } else queue.push(data.toString());
+    } else {
+      const value = JSON.parse(data.toString());
+      if (value.type === "relayReceipt") {
+        if (acknowledge)
+          ws.send(JSON.stringify({ type: "relayAck", nonce: value.nonce }));
+        return;
+      }
+      queue.push(data.toString());
+    }
     wake?.();
   });
   ws.addEventListener("close", () => {
@@ -336,13 +355,56 @@ try {
     (await replacementViewer.login(viewer, "viewer")).type,
     "authenticated",
   );
-  const replacementPhone = await socket();
+  const replacementPhone = await socket(false);
   assert.equal(
     (await replacementPhone.login(phone, "phone")).type,
     "authenticated",
   );
   assert.equal((await replacementViewer.json()).type, "ready");
   assert.equal((await replacementPhone.json()).type, "ready");
+  const stalledViewerClose = new Promise<number>((resolve) =>
+    replacementViewer.ws.once("close", resolve),
+  );
+  const stalledPhoneClose = new Promise<number>((resolve) =>
+    replacementPhone.ws.once("close", resolve),
+  );
+  replacementViewer.ws.send(new Uint8Array(1048576));
+  assert.equal(
+    ((await replacementPhone.next()) as ArrayBuffer).byteLength,
+    1048576,
+  );
+  replacementViewer.ws.send(new Uint8Array(1048576));
+  assert.equal(
+    ((await replacementPhone.next()) as ArrayBuffer).byteLength,
+    1048576,
+  );
+  await mf.unsafeEvictDurableObject(workerName, "Pairing", {
+    name: id,
+    webSockets: "hibernate",
+  });
+  replacementViewer.ws.send(new Uint8Array(1));
+  assert.equal(
+    await stalledViewerClose,
+    4001,
+    "Unacknowledged data remains bounded across hibernation",
+  );
+  assert.equal(await stalledPhoneClose, 4001);
+  const invalidAckViewer = await socket();
+  assert.equal(
+    (await invalidAckViewer.login(viewer, "viewer")).type,
+    "authenticated",
+  );
+  const invalidAckClose = new Promise<number>((resolve) =>
+    invalidAckViewer.ws.once("close", resolve),
+  );
+  invalidAckViewer.ws.send(
+    JSON.stringify({ type: "relayAck", nonce: "00".repeat(16) }),
+  );
+  assert.equal(
+    await invalidAckClose,
+    4001,
+    "Cannot acknowledge data never sent",
+  );
   assert.equal(
     (
       await api("/revoke", {

@@ -40,7 +40,10 @@ export async function openEncryptedSession(
   url.searchParams.set("id", grant.id);
   const ws = new WebSocket(url);
   ws.binaryType = "arraybuffer";
-  type Frame = Bytes | { type: string; nonce?: string; delivery?: string };
+  let relayFlow = false;
+  type Frame =
+    | Bytes
+    | { type: string; nonce?: string; delivery?: string; relayFlow?: number };
   const queue: Frame[] = [];
   let queuedBytes = 0;
   let wake: (() => void) | undefined;
@@ -56,11 +59,19 @@ export async function openEncryptedSession(
   signal?.addEventListener("abort", close, { once: true });
   if (signal?.aborted) close();
   ws.onmessage = (event) => {
+    if (!active) return;
     try {
       const frame: Frame =
         typeof event.data === "string"
           ? JSON.parse(event.data)
           : new Uint8Array(event.data as ArrayBuffer);
+      if (!(frame instanceof Uint8Array) && frame.type === "relayReceipt") {
+        if (!relayFlow || typeof frame.nonce !== "string")
+          throw new Error("Relay receipt");
+        fromHex(frame.nonce, 16);
+        ws.send(JSON.stringify({ type: "relayAck", nonce: frame.nonce }));
+        return;
+      }
       queuedBytes +=
         typeof event.data === "string"
           ? event.data.length
@@ -95,8 +106,9 @@ export async function openEncryptedSession(
     if (!active)
       throw new Error(refusal ?? "Connection ended. Reconnect to continue.");
     const value = queue.shift();
-    if (value instanceof Uint8Array) queuedBytes -= value.byteLength;
-    else if (value) queuedBytes -= JSON.stringify(value).length;
+    if (value instanceof Uint8Array) {
+      queuedBytes -= value.byteLength;
+    } else if (value) queuedBytes -= JSON.stringify(value).length;
     return value;
   }
   async function next() {
@@ -120,6 +132,7 @@ export async function openEncryptedSession(
     )
       throw new Error("Invalid relay challenge");
     fromHex(challenge.nonce, 32);
+    relayFlow = challenge.relayFlow === 1;
     const signature = b64(
       await identity.sign(
         authBytes(location.origin, grant.id, "viewer", challenge.nonce),

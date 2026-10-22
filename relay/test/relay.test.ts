@@ -1,5 +1,6 @@
 import { once } from "node:events";
 import { mkdtemp, rm } from "node:fs/promises";
+import { createConnection } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
@@ -219,6 +220,25 @@ it.each([
   await expect(socket.json()).rejects.toThrow("Closed");
 });
 
+it("rejects malformed absolute upgrade targets without parsing an untrusted URL", async () => {
+  const target = new URL(base);
+  const socket = createConnection({
+    host: target.hostname,
+    port: Number(target.port),
+  });
+  try {
+    await once(socket, "connect");
+    const closed = once(socket, "close");
+    socket.write(
+      "GET http://[ HTTP/1.1\r\nHost: localhost\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n",
+    );
+    await closed;
+    expect((await fetch(`${base}/health`)).status).toBe(200);
+  } finally {
+    socket.destroy();
+  }
+});
+
 it("pairs only after both endpoint signatures and never stores the QR secret", async () => {
   await enroll();
   const state = new RelayState(directory);
@@ -325,6 +345,7 @@ it("forwards a real authenticated E2E handshake and binary Unicode record", asyn
     { ...va, peer: viewer.publicKey },
     new Uint8Array((await p.next()).data),
   );
+
   p.socket.send(ph.offer);
   v.socket.send(await vh.answer(new Uint8Array((await v.next()).data)));
   const accepted = await ph.finish(new Uint8Array((await p.next()).data));

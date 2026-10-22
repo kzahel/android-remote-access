@@ -9,5 +9,11 @@
     "noUncheckedIndexedAccess": true,
     "skipLibCheck": true
   },
-  "include": ["test.ts", "live-test.ts", "fcm-test.ts"]
+  "include": [
+    "test.ts",
+    "live-test.ts",
+    "fcm-test.ts",
+    "admission-test.ts",
+    "flow-test.ts"
+  ]
 }

@@ -85,8 +85,10 @@ background qualification. See the [product receipt](../experiments/cloudflare-re
 
 The [platform receive limit is 32 MiB](https://developers.cloudflare.com/durable-objects/platform/limits/),
 not the earlier 1 MiB estimate. Keep our tighter 1,048,608-byte record limit.
-Real slow-peer backpressure and reconnect/no-replay behavior still need work;
-the proof is intentionally incomplete and gated to fixtures.
+Receive ACKs now bound stalled peers across hibernation, with fresh-session
+reconnect tests. A bounded admission directory also prevents random-ID object
+allocation and caps growth; see [hardening and limits](cloudflare-hardening.md).
+The hosted runtime remains gated to fixtures.
 
 Abuse can become a bill before it exhausts memory. Reject malformed/unsigned
 creation before allocating objects, but valid self-generated keys are not a
@@ -112,7 +114,7 @@ runs; they are not a per-minute video price or a posted invoice. Hibernatable
 incoming messages appear as invocation events and still receive the 20:1
 billing ratio. A representative longer cost sample remains open.
 
-The next evidence bar is bounded public admission, production FCM credentials,
+The next evidence bar is public enrollment fairness/lifecycle, production FCM credentials,
 network diversity, sustained slow-peer bounds, and representative cost. The
 private product test gate remains closed after acceptance. Keep the current Pi
 service available. Avoid a generic multi-backend framework now.
@@ -162,4 +164,5 @@ standalone price reviewed today is $0.05 per outbound real-time GB; recheck at
 decision time. Neither service nor credentials have been provisioned here.
 
 Platform/vendor references above were reviewed **2026-10-22**. Measured evidence
-is limited to the deployed Node acceptance and the local Cloudflare proof.
+includes deployed Node acceptance and gated local/live Cloudflare proofs;
+public production operation is not qualified by those tests.

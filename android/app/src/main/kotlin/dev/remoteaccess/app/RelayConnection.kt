@@ -39,6 +39,7 @@ internal class RelayConnection(
     private var socket: WebSocket? = null
     private var ready = false
     private var control: ControlSession? = null
+    private var relayFlow = false
 
     @Volatile private var direct: dev.remoteaccess.app.transport.DirectLink? = null
 
@@ -71,7 +72,14 @@ internal class RelayConnection(
             check(active.get() && current())
             val message = JSONObject(text)
             when (message.getString("type")) {
+                "relayReceipt" -> {
+                    check(relayFlow)
+                    val nonce = message.getString("nonce")
+                    unhex(nonce, 16)
+                    check(webSocket.send(JSONObject().put("type", "relayAck").put("nonce", nonce).toString()))
+                }
                 "challenge" -> {
+                    relayFlow = message.optInt("relayFlow") == 1
                     val nonce = message.getString("nonce")
                     unhex(nonce, 32)
                     val data = fields("ara/relay/auth/v1", grant.getString("origin"), grant.getString("id"), "phone", nonce)

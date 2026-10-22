@@ -63,10 +63,12 @@ against revocation and duplicate attempts. The Node relay is not refactored into
 a generic multi-backend framework for this experiment.
 
 The fixture gate is not a proposed product login or production abuse policy.
-Random valid-looking reads/upgrades can still allocate objects behind that gate;
-valid self-generated enrollment signatures do not establish a scarce identity.
-Public edge admission, aggregate object/storage budgets, cleanup of abandoned
-objects, monitoring and spend containment still need a design. The proof adds
+The bounded admission directory now refuses unknown reads/upgrades before pairing
+object allocation and caps signed reservations, request/upgrade rates and socket
+leases. Valid self-generated enrollment signatures do not establish a scarce
+identity. Public enrollment fairness, reservation lifecycle, monitoring and spend
+containment remain open; see [limits and tests](../../docs/cloudflare-hardening.md).
+The proof adds
 a durable send budget of 100/minute globally and 10/minute per FID, plus a
 30-second per-pair cooldown; these are fixture bounds, not a public abuse policy.
 Do not expose this Worker anonymously.
@@ -79,8 +81,10 @@ The sender uses a short-lived OAuth token with a configured expiry; production
 credential provisioning and renewal are not implemented. Its dedicated sender's
 private key stays on the existing server.
 
-Held HTTP polls, sustained slow-peer backpressure, heartbeat qualification,
+Held HTTP polls, heartbeat qualification,
 network diversity and a representative operating-cost sample remain open.
+Receive ACKs now bound unacknowledged data across hibernation; a stalled receiver
+ends the route rather than accumulating ciphertext without an application bound.
 The platform's 32 MiB receive limit does not replace our own 1,048,608-byte binary
 record limit. Keep that application bound. See the actual Android, FCM, decoded
 video and metered-usage receipt below, and [hosting direction](../../docs/hosting-and-turn.md).

@@ -32,9 +32,15 @@ def configuration(account, worker, origin, bundle, tag, source):
         "vars": {"PUBLIC_ORIGIN": origin, "PROOF_EXPIRES": "1", "PROOF_BUILD": tag,
                  "RELEASE_VERSION": tag.removeprefix("relay-v"), "REVISION": source},
         "durable_objects": {"bindings": [{"name": "PAIRINGS", "class_name": "Pairing"},
-                                          {"name": "WAKE_BUDGET", "class_name": "WakeBudget"}]},
+                                          {"name": "WAKE_BUDGET", "class_name": "WakeBudget"},
+                                          {"name": "ADMISSION", "class_name": "Admission"}]},
         "migrations": [{"tag": "v1", "new_sqlite_classes": ["Pairing"]},
-                       {"tag": "v2", "new_sqlite_classes": ["WakeBudget"]}],
+                       {"tag": "v2", "new_sqlite_classes": ["WakeBudget"]},
+                       {"tag": "v3", "new_sqlite_classes": ["Admission"]}],
+        "ratelimits": [{"name": "HTTP_LIMITER", "namespace_id": "340001",
+                        "simple": {"limit": 240, "period": 60}},
+                       {"name": "START_LIMITER", "namespace_id": "340002",
+                        "simple": {"limit": 10, "period": 60}}],
     }
 
 

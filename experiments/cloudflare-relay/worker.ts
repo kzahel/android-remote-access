@@ -10,10 +10,17 @@ import {
   revokeBytes,
   verifySignature,
 } from "../../protocol/src/enrollment.js";
+import type { Admission } from "./admission.js";
 import { deliverFcm } from "./fcm.js";
+import { acknowledge, type Flow, forward, freshFlow, receive } from "./flow.js";
+
+export { Admission } from "./admission.js";
 
 type Env = {
   PAIRINGS: DurableObjectNamespace<Pairing>;
+  ADMISSION: DurableObjectNamespace<Admission>;
+  HTTP_LIMITER: RateLimit;
+  START_LIMITER: RateLimit;
   PUBLIC_ORIGIN: string;
   ASSETS?: Fetcher;
   WAKE_BUDGET?: DurableObjectNamespace;
@@ -56,6 +63,8 @@ type Attachment = {
   pushUpdated?: boolean;
   working?: boolean;
   role?: "phone" | "viewer";
+  flow: Flow;
+  lease: string;
 };
 const json = (value: unknown, status = 200) =>
   Response.json(value, { status, headers: { "Cache-Control": "no-store" } });
@@ -129,6 +138,26 @@ export default {
     )
       return json({ error: "Origin" }, 403);
     if (
+      url.pathname.startsWith("/api/") ||
+      url.pathname.startsWith("/_proof/")
+    ) {
+      if (!env.HTTP_LIMITER || !env.START_LIMITER || !env.ADMISSION)
+        return json({ error: "Admission unavailable" }, 503);
+      // Cloudflare supplies this header at ingress; forwarded user headers are not trusted.
+      const key = req.headers.get("CF-Connecting-IP") ?? "local";
+      const start =
+        req.method === "POST" &&
+        /^\/api\/pair\/[0-9a-f]{32}$/.test(url.pathname);
+      if (
+        !(await env.HTTP_LIMITER.limit({ key })).success ||
+        (start && !(await env.START_LIMITER.limit({ key })).success)
+      )
+        return new Response(null, {
+          status: 429,
+          headers: { "Retry-After": "60", "Cache-Control": "no-store" },
+        });
+    }
+    if (
       !url.pathname.startsWith("/api/") &&
       !url.pathname.startsWith("/_proof/")
     ) {
@@ -175,7 +204,37 @@ export default {
           body: JSON.stringify(value),
         });
       }
-      return await env.PAIRINGS.getByName(id).fetch(forward);
+      const admitted = await env.ADMISSION.getByName("global").fetch(
+        "https://admission.invalid/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id,
+            create: Boolean(api && !api[2] && req.method === "POST"),
+            upgrade: url.pathname === "/api/socket",
+          }),
+        },
+      );
+      if (!admitted.ok) return admitted;
+      const lease = admitted.headers.get("X-Relay-Lease");
+      const routed = new Request(forward);
+      routed.headers.delete("X-Relay-Lease");
+      if (lease) routed.headers.set("X-Relay-Lease", lease);
+      let result: Response | undefined;
+      try {
+        result = await env.PAIRINGS.getByName(id).fetch(routed);
+        return result;
+      } finally {
+        if (lease && result?.status !== 101)
+          await env.ADMISSION.getByName("global").fetch(
+            "https://admission.invalid/release",
+            {
+              method: "POST",
+              body: JSON.stringify({ lease }),
+            },
+          );
+      }
     } catch {
       return json({ error: "Rejected" }, 400);
     }
@@ -239,8 +298,10 @@ export class Pairing extends DurableObject<Env> {
       });
     }
     if (url.pathname === "/api/socket") {
+      const lease = req.headers.get("X-Relay-Lease");
       if (
         req.headers.get("Upgrade") !== "websocket" ||
+        !lease ||
         this.ctx.getWebSockets().length >= 8
       )
         return json({ error: "Unavailable" }, 429);
@@ -251,10 +312,16 @@ export class Pairing extends DurableObject<Env> {
         session: crypto.randomUUID(),
         nonce: hex(crypto.getRandomValues(new Uint8Array(32))),
         deadline: Date.now() + 10000,
+        flow: freshFlow(),
+        lease,
       } satisfies Attachment);
       const attachment = server.deserializeAttachment() as Attachment;
       server.send(
-        JSON.stringify({ type: "challenge", nonce: attachment.nonce }),
+        JSON.stringify({
+          type: "challenge",
+          nonce: attachment.nonce,
+          relayFlow: 1,
+        }),
       );
       await this.schedule();
       return new Response(null, { status: 101, webSocket: pair[0] });
@@ -403,6 +470,7 @@ export class Pairing extends DurableObject<Env> {
         if (
           !latest ||
           latest.revoked ||
+          attachment.deadline <= Date.now() ||
           ws.readyState !== WebSocket.OPEN ||
           !this.ctx.getWebSockets().includes(ws)
         )
@@ -477,7 +545,30 @@ export class Pairing extends DurableObject<Env> {
       }
       if (pair.revoked || attachment.deadline <= Date.now())
         throw new Error("Unavailable");
+      if (typeof message === "string" && message.length > 512)
+        throw new Error("Metadata size");
+      attachment = {
+        ...attachment,
+        flow: receive(
+          attachment.flow,
+          typeof message === "string"
+            ? new TextEncoder().encode(message).length
+            : message.byteLength,
+          Date.now(),
+        ),
+      };
+      ws.serializeAttachment(attachment);
       if (typeof message === "string") {
+        if (!attachment.management && message.length <= 256) {
+          const ack = JSON.parse(message);
+          if (ack.type === "relayAck") {
+            ws.serializeAttachment({
+              ...attachment,
+              flow: this.receipt(ws, acknowledge(attachment.flow, ack.nonce)),
+            });
+            return;
+          }
+        }
         if (attachment.role !== "phone" || message.length > 512)
           throw new Error("Metadata");
         const value = JSON.parse(message);
@@ -544,10 +635,30 @@ export class Pairing extends DurableObject<Env> {
         attachment.role === "phone" ? "viewer" : "phone",
       )[0];
       if (!peer) throw new Error("Peer");
+      const receiver = peer.deserializeAttachment() as Attachment;
+      const flow = forward(receiver.flow, message.byteLength);
       peer.send(message);
+      peer.serializeAttachment({ ...receiver, flow: this.receipt(peer, flow) });
     } catch {
+      if (
+        (ws.deserializeAttachment() as Attachment).role &&
+        !(ws.deserializeAttachment() as Attachment).management
+      )
+        this.disconnect();
       ws.close(4003, "Rejected");
     }
+  }
+  private receipt(ws: WebSocket, flow: Flow): Flow {
+    if (flow.checkpoint || flow.sentRecords === flow.ackedRecords) return flow;
+    const checkpoint = {
+      nonce: hex(crypto.getRandomValues(new Uint8Array(16))),
+      bytes: flow.sentBytes,
+      records: flow.sentRecords,
+    };
+    // Sent AFTER its covered records on this same ordered socket. A colluding
+    // sender cannot invent credit without the receiver reading those bytes.
+    ws.send(JSON.stringify({ type: "relayReceipt", nonce: checkpoint.nonce }));
+    return { ...flow, checkpoint };
   }
   async webSocketClose(ws: WebSocket, code: number) {
     const attachment = ws.deserializeAttachment() as Attachment;
@@ -559,10 +670,21 @@ export class Pairing extends DurableObject<Env> {
       this.disconnect();
     // 1005/1006 are observations, never legal close-frame status codes.
     ws.close([1004, 1005, 1006, 1015].includes(code) ? 1000 : code);
+    await this.release(attachment.lease);
     await this.schedule();
   }
-  webSocketError(ws: WebSocket) {
+  async webSocketError(ws: WebSocket) {
     ws.close(1011, "Transport");
+    await this.release((ws.deserializeAttachment() as Attachment).lease);
+  }
+  private async release(lease: string) {
+    await this.env.ADMISSION.getByName("global").fetch(
+      "https://admission.invalid/release",
+      {
+        method: "POST",
+        body: JSON.stringify({ lease }),
+      },
+    );
   }
   private async attemptWake() {
     const wake = this.get<Wake>("wake"),
