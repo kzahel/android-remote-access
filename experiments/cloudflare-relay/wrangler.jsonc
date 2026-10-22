@@ -5,9 +5,29 @@
   "compatibility_date": "2026-10-01",
   "workers_dev": false,
   "preview_urls": false,
-  "vars": { "PUBLIC_ORIGIN": "https://proof.invalid" },
-  "durable_objects": {
-    "bindings": [{ "name": "PAIRINGS", "class_name": "Pairing" }]
+  "vars": {
+    "PUBLIC_ORIGIN": "https://proof.invalid"
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Pairing"] }]
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "PAIRINGS",
+        "class_name": "Pairing"
+      },
+      {
+        "name": "WAKE_BUDGET",
+        "class_name": "WakeBudget"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["Pairing"]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["WakeBudget"]
+    }
+  ]
 }

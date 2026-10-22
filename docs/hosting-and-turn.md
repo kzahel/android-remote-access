@@ -47,8 +47,8 @@ closed afterward; details and remaining limits are in the
 
 A front Worker can route each pairing ID to one SQLite-backed Durable Object.
 The client must supply that ID when opening its socket; the proof uses
-`/api/socket?id=…` and still verifies the signed ID/role/key. Current Android and
-browser clients send the ID only after connection, so they need a URL change.
+`/api/socket?id=…` and still verifies the signed ID/role/key. Normal Android and
+browser builds send the ID only after connection; private proof builds add it.
 Keep signing against the configured origin and keep identifiers out of logs.
 
 Use the hibernation API, serialized socket attachments and alarms. Memory resets
@@ -60,13 +60,19 @@ Its authentication alarm produced a clean 4003 close observed at about 20 second
 for a 10-second deadline over loopback. The live protocol runs observed clean
 closes at 10.16 and 10.11 seconds, matching the configured 10-second deadline.
 
-FCM remains an outbound HTTPS operation. A Worker port could use OAuth access
-tokens and the [FCM HTTP v1 API](https://firebase.google.com/docs/cloud-messaging/send/v1-api),
-whose [message schema](https://firebase.google.com/docs/reference/fcm/rest/v1/projects.messages)
-supports the FID target used by the pinned SDKs. That is documentation/source
-feasibility, not a tested Worker sender. Keep credentials server-side, preserve
-exact request/generation binding, coalescing, expiry and invalid-target handling,
-and test process-absent wake before claiming parity.
+The live product proof now sends outbound FCM HTTP v1 directly from Cloudflare
+with a short-lived token from the existing dedicated sender. Its private key
+stays on the Pi. Real process-absent API 35 Android wake passed, followed by a
+fresh encrypted exchange in about 1.5–1.6 seconds. Management sockets, push
+registration, generation-bound policy, coalescing, expiry and send budgets are
+implemented for the proof; production credential renewal remains open.
+
+Owned-emulator and real React-browser acceptance also passed QR/Grant pairing,
+restart persistence, tap/text/swipe/navigation/app launch, disabling access and
+revocation. Forced WebSocket fallback rendered 77 decoded H.264 frames in
+5.003 seconds, receiving 1,355,057 encrypted binary bytes (about 2.17 Mbps).
+These runs used one computer, not independent mobile networks or physical-phone
+background qualification. See the [product receipt](../experiments/cloudflare-relay/README.md#live-androidbrowser-product-receipt--2026-10-22).
 
 The [platform receive limit is 32 MiB](https://developers.cloudflare.com/durable-objects/platform/limits/),
 not the earlier 1 MiB estimate. Keep our tighter 1,048,608-byte record limit.
@@ -89,13 +95,18 @@ video must be measured. For the hosted proof, record messages/bytes per second,
 active duration, storage reads/writes, wake attempts and actual usage. Local
 latency numbers cannot predict deployed latency or the final bill.
 
-An isolated hosted namespace/hostname now passes the synthetic protocol suite,
-including actual hibernation, encrypted streaming and revocation across
-redeployment. The next evidence bar is policy and wake parity, bounded public
-admission, owned-emulator Android/browser acceptance, real WebSocket H.264
-fallback, network diversity, sustained slow-peer bounds and measured cost.
-Keep the current Pi service available while this is investigated. Avoid a
-generic multi-backend framework now.
+The authenticated dashboard confirms the current Workers Free plan and $0.00
+Durable Object billable cost for this small proof. Recovered namespace metrics
+included about 2.33k raw invocations, 3.18 GB-s and 40.96 kB stored, plus 2,408
+rows read and 95 written. These cumulative metrics include synthetic and native
+runs; they are not a per-minute video price or a posted invoice. Hibernatable
+incoming messages appear as invocation events and still receive the 20:1
+billing ratio. A representative longer cost sample remains open.
+
+The next evidence bar is bounded public admission, production FCM credentials,
+network diversity, sustained slow-peer bounds, and representative cost. The
+private product test gate remains closed after acceptance. Keep the current Pi
+service available. Avoid a generic multi-backend framework now.
 
 ## Pi coturn direction
 

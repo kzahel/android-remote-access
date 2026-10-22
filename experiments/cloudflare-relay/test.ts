@@ -31,7 +31,10 @@ const options = convertV4MiniflareOptions({
   scriptPath: ".local/bundle/worker.js",
   compatibilityDate: "2026-10-01",
   cf: false,
-  durableObjects: { PAIRINGS: { className: "Pairing", useSQLite: true } },
+  durableObjects: {
+    PAIRINGS: { className: "Pairing", useSQLite: true },
+    WAKE_BUDGET: { className: "WakeBudget", useSQLite: true },
+  },
   resourcePersistencePath: directory,
   bindings: { PUBLIC_ORIGIN: origin, PROOF_KEY: fixtureKey },
 });
@@ -254,6 +257,31 @@ try {
       forcedHibernationPreservedAuthenticatedSockets: true,
     }),
   );
+  const budgets = await mf.getDurableObjectNamespace("WAKE_BUDGET");
+  const budget = budgets.get(budgets.idFromName("global"));
+  const admit = (fid: string) =>
+    budget.fetch("https://budget.invalid/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fid }),
+    });
+  for (let attempt = 0; attempt < 10; attempt++)
+    assert.equal((await admit("fixture-target")).status, 200);
+  assert.equal(
+    (await admit("fixture-target")).status,
+    429,
+    "Per-target budget",
+  );
+  for (let attempt = 0; attempt < 90; attempt++)
+    assert.equal((await admit(`fixture-${attempt}`)).status, 200);
+  await mf.unsafeEvictDurableObject(workerName, "WakeBudget", {
+    name: "global",
+  });
+  assert.equal(
+    (await admit("fresh-target")).status,
+    429,
+    "Global budget survives eviction",
+  );
   const alarmStarted = performance.now();
   const idle = await socket();
   await idle.json();
@@ -288,6 +316,23 @@ try {
   });
   const duplicate = await socket();
   await assert.rejects(duplicate.login(viewer, "viewer"));
+  const peerClosed = new Promise<number>((resolve) =>
+    v.ws.once("close", resolve),
+  );
+  p.ws.terminate();
+  assert.equal(await peerClosed, 4001, "Abrupt loss must disconnect the peer");
+  const replacementViewer = await socket();
+  assert.equal(
+    (await replacementViewer.login(viewer, "viewer")).type,
+    "authenticated",
+  );
+  const replacementPhone = await socket();
+  assert.equal(
+    (await replacementPhone.login(phone, "phone")).type,
+    "authenticated",
+  );
+  assert.equal((await replacementViewer.json()).type, "ready");
+  assert.equal((await replacementPhone.json()).type, "ready");
   assert.equal(
     (
       await api("/revoke", {

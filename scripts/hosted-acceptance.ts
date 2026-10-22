@@ -13,6 +13,7 @@ import { decodeInvitation } from "../protocol/src/enrollment.js";
 import { nativeFailure } from "./acceptance-diagnostics.js";
 import { controlAcceptance } from "./control-acceptance.js";
 import { mobileAcceptance } from "./mobile-management-acceptance.js";
+import { admitProofBrowser } from "./proof-relay.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const origin = process.env.HOSTED_ORIGIN;
@@ -49,22 +50,28 @@ if (physical && (!expectedModel || physical.startsWith("emulator-")))
   );
 if (doze && (!physical || process.env.HOSTED_FCM !== "1"))
   throw new Error("Doze acceptance requires physical FCM mode");
-const state = path.join(
-  root,
-  control
-    ? physical
-      ? ".local/physical-control-proof"
-      : ".local/control-proof"
-    : multi
-      ? ".local/mobile-proof"
-      : physical
-        ? ".local/physical-hosted-proof"
-        : ".local/hosted-proof",
-);
+const state = process.env.HOSTED_STATE_DIRECTORY
+  ? path.resolve(process.env.HOSTED_STATE_DIRECTORY)
+  : path.join(
+      root,
+      control
+        ? physical
+          ? ".local/physical-control-proof"
+          : ".local/control-proof"
+        : multi
+          ? ".local/mobile-proof"
+          : physical
+            ? ".local/physical-hosted-proof"
+            : ".local/hosted-proof",
+    );
+if (physical && process.env.HOSTED_STATE_DIRECTORY)
+  throw new Error("Custom state directories require an owned emulator");
 const fcm = process.env.HOSTED_FCM === "1";
 const sdk = process.env.ANDROID_HOME ?? path.join(os.homedir(), "Android/Sdk");
 const adbPath = path.join(sdk, "platform-tools/adb");
-const port = 5594;
+const port = Number(process.env.HOSTED_EMULATOR_PORT ?? 5594);
+if (!Number.isInteger(port) || port < 5554 || port > 5682 || port % 2)
+  throw new Error("HOSTED_EMULATOR_PORT must be an even emulator port");
 const serial = physical ?? `emulator-${port}`;
 const appId = "com.yepcontrol.app";
 const env = {
@@ -248,7 +255,11 @@ try {
       "--user",
       "0",
       "-r",
-      path.join(root, "android/app/build/outputs/apk", apk),
+      path.join(
+        process.env.HOSTED_APK_DIRECTORY ??
+          path.join(root, "android/app/build/outputs/apk"),
+        apk,
+      ),
     );
     installed.push(pkg);
   }
@@ -358,7 +369,10 @@ try {
       await writeFile(path.join(state, "storage-tests.log"), storageTests, {
         mode: 0o600,
       });
-      if (!storageTests.includes("OK (6 tests)"))
+      if (
+        Number(storageTests.match(/OK \(([0-9]+) tests\)/)?.[1] ?? 0) < 6 ||
+        storageTests.includes("FAILURES!!!")
+      )
         throw new Error(
           "Native storage/migration tests failed; see private log",
         );
@@ -389,6 +403,7 @@ try {
       viewport: { width: 1280, height: 1000 },
       deviceScaleFactor: 3,
     });
+    await admitProofBrowser(context, origin);
     const page = await context.newPage();
     await page.goto(`${origin}/pair`);
     const qr = page.getByRole("img", { name: "Scan to pair this browser" });
@@ -601,8 +616,10 @@ try {
       if (!result.includes("OK (1 test)"))
         throw new Error("Locked fixture revocation failed");
     }
-    const response = await fetch(`${origin}/api/pair/${invitation.id}`);
-    if (response.status !== 410)
+    const response = await context.request.get(
+      `${origin}/api/pair/${invitation.id}`,
+    );
+    if (response.status() !== 410)
       throw new Error("Revocation not durable at relay");
     revoked = true;
     await page.reload();

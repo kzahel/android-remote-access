@@ -37,6 +37,8 @@ export async function openEncryptedSession(
   let active = true;
   const url = new URL("/api/socket", location.origin);
   url.protocol = "wss:";
+  if (import.meta.env?.VITE_PROOF_RELAY === "1")
+    url.searchParams.set("id", grant.id);
   const ws = new WebSocket(url);
   ws.binaryType = "arraybuffer";
   type Frame = Bytes | { type: string; nonce?: string; delivery?: string };

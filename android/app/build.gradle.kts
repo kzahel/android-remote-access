@@ -34,6 +34,13 @@ val devSharingWebsite =
     providers.gradleProperty("devSharingWebsite").orNull ?: localProperties.getProperty("devSharingWebsite", "")
 if (devSharingWebsite.isNotEmpty()) requireOrigin(devSharingWebsite)
 
+// Private, debug-only Cloudflare acceptance fixture. Never embedded in release builds.
+val proofKeyFile = providers.environmentVariable("YEP_PROOF_RELAY_KEY_FILE").orNull
+val proofKey = proofKeyFile?.let { file(it).readText().trim() }.orEmpty()
+if (proofKey.isNotEmpty()) {
+    require(proofKey.matches(Regex("[0-9a-f]{64}")) && URI(sharingWebsite).host.endsWith(".workers.dev"))
+}
+
 val releaseVersion = Properties().apply { rootProject.file("version.properties").reader().use { load(it) } }
 
 android {
@@ -50,10 +57,16 @@ android {
         versionName = releaseVersion.getProperty("VERSION_NAME")
         buildConfigField("String", "SHARING_WEBSITE", "\"$sharingWebsite\"")
         buildConfigField("String", "DEV_SHARING_WEBSITE", "\"\"")
+        buildConfigField("boolean", "PROOF_RELAY", "false")
+        buildConfigField("String", "PROOF_RELAY_KEY", "\"\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
-        getByName("debug") { buildConfigField("String", "DEV_SHARING_WEBSITE", "\"$devSharingWebsite\"") }
+        getByName("debug") {
+            buildConfigField("String", "DEV_SHARING_WEBSITE", "\"$devSharingWebsite\"")
+            buildConfigField("boolean", "PROOF_RELAY", proofKey.isNotEmpty().toString())
+            buildConfigField("String", "PROOF_RELAY_KEY", "\"$proofKey\"")
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

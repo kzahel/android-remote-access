@@ -9,6 +9,7 @@ import { PNG } from "pngjs";
 import { resultMessage } from "../protocol/src/control.js";
 import { nativeFailure } from "./acceptance-diagnostics.js";
 import { prepareIdleWake } from "./control-recovery.js";
+import { admitProofBrowser } from "./proof-relay.js";
 
 type Fixture = {
   browser: Browser;
@@ -43,6 +44,7 @@ export async function controlAcceptance(f: Fixture) {
     viewport: { width: 1280, height: 1000 },
     deviceScaleFactor: 1,
   });
+  await admitProofBrowser(context, f.origin);
   if (process.env.HOSTED_DIRECT === "1") {
     await context.addInitScript(() => {
       const native = window.RTCPeerConnection;

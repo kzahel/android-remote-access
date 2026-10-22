@@ -47,7 +47,16 @@ internal fun grantBytes(
 internal val http =
     OkHttpClient
         .Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
+        .addInterceptor { chain ->
+            val original = chain.request()
+            val request =
+                if (BuildConfig.DEBUG && BuildConfig.PROOF_RELAY && original.url.toString().startsWith("${BuildConfig.SHARING_WEBSITE}/")) {
+                    original.newBuilder().header("X-Proof-Key", BuildConfig.PROOF_RELAY_KEY).build()
+                } else {
+                    original
+                }
+            chain.proceed(request)
+        }.connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
         .callTimeout(20, TimeUnit.SECONDS)
         .followRedirects(false)

@@ -186,7 +186,11 @@ async function connect() {
   const p = socket();
   await p.authenticate(phone, "phone");
   assert.equal((await p.json()).type, "authenticated");
-  assert.equal((await v.json()).type, "ready");
+  // The product sender can report wake progress before the synthetic phone joins.
+  let progress = await v.json();
+  for (let count = 0; progress.type === "contacting" && count < 4; count++)
+    progress = await v.json();
+  assert.equal(progress.type, "ready");
   assert.equal((await p.json()).type, "ready");
   const authority = {
     id: fromHex(id, 16),
@@ -227,11 +231,11 @@ async function connect() {
   }
   return { v, p, channel, phoneChannel: accepted.channel, exchange };
 }
-async function refusal(identity: typeof viewer, signedId = id) {
+async function refusal(identity: typeof viewer, signedId = id, code = 4003) {
   const candidate = socket();
   const closed = close(candidate.ws);
   await candidate.authenticate(identity, "viewer", signedId);
-  assert.equal((await closed).code, 4003);
+  assert.equal((await closed).code, code);
 }
 async function revoke() {
   const response = await api("/revoke", {
@@ -470,7 +474,7 @@ try {
   const vClosed = close(session.v.ws),
     pClosed = close(session.p.ws);
   await revoke();
-  assert.equal((await vClosed).code, 4001);
+  assert.equal((await vClosed).code, 4010);
   assert.equal((await pClosed).code, 4001);
   session.channel.close();
   session.phoneChannel.close();
@@ -512,7 +516,7 @@ try {
   assert.equal(current.revoked, true);
   assert.equal((await api()).status, 410);
   assert.equal((await api("", creation)).status, 400);
-  await refusal(viewer);
+  await refusal(viewer, id, 4010);
   report.revocationSurvivedRedeploy = true;
   report.finishedAt = new Date().toISOString();
   await writeFile(
