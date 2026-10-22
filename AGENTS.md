@@ -194,3 +194,16 @@ internal testing and verify the Play-installed build before wider closed testing
 This does not authorize production rollout or unrelated sibling/infrastructure changes.
 Private signing/IAM/tester inventories stay in dotfiles; public source carries
 only generic provisioning instructions and public client configuration.
+
+## Production relay authorization — 2026-10-22
+
+The owner authorized Cloudflare production relay cutover at `https://yepcontrol.com`,
+versioned CI deployment, a dedicated send-only FCM identity with renewable Google
+access tokens, migration of existing pairing authority, and retirement of the Pi
+relay. The production Worker and SQLite Durable Objects now serve that origin;
+the Pi relay and its backup timer are disabled, with historical authority retained
+privately. Do not reactivate the stale Pi database after Cloudflare writes.
+Keep the Node/SQLite runner for local and self-hosted operation. Pi coturn remains
+an investigation, not an installed service. See `docs/cloudflare-production.md`
+and `docs/relay-releases.md`. This authorizes relay production, not a Google Play
+production rollout or new physical-phone lock/debugging changes.

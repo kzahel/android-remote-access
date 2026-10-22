@@ -1,10 +1,11 @@
 # Relay hosting and TURN direction
 
-Updated **2026-10-22**. The owner chose a small SQLite/hardening investment in
-the Node relay, followed by a Cloudflare proof/investigation. Node remains useful
-for development and self-hosting; Workers + Durable Objects is a candidate for
-the future hosted service. The owner later authorized the [production Cloudflare cutover](cloudflare-production.md); a TURN
-installation remains a separate, unimplemented direction.
+Updated **2026-10-22**. The hosted service at **https://yepcontrol.com** now
+runs on Cloudflare Workers and SQLite Durable Objects, deployed through versioned
+CI. Existing pairing authority was migrated at the same origin; the Pi relay
+is disabled. See the [production cutover receipt](cloudflare-production.md).
+Node/SQLite remains the development and self-hosted implementation. Pi coturn
+remains a separate, unimplemented direction.
 
 The owner subsequently agreed to retain Node/SQLite for local development and
 self-hosting, with FCM optional, and pursue Cloudflare for hosted operation.
@@ -16,22 +17,16 @@ CI; see [release workflow and staging boundaries](relay-releases.md).
 
 ## Current service and sequence
 
-The development/beta service already runs at **https://yepcontrol.com** on the
-Pi behind HTTPS/WSS ingress. The Node SQLite release is deployed; see
-[storage, admission limits and recovery](relay-storage.md). Existing pairings
-keep their keys, origin, policy and tombstones. The relay stays single-process:
-both endpoints of a pairing must meet in the same process.
+The production relay, normal viewer and FCM sender run independently of the Pi.
+Android 0.7.0/code 5 and the current viewer support both Node and Cloudflare;
+installed older Android builds require an update for Cloudflare's routed sockets
+and flow receipts. Existing identities and pairings survive the update.
 
-1. Keep the Node service simple: SQLite row writes, bounded enrollment/connection
-   admission, durable revocations and verified backups. Distributed enrollment
-   exhaustion and wake fairness remain [open](security-gaps.md).
-2. Use an isolated Cloudflare experiment to establish runtime feasibility,
-   then a separate hosted proof for FCM, real clients/video and operating costs.
-3. Decide the hosted architecture from that evidence. Preserve the enrolled
-   origin or define an explicit migration; silently moving clients to another
-   hostname would strand existing grants.
-4. Investigate Pi coturn as a separate WebRTC transport improvement. It can work
-   with either relay host; a Worker/DO is not a TURN server.
+Keep Node simple: SQLite row writes, bounded admission, durable revocations and
+verified backups. Distributed enrollment exhaustion and wake fairness remain
+[open](security-gaps.md). Retain local/self-hosted acceptance separately from
+hosted operation; a Worker/DO is not a TURN server. The measured proof records
+below describe the investigation that preceded the production cutover.
 
 ## Cloudflare proof and findings
 

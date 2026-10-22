@@ -28,12 +28,12 @@ domain route, no preview URL and no FCM sender credential provisioning. An
 independently provisioned Worker secret supports [automatic FCM renewal](cloudflare-fcm.md);
 CI retains that secret and optionally configures its Firebase project. The staging configuration cannot
 select the production hostname or normal production Worker name. Existing
-Durable Object namespaces and authority remain intact. The Pi remains live;
-this workflow neither connects to it nor changes its service or DNS.
+Durable Object namespaces and authority remain intact. The Pi relay is now
+retired; this workflow neither connects to it nor changes its service or DNS.
 
 `GET /health` exposes only release identity and whether admission is closed.
 It does not look up a pairing, allocate an object or prove Android/FCM acceptance.
-All application paths remain behind the existing fixture gate. Reopening staging
+All staging application paths remain behind the existing fixture gate. Reopening staging
 for a bounded live acceptance run remains a separate operation. The separate production target uses explicit maintenance/public admission; see
 [production cutover and migration](cloudflare-production.md).
 
@@ -113,3 +113,14 @@ The subsequent `relay-v0.1.0-rc.3` release adds normal-client routing, bounded
 Cloudflare admission, connection leases and receipt-based backpressure. Both
 the tagged CI deployment and a native control/video run passed; a final CI
 deployment restored closed admission. See [the measured hardening receipt](cloudflare-hardening.md#live-staging-receipt--2026-10-22).
+
+## Production cutover — 2026-10-22
+
+`relay-v0.1.0` established production CI, preserved authority and passed native
+FCM/control acceptance. `relay-v0.1.1` adds the current privacy disclosure; its
+Worker, importer and remaining viewer assets match the native-tested bytes.
+The [production deployment](https://github.com/kzahel/yepcontrol/actions/runs/39837132249)
+verified the canonical HTTPS origin and actual uploaded Worker version with
+public admission. Production has its own environment/token, Google sender,
+Durable Object namespaces and edge rate-limit counters. Staging remains closed.
+See [the complete receipt and recovery rules](cloudflare-production.md).

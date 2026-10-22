@@ -2,7 +2,8 @@
 
 Implemented **2026-10-22**. The hosted relay obtains its own Google OAuth access
 tokens on demand. It needs no Pi, user login, cron job or CI token-refresh job.
-This change does not move the production origin or existing pairing authority.
+The subsequent [production cutover](cloudflare-production.md) migrated existing
+pairing authority at the unchanged production origin and retired the Pi relay.
 
 ## Credentials and token lifetime
 
@@ -17,7 +18,8 @@ Provision the account's JSON credential directly as the Cloudflare Worker secret
 `project_id` must match that deployment setting. Never put the key in source,
 Wrangler vars, GitHub artifacts, client builds or command arguments. CI retains
 the already provisioned Worker secret; it only supplies the public project ID
-through the `relay-staging` environment variable `FCM_PROJECT`.
+through each deployment environment’s `FCM_PROJECT` variable. Production and
+staging use separate sender identities and Worker secrets.
 
 The existing global SQLite-backed `WakeBudget` object coordinates token renewal.
 After reserving the existing 100/minute global and 10/minute per-FID send budgets,
