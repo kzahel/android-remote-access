@@ -168,6 +168,24 @@ export async function controlAcceptance(f: Fixture) {
       distanceChange: number;
       angleChange: number;
     };
+  async function freshFrames() {
+    const count = () =>
+      page.evaluate(() => {
+        const frames = window as unknown as {
+          __videoFrames: number;
+          __stillFrames: number;
+        };
+        return frames.__videoFrames + frames.__stillFrames;
+      });
+    const before = await count();
+    // One capture can already be in flight when the native activity changes.
+    // In still mode, subsequent captures also prove held input has drained.
+    await until(async () => (await count()) - before >= 2, 20000);
+  }
+  async function controlFixture() {
+    await command("control-fixture", {});
+    await freshFrames();
+  }
   async function startNative() {
     // --no-restart attaches to a running target (API 35 otherwise dereferences
     // a missing process). This ordinary launch never replaces an active owner.
@@ -327,7 +345,7 @@ export async function controlAcceptance(f: Fixture) {
         "Saved and manual PIN unlock passed on the synthetic emulator lock",
       );
     }
-    await command("control-fixture");
+    await controlFixture();
     await until(() => witness().taps === 0);
     if (process.env.HOSTED_VIDEO === "1") {
       await page
@@ -340,7 +358,7 @@ export async function controlAcceptance(f: Fixture) {
       );
       await command("approve-video");
       // Return from the consent activity to an independent animated native view.
-      await command("control-fixture");
+      await controlFixture();
       await until(
         () =>
           page.evaluate(
@@ -599,8 +617,7 @@ export async function controlAcceptance(f: Fixture) {
       ),
     );
     if (process.env.HOSTED_TOUCH === "1") {
-      await command("control-fixture");
-      await delay(1200);
+      await controlFixture();
       const slider = await at(witness().slider);
       await page.mouse.move(slider.x, slider.y);
       await page.mouse.down();
@@ -616,12 +633,11 @@ export async function controlAcceptance(f: Fixture) {
         await debug.detach();
       }
       await page.mouse.up();
-      await delay(1000);
+      await freshFrames();
       console.log("Native lost-packet watchdog released held input");
     }
     if (process.env.HOSTED_ROTATION === "1") {
-      await command("control-fixture");
-      await delay(1500);
+      await controlFixture();
       const middle = await at(witness().slider);
       await page.mouse.move(middle.x, middle.y);
       await page.mouse.down();
@@ -660,8 +676,7 @@ export async function controlAcceptance(f: Fixture) {
       );
     }
     if (process.env.HOSTED_DIRECT === "1") {
-      await command("control-fixture");
-      await delay(1500);
+      await controlFixture();
       const middle = await at(witness().slider);
       await page.mouse.move(middle.x, middle.y);
       await page.mouse.down();
