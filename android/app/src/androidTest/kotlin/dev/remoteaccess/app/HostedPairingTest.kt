@@ -80,6 +80,17 @@ class HostedPairingTest {
         section?.let { click(it) }
     }
 
+    private fun confirmRemoval() {
+        val confirm = By.res("android:id/button1").text("Remove")
+        // Session-status renders can replace the detail view between scrolling
+        // and tapping. Retry only opening the dialog, never its destructive action.
+        waitFor {
+            if (!device.hasObject(confirm)) click("remove_device")
+            device.wait(Until.hasObject(confirm), 2000)
+        }
+        assertNotNull(device.findObject(confirm)).click()
+    }
+
     private fun openDevice(id: String) {
         start()
         click("open_devices")
@@ -153,8 +164,7 @@ class HostedPairingTest {
                 stage.writeText("wake-ready")
             }
             "revoke" -> {
-                click("remove_device")
-                assertNotNull(device.wait(Until.findObject(By.res("android:id/button1")), 10000)).click()
+                confirmRemoval()
                 waitFor { store.snapshot.devices.isEmpty() }
                 stage.writeText("revoked")
             }
@@ -500,13 +510,7 @@ class HostedPairingTest {
                             waitFor { HostSessions.current.get() == null }
                         }
                         "remove" -> {
-                            if (!device.hasObject(By.res("${context.packageName}:id/remove_device"))) {
-                                UiScrollable(UiSelector().className("android.widget.ScrollView")).scrollIntoView(
-                                    UiSelector().resourceId("${context.packageName}:id/remove_device"),
-                                )
-                            }
-                            click("remove_device")
-                            assertNotNull(device.wait(Until.findObject(By.res("android:id/button1")), 10000)).click()
+                            confirmRemoval()
                             waitFor { store.device(id) == null }
                         }
                         else -> error("Unknown fixture action")
