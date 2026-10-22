@@ -10,37 +10,39 @@ const directory = await mkdtemp(path.join(tmpdir(), "yepcontrol-admission-"));
 const origin = "https://proof.invalid";
 const key = crypto.randomUUID();
 const identity = await createIdentity();
-const options = convertV4MiniflareOptions({
-  name: "admission-test",
-  modules: true,
-  scriptPath: ".local/bundle/worker.js",
-  compatibilityDate: "2026-10-01",
-  cf: false,
-  durableObjects: {
-    PAIRINGS: { className: "Pairing", useSQLite: true },
-    ADMISSION: { className: "Admission", useSQLite: true },
-  },
-  ratelimits: {
-    HTTP_LIMITER: {
-      namespace_id: "340001",
-      simple: { limit: 240, period: 60 },
+function configuration(capacity = "3", starts = "2") {
+  return convertV4MiniflareOptions({
+    name: "admission-test",
+    modules: true,
+    scriptPath: ".local/bundle/worker.js",
+    compatibilityDate: "2026-10-01",
+    cf: false,
+    durableObjects: {
+      PAIRINGS: { className: "Pairing", useSQLite: true },
+      ADMISSION: { className: "Admission", useSQLite: true },
     },
-    START_LIMITER: {
-      namespace_id: "340002",
-      simple: { limit: 10, period: 60 },
+    ratelimits: {
+      HTTP_LIMITER: {
+        namespace_id: "340001",
+        simple: { limit: 240, period: 60 },
+      },
+      START_LIMITER: {
+        namespace_id: "340002",
+        simple: { limit: 10, period: 60 },
+      },
     },
-  },
-  bindings: {
-    PUBLIC_ORIGIN: origin,
-    PROOF_KEY: key,
-    PAIRING_CAPACITY: "2",
-    PAIRING_STARTS_PER_HOUR: "2",
-    REQUESTS_PER_MINUTE: "100",
-    SOCKET_CAPACITY: "2",
-  },
-  resourcePersistencePath: directory,
-});
-let mf = new Miniflare(options);
+    bindings: {
+      PUBLIC_ORIGIN: origin,
+      PROOF_KEY: key,
+      PAIRING_CAPACITY: capacity,
+      PAIRING_STARTS_PER_HOUR: starts,
+      REQUESTS_PER_MINUTE: "100",
+      SOCKET_CAPACITY: "2",
+    },
+    resourcePersistencePath: directory,
+  });
+}
+let mf = new Miniflare(configuration());
 const id = () => hex(crypto.getRandomValues(new Uint8Array(16)));
 async function create(route: string, signature?: string, ip = "local") {
   const invitation = {
@@ -93,7 +95,8 @@ try {
   });
   assert.equal((await create(id())).status, 429, "Admission survives eviction");
   await mf.dispose();
-  mf = new Miniflare(options);
+  // Raise only the hourly bound: the independent lifetime cap must still refuse.
+  mf = new Miniflare(configuration("2", "3"));
   assert.equal(
     (await create(id())).status,
     429,
