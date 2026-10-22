@@ -82,7 +82,7 @@ dependencies {
     implementation("androidx.room:room-runtime:2.8.5")
     // Room migration serializers and the app must use the same runtime ABI.
     //noinspection NewerVersionAvailable
-    implementation(platform("org.jetbrains.kotlinx:kotlinx-serialization-bom:1.8.1"))
+    implementation(platform("org.jetbrains.kotlinx:kotlinx-serialization-bom:1.11.0"))
     // Predictive back support.
     //noinspection GradleDependency
     implementation("androidx.activity:activity:1.10.1")
