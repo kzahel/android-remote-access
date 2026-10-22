@@ -14,7 +14,7 @@
     "@types/ws": "8.18.1",
     "@cloudflare/workers-types": "5.20261022.1",
     "miniflare": "5.20261006.1-alpha",
-    "tsx": "4.21.0",
+    "tsx": "4.23.15",
     "typescript": "5.9.3",
     "wrangler": "4.149.0",
     "ws": "8.22.0"
