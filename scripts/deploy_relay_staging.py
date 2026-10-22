@@ -64,7 +64,8 @@ def main():
     for attempt in range(12):
         try:
             request = urllib.request.Request(config["vars"]["PUBLIC_ORIGIN"] + "/health",
-                                             headers={"Cache-Control": "no-cache"})
+                                             headers={"Cache-Control": "no-cache",
+                                                      "User-Agent": "YepControl-Relay-CI/1.0"})
             with urllib.request.urlopen(request, timeout=10) as response:
                 health = json.load(response)
             if deployed_health(health, receipt):
