@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "yepcontrol-relay-proof",
+  "main": "worker.ts",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": false,
+  "preview_urls": false,
+  "vars": { "PUBLIC_ORIGIN": "https://proof.invalid" },
+  "durable_objects": {
+    "bindings": [{ "name": "PAIRINGS", "class_name": "Pairing" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Pairing"] }]
+}

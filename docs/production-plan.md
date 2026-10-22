@@ -186,8 +186,9 @@ or has enough capacity for production video.
 - Public HTTPS/WSS through Caddy, with the application listener on loopback.
   This serves the fallback and WebRTC signaling; direct media travels between
   endpoints. Review signaling/STUN dependencies when selecting the WebRTC
-  library; no TURN service is planned. Self-hosted and Cloudflare TURN are
-  recorded as a [potential future direction](hosting-and-turn.md).
+  library. The owner requested a Pi coturn investigation, with managed TURN
+  as another option; see [hosting and TURN direction](hosting-and-turn.md).
+  No TURN service is deployed.
 - A separately supervised service with its own identity, configuration, state
   and resource limits. Keep it independent of the other products' services and
   pairing records.

@@ -1,0 +1,22 @@
+{
+  "name": "@yepcontrol/cloudflare-proof",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.30.3",
+  "scripts": {
+    "build": "wrangler deploy --dry-run --outdir .local/bundle",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "test": "pnpm build && tsx test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.15",
+    "@types/ws": "8.18.1",
+    "@cloudflare/workers-types": "5.20261022.1",
+    "miniflare": "5.20261006.1-alpha",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3",
+    "wrangler": "4.149.0",
+    "ws": "8.22.0"
+  },
+  "license": "MIT"
+}
