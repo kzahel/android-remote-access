@@ -87,7 +87,11 @@ Play bundle; never reuse a consumed code for changed bytes. On clean `main`:
    The repository variable `HOSTED_ACCEPTANCE_ORIGIN` designates the HTTPS development
    relay; release builds fail if it is unset. The matching viewer must already be
    deployed there. These tests own synthetic emulator pairings and never select a
-   physical phone. A separate main-only `android-release`
+   physical phone. CI's ephemeral debug signing key is not domain-associated:
+   `HOSTED_VERIFY_APP_LINKS=0` excludes OS association verification there, while
+   native invitation validation and normal Grant still run. Verify OS App Links
+   separately with an associated debug or Play-installed signer.
+   A separate main-only `android-release`
    environment signs the exact unsigned artifact using a dedicated project upload key.
 4. Download `yepcontrol-play-CODE`: it contains the signed AAB, its public upload
    certificate, SHA-256 and source/version/run receipt. The private key is

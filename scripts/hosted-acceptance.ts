@@ -280,17 +280,23 @@ try {
     adb("shell", "pm", "grant", appId, "android.permission.POST_NOTIFICATIONS");
   adb("shell", "run-as", appId, "mkdir", "-p", "files");
   if (!physical && origin === "https://yepcontrol.com") {
-    adb("shell", "pm", "verify-app-links", "--re-verify", appId);
-    await until(() =>
-      adb("shell", "pm", "get-app-links", appId).includes(
-        "yepcontrol.com: verified",
-      ),
-    );
-    await writeFile(
-      path.join(state, "app-links.log"),
-      adb("shell", "pm", "get-app-links", appId),
-      { mode: 0o600 },
-    );
+    if (process.env.HOSTED_VERIFY_APP_LINKS !== "0") {
+      adb("shell", "pm", "verify-app-links", "--re-verify", appId);
+      await until(() =>
+        adb("shell", "pm", "get-app-links", appId).includes(
+          "yepcontrol.com: verified",
+        ),
+      );
+      await writeFile(
+        path.join(state, "app-links.log"),
+        adb("shell", "pm", "get-app-links", appId),
+        { mode: 0o600 },
+      );
+    } else {
+      console.log(
+        "OS App Links association excluded for ephemeral CI debug signer; native invitation validation still runs",
+      );
+    }
     const links = adb(
       "shell",
       "am",
