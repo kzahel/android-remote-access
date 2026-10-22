@@ -5,6 +5,8 @@ import android.content.Intent
 import android.net.Uri
 import android.os.SystemClock
 import android.view.View
+import android.view.inspector.WindowInspector
+import android.widget.EditText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
@@ -205,13 +207,33 @@ class LocalSettingsProtectionTest {
             click("save_pin")
             val pin = view(selector("save_pin_value"))
             pin.click()
-            val beforePin = pin.text
             result(4, command(7, "123456".toByteArray()))
-            assertEquals(beforePin, pin.text, "Remote text must not reach the secure PIN editor")
-            pin.text = "314159" // Synthetic fixture value only, no device lock change.
-            view(selector("save_pin_confirm")).text = "314159"
+            instrumentation.runOnMainSync {
+                val root = WindowInspector.getGlobalWindowViews().first { it.findViewById<View>(R.id.save_pin_value) != null }
+                val value = root.findViewById<EditText>(R.id.save_pin_value)
+                val confirmation = root.findViewById<EditText>(R.id.save_pin_confirm)
+                assertEquals("", value.text.toString(), "Remote text must not reach the secure PIN editor")
+                // Password fields hide text from accessibility on some emulator images.
+                // Seed only this synthetic editor fixture; local Save still uses real UI input.
+                value.setText("314159")
+                confirmation.setText("314159")
+            }
+            instrumentation.waitForIdleSync()
+            device.waitForIdle()
             view(By.res("android:id/button1")).click()
-            waitFor { vault.saved() }
+            try {
+                waitFor { vault.saved() }
+            } catch (error: Throwable) {
+                var diagnostic = "editor closed"
+                instrumentation.runOnMainSync {
+                    WindowInspector.getGlobalWindowViews().firstOrNull { it.findViewById<View>(R.id.save_pin_value) != null }?.let { root ->
+                        val value = root.findViewById<EditText>(R.id.save_pin_value)
+                        val confirmation = root.findViewById<EditText>(R.id.save_pin_confirm)
+                        diagnostic = "lengths=${value.length()}/${confirmation.length()}, error=${confirmation.error}"
+                    }
+                }
+                throw AssertionError("Synthetic PIN save failed: $diagnostic", error)
+            }
             click("save_pin")
             val forget = view(By.res("android:id/button1")).visibleBounds
             result(4, command(4, ByteBuffer.allocate(12).putInt(1).putInt(forget.centerX()).putInt(forget.centerY()).array()))

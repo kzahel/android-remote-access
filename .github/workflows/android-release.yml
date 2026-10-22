@@ -8,9 +8,21 @@ concurrency:
   group: android-release
   cancel-in-progress: false
 jobs:
+  acceptance-config:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require the designated development acceptance relay
+        env:
+          HOSTED_ORIGIN: ${{ vars.HOSTED_ACCEPTANCE_ORIGIN }}
+        run: test -n "$HOSTED_ORIGIN"
   emulator-smoke:
     if: github.ref == 'refs/heads/main'
+    needs: acceptance-config
     uses: ./.github/workflows/emulator-smoke.yml
+    with:
+      hosted_origin: ${{ vars.HOSTED_ACCEPTANCE_ORIGIN }}
   build:
     needs: emulator-smoke
     if: github.ref == 'refs/heads/main'

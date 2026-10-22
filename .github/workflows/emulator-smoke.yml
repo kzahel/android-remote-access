@@ -1,7 +1,19 @@
 name: Android emulator smoke
 on:
   workflow_call:
+    inputs:
+      hosted_origin:
+        description: Optional development relay for release pairing, FCM and control acceptance
+        required: false
+        default: ''
+        type: string
   workflow_dispatch:
+    inputs:
+      hosted_origin:
+        description: Optional HTTPS development relay origin for full release acceptance
+        required: false
+        default: ''
+        type: string
   schedule:
     - cron: '23 3 * * *'
 permissions:
@@ -9,7 +21,7 @@ permissions:
 jobs:
   smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -38,4 +50,14 @@ jobs:
       # Each harness refuses occupied selectors and owns/reaps its emulator.
       - run: pnpm test:interop
       - run: pnpm test:mobile-smoke
+      - name: Hosted pairing, FCM and encrypted control release acceptance
+        if: inputs.hosted_origin != ''
+        run: pnpm exec tsx scripts/hosted-acceptance.ts --control
+        env:
+          HOSTED_ORIGIN: ${{ inputs.hosted_origin }}
+          HOSTED_FCM: '1'
+          HOSTED_TOUCH: '1'
+          HOSTED_UNLOCK: '1'
+          HOSTED_VIDEO: '1'
+          HOSTED_ROTATION: '1'
       # Logs, QR material and app data stay private; do not upload .local/.
