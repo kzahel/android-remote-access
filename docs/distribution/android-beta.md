@@ -59,8 +59,14 @@ Home/Recents and Settings launch, and disconnect. The side-by-side captioned
 MP4 and private receipt remain in ignored `.local/accessibility-review/`.
 The temporary pairing was revoked and the browser/emulator processes reaped.
 This is debug-candidate evidence, not Play-installed acceptance or Google review;
-it does not demonstrate PIN entry or smooth-video permission. The recording has
-not been uploaded or attached to a Console declaration.
+it does not demonstrate PIN entry or smooth-video permission.
+
+Uploaded 2026-10-22 as a public attachment in
+[GitHub issue #1](https://github.com/kzahel/yepcontrol/issues/1).
+[Direct MP4](https://github.com/user-attachments/assets/f9155903-2f09-430d-a508-e5631a071ff9).
+Both the issue and video are accessible without signing in; an anonymous download
+matches the local recording byte for byte. The video remains outside Git history.
+It has not been attached to a Console declaration.
 
 ## CI and signing
 
