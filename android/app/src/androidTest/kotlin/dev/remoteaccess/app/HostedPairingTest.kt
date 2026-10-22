@@ -80,7 +80,10 @@ class HostedPairingTest {
     private fun start(uri: String? = null) {
         val intent =
             (
-                if (uri != null && Uri.parse(uri).host == "yepcontrol.com" && !File(context.filesDir, "hosted-explicit-link-fixture").exists()) {
+                if (
+                    uri != null && Uri.parse(uri).host == "yepcontrol.com" &&
+                    !File(context.filesDir, "hosted-explicit-link-fixture").exists()
+                ) {
                     // Exercise Android's verified App Link resolver, as an external camera would.
                     Intent(Intent.ACTION_VIEW, Uri.parse(uri)).addCategory(Intent.CATEGORY_BROWSABLE)
                 } else {
