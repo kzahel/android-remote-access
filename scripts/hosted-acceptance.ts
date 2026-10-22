@@ -651,7 +651,9 @@ try {
 } finally {
   if (invitationId && !revoked)
     console.error(
-      "Acceptance did not reach revocation; retain the disposable fixture for cleanup.",
+      physical
+        ? "Acceptance did not reach revocation; preserve the physical fixture for cleanup."
+        : "Acceptance did not reach revocation; attempting signed owned-fixture cleanup.",
     );
   const cleanupErrors: unknown[] = [];
   async function cleanup(
@@ -688,6 +690,28 @@ try {
       } finally {
         instrument?.kill("SIGTERM");
       }
+    });
+  }
+  if (!physical && installed.includes(`${appId}.test`)) {
+    await cleanup("owned fixture revocation", async () => {
+      if (adb("shell", "getprop", "ro.kernel.qemu") !== "1")
+        throw new Error("Refusing cleanup outside the owned emulator");
+      privateWrite("hosted-stage", "owned-fixture-cleanup");
+      const result = adb(
+        "shell",
+        "am",
+        "instrument",
+        "-w",
+        "-e",
+        "class",
+        "dev.remoteaccess.app.HostedPairingTest#revokeFixture",
+        `${appId}.test/androidx.test.runner.AndroidJUnitRunner`,
+      );
+      await writeFile(path.join(state, "fixture-cleanup.log"), result, {
+        mode: 0o600,
+      });
+      if (!result.includes("OK (1 test)"))
+        throw nativeFailure("Owned fixture revocation failed", result);
     });
   }
   if (emulator && emulator.exitCode === null) {

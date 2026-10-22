@@ -168,6 +168,10 @@ navigation/local-security controls, Room/storage/migrations, and (when a hosted
 origin is supplied) pairing, process-absent FCM and ordinary encrypted control.
 Hosted control includes viewing, input, H.264 and rotation. It uses synthetic
 owned devices, not a physical phone. Android signing is gated on this profile.
+The hosted harness attempts native signed revocation before shutting down its
+owned emulator on either success or failure. An intentional post-pair failure
+verified this cleanup path. Native failure diagnostics expose only application
+stack locations; raw logs, QR material and grants stay private.
 
 Ephemeral CI debug signing keys are not in the website's domain association.
 `HOSTED_VERIFY_APP_LINKS=0` supplies a test-only marker so the decoded invitation
