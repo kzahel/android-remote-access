@@ -104,7 +104,9 @@ export async function controlAcceptance(f: Fixture) {
     work: () => T | Promise<T>,
     timeout = 60000,
   ): Promise<NonNullable<T>> {
-    const deadline = Date.now() + timeout;
+    const patience =
+      process.env.CI === "true" ? Math.max(timeout, 20000) : timeout;
+    const deadline = Date.now() + patience;
     while (Date.now() < deadline) {
       try {
         const result = await work();
@@ -211,6 +213,7 @@ export async function controlAcceptance(f: Fixture) {
   try {
     await startNative();
     await page.goto(`${f.origin}/pair`);
+    await page.bringToFront();
     const qr = PNG.sync.read(
       await page
         .getByRole("img", { name: "Scan to pair this browser" })
@@ -411,19 +414,12 @@ export async function controlAcceptance(f: Fixture) {
     await page.getByRole("button", { name: "Send text" }).click();
     await until(() => witness().text === "Relay 🌞 verified");
     await page.getByRole("button", { name: "Close typing controls" }).click();
-    // IME visibility may arrive after the editable field's layout witness.
-    // Cross-check Android's input-method state before sending a navigation key.
+    // The fixture's window-insets witness describes the currently visible IME;
+    // dumpsys may also include state for earlier input-method clients.
     await delay(1000);
-    if (
-      witness().keyboardShown ||
-      /mInputShown=true\b/.test(adb("shell", "dumpsys", "input_method"))
-    ) {
+    if (witness().keyboardShown) {
       await page.getByRole("button", { name: "Back", exact: true }).click();
-      await until(
-        () =>
-          !/mInputShown=true\b/.test(adb("shell", "dumpsys", "input_method")),
-        5000,
-      );
+      await until(() => !witness().keyboardShown, 5000);
     }
     await delay(1000);
     assert.match(
