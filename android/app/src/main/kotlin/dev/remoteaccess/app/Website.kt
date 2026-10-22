@@ -3,11 +3,18 @@ package dev.remoteaccess.app
 import android.content.Context
 
 /**
- * The public website link shown for sharing setup. Debug builds configured with a development
- * origin can switch to it; pairing always uses the relay origin carried by each scanned QR.
+ * Build-configured service origins. The selected website also pins new enrollment; existing
+ * grants may use either configured origin so a debug website switch does not strand them.
  */
 internal object Website {
-    val developmentAvailable get() = BuildConfig.DEV_SHARING_WEBSITE.isNotEmpty()
+    val developmentAvailable get() = BuildConfig.DEBUG && BuildConfig.DEV_SHARING_WEBSITE.isNotEmpty()
+
+    fun accepts(origin: String): Boolean =
+        origin == BuildConfig.SHARING_WEBSITE || (developmentAvailable && origin == BuildConfig.DEV_SHARING_WEBSITE)
+
+    fun requireConfigured(origin: String) {
+        require(accepts(origin)) { "Service origin is not configured in this build" }
+    }
 
     fun development(context: Context): Boolean =
         developmentAvailable && context.getSharedPreferences("website", Context.MODE_PRIVATE).getBoolean("development", false)

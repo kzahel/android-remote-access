@@ -46,7 +46,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm build
-      - run: pnpm build:android
+      - name: Build APKs pinned to the configured acceptance service
+        run: ./android/gradlew -p android :app:assembleDebug :app:assembleDebugAndroidTest "-PsharingWebsite=${HOSTED_ORIGIN:-https://yepcontrol.com}"
+        env:
+          HOSTED_ORIGIN: ${{ inputs.hosted_origin }}
       # Each harness refuses occupied selectors and owns/reaps its emulator.
       - run: pnpm test:interop
       - run: pnpm test:mobile-smoke

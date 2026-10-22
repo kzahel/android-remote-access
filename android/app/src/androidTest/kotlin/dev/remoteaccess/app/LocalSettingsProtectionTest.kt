@@ -132,7 +132,7 @@ class LocalSettingsProtectionTest {
         val store = HostStore.get(context).load()
         val vault = PinVault(context)
         assertFalse(vault.saved(), "The runner must start with cleared disposable app data")
-        store.pair(JSONObject().put("id", id).put("origin", "https://example.invalid"), "Security fixture")
+        store.pair(JSONObject().put("id", id).put("origin", BuildConfig.SHARING_WEBSITE), "Security fixture")
         owner = ControlSession(context, id, { true }, { replies.offer(it) })
         device.executeShellCommand(
             "settings put secure enabled_accessibility_services com.yepcontrol.app/dev.remoteaccess.app.control.ScreenAccessService",
@@ -245,14 +245,14 @@ class LocalSettingsProtectionTest {
 
             // A valid incoming invitation cannot be approved by another paired device's input.
             val invitation =
-                JSONObject().put("v", 1).put("origin", "https://example.invalid").put("id", "b".repeat(32))
+                JSONObject().put("v", 1).put("origin", Website.current(context)).put("id", "b".repeat(32))
                     .put("viewer", encoded(Crypto.publicBytes(Crypto.generate().public))).put("secret", "c".repeat(64))
                     .put("expires", System.currentTimeMillis() / 1000 + 300).put("name", "Unapproved fixture")
             context.startActivity(
                 Intent(
                     context,
                     MainActivity::class.java,
-                ).setData(Uri.parse("https://example.invalid/enroll#${encoded(invitation.toString().toByteArray())}"))
+                ).setData(Uri.parse("${Website.current(context)}/enroll#${encoded(invitation.toString().toByteArray())}"))
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
             )
             view(selector("grant_device"))

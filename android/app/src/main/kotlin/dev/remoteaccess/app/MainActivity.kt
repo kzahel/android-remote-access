@@ -451,6 +451,7 @@ class MainActivity : ComponentActivity() {
 
     private fun deviceSummary(device: Device) =
         when {
+            !device.originAllowed -> "Access unavailable"
             !device.enabled -> "Access paused"
             !store.snapshot.settings.armed -> "Allowed · Remote access is off"
             HostSessions.current.get()?.deviceId == device.id -> "Connected"
@@ -629,7 +630,7 @@ class MainActivity : ComponentActivity() {
             toggle(layout, "Use development website", Website.development(this), R.id.development_website) { enabled ->
                 perform { Website.setDevelopment(this, enabled) }
             }
-            text(layout, "Debug build. Sharing setup links to ${Website.current(this).removePrefix("https://")}.", 14f)
+            text(layout, "Debug build. New pairing codes must come from ${Website.current(this).removePrefix("https://")}.", 14f)
         }
     }
 
@@ -742,12 +743,20 @@ class MainActivity : ComponentActivity() {
         val connection = section(layout)
         val status =
             when {
+                !device.originAllowed -> "Access unavailable"
                 live?.deviceId == device.id -> sessionStatus(live.status)
                 !device.enabled -> "Access paused"
                 !store.snapshot.settings.armed -> "Remote access is off"
                 else -> "Not connected"
             }
         text(connection, status, 20f)
+        if (!device.originAllowed) {
+            val website = Website.current(this)
+            text(
+                connection,
+                "This pairing uses a service this app no longer supports. Remove this device, then create a new code at $website.",
+            )
+        }
         if (live?.deviceId == device.id) {
             button(connection, "Disconnect", R.id.disconnect_device) { HostRuntime.disconnect(this, device.id) }
         }
@@ -854,11 +863,20 @@ class MainActivity : ComponentActivity() {
     private fun showInvitation(uri: String) {
         try {
             check(!busy)
-            pending = Enrollment(uri)
+            pending = null
+            granting = null
+            if (page == "grant") {
+                page = "home"
+                backStack.clear()
+            }
+            pending = Enrollment(uri, Website.current(this))
             backStack.clear()
             backStack.add("home")
             page = "grant"
             notice = null
+            render()
+        } catch (_: EnrollmentOriginMismatch) {
+            notice = "Use a pairing code from ${Website.current(this)}."
             render()
         } catch (_: Exception) {
             notice = "Invalid or expired pairing code. Create a new code on your other device."
@@ -874,7 +892,7 @@ class MainActivity : ComponentActivity() {
             }
         val name = invitation.name
         text(layout, name, 20f)
-        if (invitation.origin != Website.current(this)) text(layout, invitation.origin.removePrefix("https://"), 14f)
+        text(layout, invitation.origin.removePrefix("https://"), 14f)
         if (granting === invitation) {
             val progress = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
             progress.addView(
@@ -886,7 +904,7 @@ class MainActivity : ComponentActivity() {
             text(progress, "Connecting to $name…").accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
             layout.addView(progress, LinearLayout.LayoutParams(-1, dp(52)))
         } else {
-            text(layout, "Only allow a code you just created yourself.", 14f)
+            text(layout, "This name is supplied by the other device. Only allow a code you just created yourself.", 14f)
             button(layout, getString(R.string.grant_device), R.id.grant_device) { allow(invitation) }
         }
         button(layout, "Cancel", R.id.cancel_grant) {

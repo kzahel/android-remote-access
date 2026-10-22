@@ -92,6 +92,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const)
 console.log(`
 Development relay: ${origin}
 Open it on a tailnet device and scan its pairing code with the phone app.
-Debug app link: add devSharingWebsite=${origin} to android/local.properties
+Debug app: add devSharingWebsite=${origin} to android/local.properties and rebuild.
+In the phone app's Settings, enable Use development website before scanning.
 Relay state: .local/dev-relay (remote wake needs FIREBASE_PROJECT_ID and credentials)
 `);

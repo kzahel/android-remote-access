@@ -43,6 +43,7 @@ internal class RelayConnection(
     @Volatile private var direct: dev.remoteaccess.app.transport.DirectLink? = null
 
     fun connect() {
+        Website.requireConfigured(grant.getString("origin"))
         val url = grant.getString("origin").replaceFirst("https:", "wss:") + "/api/socket"
         socket = http.newWebSocket(Request.Builder().url(url).build(), this)
     }

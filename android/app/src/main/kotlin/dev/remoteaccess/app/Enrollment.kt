@@ -60,6 +60,7 @@ internal fun request(
     body: JSONObject? = null,
     seen: String? = null,
 ): JSONObject {
+    Website.requireConfigured(origin)
     val url = "$origin/api/pair/$id" + if (action.isEmpty()) "" else "/$action"
     val request = Request.Builder().url(url)
     // The relay holds this poll until the pairing state differs from `seen`.
@@ -82,9 +83,15 @@ internal fun request(
     }
 }
 
-internal fun validDeviceName(name: String) = name == name.trim() && name.length in 1..40 && name.none { it.isISOControl() }
+internal fun validDeviceName(name: String) =
+    name == name.trim() && name.length in 1..40 &&
+        name.none {
+            it.isISOControl() || it.category in setOf(CharCategory.FORMAT, CharCategory.LINE_SEPARATOR, CharCategory.PARAGRAPH_SEPARATOR)
+        }
 
-internal class Enrollment(uri: String) {
+internal class EnrollmentOriginMismatch : IllegalArgumentException()
+
+internal class Enrollment(uri: String, expectedOrigin: String) {
     private val invite: JSONObject
     val origin: String
 
@@ -92,12 +99,14 @@ internal class Enrollment(uri: String) {
     val name: String
 
     init {
+        Website.requireConfigured(expectedOrigin)
         require(uri.length < 4096)
         val link = URI(uri)
         require(
             link.scheme == "https" && link.host != null && link.rawUserInfo == null &&
                 link.rawQuery == null && link.rawPath == "/enroll" && link.rawFragment != null,
         )
+        if (link.scheme + "://" + link.rawAuthority != expectedOrigin) throw EnrollmentOriginMismatch()
         invite = JSONObject(decoded(link.rawFragment).toString(Charsets.UTF_8))
         require(invite.getInt("v") == 1)
         origin = invite.getString("origin")
@@ -106,7 +115,7 @@ internal class Enrollment(uri: String) {
             url.scheme == "https" && url.host != null && url.rawUserInfo == null &&
                 url.rawQuery == null && url.rawFragment == null && url.rawPath.isEmpty(),
         )
-        require(link.scheme + "://" + link.rawAuthority == origin)
+        if (origin != expectedOrigin) throw EnrollmentOriginMismatch()
         name = invite.getString("name")
         require(validDeviceName(name))
         unhex(invite.getString("id"), 16)

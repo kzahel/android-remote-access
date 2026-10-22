@@ -33,7 +33,11 @@ class HostStoreTest {
         legacy.edit().clear().commit()
     }
 
-    private fun grant(id: String) = JSONObject().put("id", id).put("origin", "https://example.test").put("viewer", "public-identity-$id")
+    private fun grant(id: String) =
+        JSONObject().put(
+            "id",
+            id,
+        ).put("origin", BuildConfig.SHARING_WEBSITE).put("viewer", "public-identity-$id")
 
     @Test
     fun migratesOnceAndPreservesRevocationAndWakeChoice() {
@@ -93,5 +97,32 @@ class HostStoreTest {
         assertEquals(9999, store.events(10000).size)
         assertFailsWith<IllegalArgumentException> { store.record("sensitive remote payload") }
         assertFailsWith<IllegalArgumentException> { store.rename("missing", "\n") }
+    }
+
+    @Test
+    fun rejectsNewGrantsForUnconfiguredServices() {
+        store.load()
+        assertFailsWith<IllegalArgumentException> { store.pair(grant("bad").put("origin", "https://other.example")) }
+        assertTrue(store.snapshot.devices.isEmpty())
+    }
+
+    @Test
+    fun savedOffOriginGrantsStayVisibleButCannotRegainAuthority() {
+        val allowed = store.load().pair(grant("allowed"))
+        val unsupported = Device("old", grant("old").put("origin", "https://other.example").toString(), "Old device", 1)
+        db.dao().put(unsupported)
+        db.dao().put(Device("malformed", "{}", "Malformed grant", 1))
+        store = HostStore.fixture(context, db).load()
+        assertEquals(3, store.snapshot.devices.size)
+        assertTrue(store.allowed(allowed.id, allowed.generation))
+        assertFalse(store.allowed(unsupported.id, unsupported.generation))
+        assertFalse(requireNotNull(store.device("malformed")).originAllowed)
+        assertFailsWith<IllegalArgumentException> { requireNotNull(store.device(unsupported.id)).authority() }
+        store.enable(unsupported.id, false)
+        store.enable(unsupported.id, true)
+        assertFalse(store.allowed(unsupported.id, requireNotNull(store.device(unsupported.id)).generation))
+        store.revoke(unsupported.id)
+        store.removed(unsupported.id)
+        assertEquals(setOf(allowed.id, "malformed"), store.snapshot.devices.map { it.id }.toSet())
     }
 }

@@ -31,7 +31,9 @@ internal data class Device(
     val wakeReady: Boolean = false,
     @ColumnInfo(defaultValue = "0") val unlockAllowed: Boolean = false,
 ) {
-    fun authority() = JSONObject(grant)
+    fun authority() = JSONObject(grant).also { Website.requireConfigured(it.getString("origin")) }
+
+    val originAllowed: Boolean get() = runCatching { authority() }.isSuccess
 }
 
 internal fun generation(): String = UUID.randomUUID().toString().replace("-", "")
@@ -139,7 +141,7 @@ internal class HostStore private constructor(private val legacy: android.content
     ): Boolean {
         val state = snapshot
         val device = state.devices.find { it.id == id } ?: return false
-        return state.settings.armed && (!automatic || state.settings.automatic) &&
+        return device.originAllowed && state.settings.armed && (!automatic || state.settings.automatic) &&
             device.enabled && !device.revoked && device.generation == generation
     }
 
@@ -148,6 +150,7 @@ internal class HostStore private constructor(private val legacy: android.content
         grant: JSONObject,
         name: String? = null,
     ): Device {
+        Website.requireConfigured(grant.getString("origin"))
         load()
         check(snapshot.devices.size < 32) { "Remove an unused device before adding another" }
         val id = grant.getString("id")

@@ -30,7 +30,8 @@ host candidate. Private receipts and captures remain under ignored
 - Global disarm ends the session; browser disabling/removal and fixture revocation
   complete normally. Native migration/encryption/attempt-latch tests also pass.
 
-Reproduce after building both APKs and deploying the matching viewer:
+Reproduce after building both APKs with `-PsharingWebsite=https://YOUR_ORIGIN`
+and deploying the matching viewer:
 
 ```sh
 HOSTED_ORIGIN=https://YOUR_ORIGIN HOSTED_TOUCH=1 HOSTED_UNLOCK=1 HOSTED_VIDEO=1 \

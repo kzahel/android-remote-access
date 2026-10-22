@@ -16,6 +16,13 @@ the origin, so old grants cannot be reused at the new origin.
 Pairing QR codes encode `<relay origin>/enroll#<base64 invitation JSON>`.
 Both TypeScript and Android validate HTTPS, `/enroll`, no credentials/query,
 expiry, keys and equality between the outer origin and invitation origin.
+Android additionally pins both origins to the selected build-configured website.
+Release builds accept only `sharingWebsite` (default `https://yepcontrol.com`).
+Debug builds may explicitly select their compiled `devSharingWebsite` in Settings
+before scanning. Other hosts, subdomains and ports are rejected without network
+activity; a QR cannot choose another service. Both scanning and incoming links
+apply this policy. The approval screen always displays the host and explains
+that the device name is supplied by the other device.
 The fragment contains the short-lived secret and never goes to HTTP servers.
 The app still requires explicit **Grant** after a scan or link open.
 
@@ -23,8 +30,8 @@ Android declares an auto-verified HTTPS filter only for
 `https://yepcontrol.com/enroll`. The website directly serves JSON at
 `/.well-known/assetlinks.json` with `com.yepcontrol.app` and the certificate
 SHA-256 fingerprint. Other viewer routes continue opening in the browser.
-Local development origins work through the in-app scanner; they do not claim
-verified links for arbitrary development domains.
+Configured and selected local development origins work through the in-app
+scanner; they do not claim verified links for arbitrary development domains.
 
 With the associated app installed, an external QR scanner that opens the URL can
 route to YepControl. Without the app, `/enroll` serves an install page with a
@@ -97,3 +104,51 @@ TypeScript tests and Kotlin protocol tests pass. The Node transport-status test
 mocks its browser storage sink so it does not open IndexedDB outside a browser.
 The browser and owned emulator are reaped. No physical phone was selected and
 no Play listing or release build was published.
+
+## Enrollment origin pinning (2026-10-22)
+
+SG-2 is implemented in the Android source. The selected build-configured origin
+is mandatory in the shared scanner/link parser. HTTP requests, WebSocket
+connections, new stored grants and existing-grant authority also enforce the
+build's configured origins. A debug website switch affects new enrollment;
+existing grants for either compiled origin remain usable. Grants for other
+origins remain visible as unavailable and can be removed locally without
+contacting that service. The database schema and valid existing grants are
+unchanged.
+
+`EnrollmentLinkTest` now has six tests covering matching attacker-controlled
+origins, subdomain/suffix/port variations, mismatched outer/invitation origins,
+explicit debug-origin selection, network-entry-point rejection, conservative
+label validation and actual incoming-link UI. The UI check also delivers an
+invalid link to an already open approval screen and verifies that the previous
+approval is removed and the expected service is explained. `HostStoreTest`
+covers rejection of new off-origin grants and preserved-but-disabled old grants,
+including attempts to re-enable them.
+
+`pnpm test:mobile-smoke` passes all 17 native tests (two navigation/security and
+15 storage/enrollment) on an owned API-35 emulator in both configurations:
+
+- Default production origin with
+  `-PdevSharingWebsite=https://development.example`, exercising explicit debug
+  selection without contacting that synthetic service.
+- A separate deployment compiled with
+  `-PsharingWebsite=https://deployment.example -PdevSharingWebsite=`, exercising
+  a different sole service origin and rejection of a stale development preference.
+
+Build the debug app and instrumentation APK for the desired configuration with
+`:app:assembleDebug :app:assembleDebugAndroidTest`, then run the smoke command.
+The production release configuration has `DEBUG=false` and an empty development
+origin even when a development origin was supplied to the build. Debug and
+release APK builds, Android debug/release lint, Kotlin formatting and protocol
+tests, TypeScript type checks/Biome/120 tests, 12 publishing-regression tests and
+the changed workflows' Actionlint checks pass.
+
+The final production-origin debug build also passes `pnpm test:hosted` against
+the existing HTTPS service: rendered QR decoding, normal native Grant, encrypted
+exchanges, persistence after Android process restart and browser reload, durable
+revocation and rejection afterward. All six native origin/link tests pass in
+that run. OS domain association is excluded for this run's explicit native
+intent; it does not repeat the earlier verified-App-Link acceptance above.
+
+Private receipts stay in `.local/sg2-proof/`. No physical phone, Play release or
+deployment is changed by this verification.

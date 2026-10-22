@@ -107,6 +107,11 @@ class WakeWorker(context: Context, parameters: WorkerParameters) : Worker(contex
         var failed = false
         for (device in store.snapshot.devices) {
             if (isStopped) break
+            // Keep unsupported grants visible for local removal, but never contact their service.
+            if (!device.originAllowed) {
+                if (device.revoked) store.removed(device.id)
+                continue
+            }
             if (device.revoked) {
                 try {
                     val grant = device.authority()

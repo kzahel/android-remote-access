@@ -320,7 +320,7 @@ try {
     await writeFile(path.join(state, "enrollment-link.log"), links, {
       mode: 0o600,
     });
-    if (!links.includes("OK (1 test)"))
+    if (!links.includes("OK (6 tests)"))
       throw new Error("Native enrollment link validation failed");
   }
   browser = await chromium.launch({ headless: true });

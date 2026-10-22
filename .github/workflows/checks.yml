@@ -108,7 +108,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm build
-      - run: pnpm build:android
+      - name: Build APKs pinned to the acceptance service
+        run: ./android/gradlew -p android :app:assembleDebug :app:assembleDebugAndroidTest "-PsharingWebsite=$HOSTED_ORIGIN"
+        env:
+          HOSTED_ORIGIN: ${{ inputs.hosted_origin }}
       - run: pnpm test:hosted
         env:
           HOSTED_ORIGIN: ${{ inputs.hosted_origin }}

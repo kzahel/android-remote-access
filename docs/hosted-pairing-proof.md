@@ -56,9 +56,14 @@ Run after installing the documented build/emulator prerequisites:
 
 ```sh
 pnpm build
-pnpm build:android
+./android/gradlew -p android :app:assembleDebug :app:assembleDebugAndroidTest \
+  -PsharingWebsite=https://YOUR_DEVELOPMENT_ORIGIN
 HOSTED_ORIGIN=https://YOUR_DEVELOPMENT_ORIGIN pnpm test:hosted
 ```
+
+The APK must be compiled for that acceptance origin. The invitation cannot
+override its configured service. This custom debug fixture does not change the
+production release origin.
 
 Private QR images, instrumentation logs and result JSON stay under ignored
 `.local/hosted-proof/`. The URI enters through the same enrollment boundary as
