@@ -66,7 +66,52 @@ The workerd test exercises real Workers signing and SQLite storage, a full runti
 restart, controlled persisted expiry and token invalidation. It uses generated
 test keys and a mocked Google endpoint; it does not contact Google or a phone.
 
-Live Google/Android staging acceptance is recorded separately below when run.
+## Live staging receipt — 2026-10-22
+
+[`relay-v0.1.0-rc.4`](https://github.com/kzahel/yepcontrol/tree/relay-v0.1.0-rc.4)
+pins `600448849dd7db688e76bc0018b6d934c87e53b4`, with complete Checks and CodeQL
+success. [CI deployment 39816434489](https://github.com/kzahel/yepcontrol/actions/runs/39816434489)
+built and deployed the verified Worker/viewer bundle with closed admission. Those
+unchanged bytes were then used for a temporary fixture-gated native acceptance
+window, with a separately provisioned send-only Google account and Worker secret.
+The Pi's sender, key and service were untouched.
+
+Two owned API-35 emulator and real React-browser runs passed:
+
+| Credential | Request to actual FCM receipt | Request to fresh encrypted exchange |
+| --- | --- | --- |
+| Initial dedicated key | 1,849 ms | 2,354 ms |
+| Replacement key, after secret rotation and redeployment | 1,220 ms | 1,962 ms |
+
+Each run proved QR/Grant pairing, an absent app process and application socket
+before wake, actual Firebase delivery, native encrypted exchange, process/browser
+restart persistence, revocation and subsequent refusal. The old Google key was
+deleted after the replacement passed; exactly one user-managed key remains on
+this dedicated account. Neither private key was written to a local file. The
+long-lived secret remains in Cloudflare; no ephemeral Pi-minted access token or
+CI refresh job participates.
+
+Initial native attempts exposed emulator DNS becoming ready after Android's boot
+flag: the phone reported `UnknownHostException` before reaching the Worker. The
+runner now waits for resolution of the enrollment hostname before creating its
+single-use pairing code. This check is limited to owned emulators and requires
+no ICMP reply. The successful native runs include that readiness check.
+
+Both fixture grants were revoked and owned emulators/Chromium processes reaped.
+Application admission was closed immediately afterward.
+[Final CI deployment 39819023518](https://github.com/kzahel/yepcontrol/actions/runs/39819023518)
+passed and produced Worker version `b7a06f97-882b-4f15-bc7f-f5ce20913bfb`. Its
+verified code-file hash map is identical to the native-tested bundle. Independent
+HTTPS verification matched the exact release/source/Worker version and closed
+admission; a valid fixture-key application request returned 403. The service-account
+secret remains provisioned and the legacy static-token secret is absent.
+Production still uses the unchanged Pi revision; no DNS, Play or physical-phone
+changes were made.
+
+This qualifies real Google token minting and native wake after rotation/redeploy.
+Expiry, exchange failures and invalidation/backoff are deterministic local tests;
+the live runs did not wait an hour for token expiry. Natural overnight/Doze,
+cellular networks, video and production cutover were not requalified here.
 
 Official references reviewed 2026-10-22:
 [Google service-account OAuth](https://developers.google.com/identity/protocols/oauth2/service-account),
