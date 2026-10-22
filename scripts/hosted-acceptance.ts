@@ -292,9 +292,18 @@ try {
         adb("shell", "pm", "get-app-links", appId),
         { mode: 0o600 },
       );
+      adb(
+        "shell",
+        "run-as",
+        appId,
+        "rm",
+        "-f",
+        "files/hosted-explicit-link-fixture",
+      );
     } else {
+      privateWrite("hosted-explicit-link-fixture", "owned-emulator-only");
       console.log(
-        "OS App Links association excluded for ephemeral CI debug signer; native invitation validation still runs",
+        "OS App Links association excluded for ephemeral CI debug signer; explicit native enrollment and invitation validation still run",
       );
     }
     const links = adb(

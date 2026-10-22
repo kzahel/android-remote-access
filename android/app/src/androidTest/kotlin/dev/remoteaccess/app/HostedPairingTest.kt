@@ -80,10 +80,12 @@ class HostedPairingTest {
     private fun start(uri: String? = null) {
         val intent =
             (
-                if (uri != null && Uri.parse(uri).host == "yepcontrol.com") {
+                if (uri != null && Uri.parse(uri).host == "yepcontrol.com" && !File(context.filesDir, "hosted-explicit-link-fixture").exists()) {
                     // Exercise Android's verified App Link resolver, as an external camera would.
                     Intent(Intent.ACTION_VIEW, Uri.parse(uri)).addCategory(Intent.CATEGORY_BROWSABLE)
                 } else {
+                    // Ephemeral CI debug keys cannot verify the public domain. The marker is
+                    // written only by the owned-emulator harness; production code never reads it.
                     Intent(context, MainActivity::class.java)
                 }
             ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
@@ -398,6 +400,8 @@ class HostedPairingTest {
                     manager.createNotificationChannel(channel)
                     assertTrue(!WakeSupport.notificationsAllowed(context))
                     context.startActivity(
+                        // Ephemeral CI debug keys cannot verify the public domain. The marker is
+                        // written only by the owned-emulator harness; production code never reads it.
                         Intent(context, MainActivity::class.java)
                             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP),
                     )

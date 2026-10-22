@@ -89,7 +89,8 @@ Play bundle; never reuse a consumed code for changed bytes. On clean `main`:
    deployed there. These tests own synthetic emulator pairings and never select a
    physical phone. CI's ephemeral debug signing key is not domain-associated:
    `HOSTED_VERIFY_APP_LINKS=0` excludes OS association verification there, while
-   native invitation validation and normal Grant still run. Verify OS App Links
+   the decoded invitation enters the explicit native activity and normal Grant
+   still runs. Native origin validation remains required. Verify OS App Links
    separately with an associated debug or Play-installed signer.
    A separate main-only `android-release`
    environment signs the exact unsigned artifact using a dedicated project upload key.
