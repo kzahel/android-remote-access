@@ -81,7 +81,7 @@ class HostedPairingTest {
     }
 
     private fun confirmRemoval() {
-        val confirm = By.res("android:id/button1").text("Remove")
+        val confirm = By.res("android:id/button1")
         // Session-status renders can replace the detail view between scrolling
         // and tapping. Retry only opening the dialog, never its destructive action.
         waitFor {
