@@ -92,8 +92,9 @@ Play bundle; never reuse a consumed code for changed bytes. On clean `main`:
    the decoded invitation enters the explicit native activity and normal Grant
    still runs. Native origin validation remains required. Verify OS App Links
    separately with an associated debug or Play-installed signer.
-   CI covers viewing, input, H.264 and rotation; credential/reboot qualification
-   stays separate (see `docs/control-acceptance.md` for the Linux fixture limit).
+   CI covers viewing, input, H.264 and rotation. Software video and held gestures
+   run in sequence; concurrent performance and credential/reboot qualification
+   stay separate (see `docs/control-acceptance.md` for the Linux fixture limits).
    A separate main-only `android-release`
    environment signs the exact unsigned artifact using a dedicated project upload key.
 4. Download `yepcontrol-play-CODE`: it contains the signed AAB, its public upload

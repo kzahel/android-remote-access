@@ -68,5 +68,7 @@ jobs:
           HOSTED_VERIFY_APP_LINKS: '0'
           HOSTED_TOUCH: '1'
           HOSTED_VIDEO: '1'
+          # Software H.264 and held input are measured in sequence on shared runners.
+          HOSTED_SERIAL_VIDEO: '1'
           HOSTED_ROTATION: '1'
       # Logs, QR material and app data stay private; do not upload .local/.

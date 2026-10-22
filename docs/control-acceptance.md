@@ -171,10 +171,16 @@ requires ten additional decoded frames within a bounded wait after the initial
 five-second sample; elapsed time and bytes are recorded, without treating a
 shared software emulator as a device throughput benchmark. It uses synthetic
 owned devices, not a physical phone. Android signing is gated on this profile.
+With `HOSTED_SERIAL_VIDEO=1`, CI first verifies video continuity plus native tap/text,
+then explicitly stops the encoder before held gestures, watchdog and rotation.
+A combined software-video run [timed out on long press](https://github.com/kzahel/yepcontrol/actions/runs/39742758383);
+the 700 ms input watchdog is unchanged. This is capability smoke, not qualification
+of simultaneous video/held-input performance on a shared Linux runner. The default
+local profile keeps video active throughout and has passed on the owned ARM emulator.
 The hosted harness attempts native signed revocation before shutting down its
 owned emulator on either success or failure. An intentional post-pair failure
 verified this cleanup path. Native failure diagnostics expose only application
-stack locations; raw logs, QR material and grants stay private.
+stack locations and allowlisted synthetic state; raw logs, QR material and grants stay private.
 
 Ephemeral CI debug signing keys are not in the website's domain association.
 `HOSTED_VERIFY_APP_LINKS=0` supplies a test-only marker so the decoded invitation

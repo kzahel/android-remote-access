@@ -6,6 +6,7 @@ import path from "node:path";
 import { type Browser, expect } from "@playwright/test";
 import jsQR from "jsqr";
 import { PNG } from "pngjs";
+import { resultMessage } from "../protocol/src/control.js";
 import { nativeFailure } from "./acceptance-diagnostics.js";
 import { prepareIdleWake } from "./control-recovery.js";
 
@@ -68,8 +69,10 @@ export async function controlAcceptance(f: Fixture) {
     const counts = window as unknown as {
       __videoFrames: number;
       __videoBytes: number;
+      __stillFrames: number;
     };
     counts.__videoFrames = 0;
+    counts.__stillFrames = 0;
     CanvasRenderingContext2D.prototype.drawImage = new Proxy(
       CanvasRenderingContext2D.prototype.drawImage,
       {
@@ -79,6 +82,7 @@ export async function controlAcceptance(f: Fixture) {
             args[0] instanceof VideoFrame
           )
             counts.__videoFrames++;
+          if (args[0] instanceof ImageBitmap) counts.__stillFrames++;
           return Reflect.apply(target, self, args);
         },
       },
@@ -431,6 +435,39 @@ export async function controlAcceptance(f: Fixture) {
       /topResumedActivity=.*ControlFixtureActivity/,
     );
     console.log("Native tap, focused-field text and IME dismissal passed");
+    if (
+      process.env.HOSTED_SERIAL_VIDEO === "1" &&
+      process.env.HOSTED_VIDEO === "1"
+    ) {
+      const smooth = page.getByRole("switch", {
+        name: "Smooth view",
+        exact: true,
+      });
+      const before = await page.evaluate(
+        () => (window as unknown as { __stillFrames: number }).__stillFrames,
+      );
+      await smooth.click();
+      await expect(smooth).not.toBeChecked();
+      await until(
+        () =>
+          !adb("shell", "dumpsys", "activity", "services", app).includes(
+            "VideoService",
+          ),
+        20000,
+      );
+      await until(
+        () =>
+          page.evaluate(
+            (baseline) =>
+              (window as unknown as { __stillFrames: number }).__stillFrames -
+                baseline >=
+              2,
+            before,
+          ),
+        20000,
+      );
+      console.log("Software video stopped before held-input CI smoke");
+    }
     if (process.env.HOSTED_TOUCH === "1") {
       const hold = await at(witness().target);
       await page.mouse.move(hold.x, hold.y);
@@ -728,6 +765,7 @@ export async function controlAcceptance(f: Fixture) {
           videoMeasurement,
           directAndFallback: process.env.HOSTED_DIRECT === "1",
           smoothVideo: process.env.HOSTED_VIDEO === "1",
+          serialVideoInput: process.env.HOSTED_SERIAL_VIDEO === "1",
           savedAndManualPin: process.env.HOSTED_UNLOCK === "1",
           navigation: true,
           appLaunch: true,
@@ -744,14 +782,24 @@ export async function controlAcceptance(f: Fixture) {
   } catch (error) {
     try {
       const state = witness();
+      const messages = await page.getByRole("status").allTextContents();
       console.error("Synthetic native control state", {
         taps: state.taps,
         fieldFocused: state.fieldFocused,
         keyboardShown: state.keyboardShown,
         textLength: state.text.length,
         expectedText: state.text === "Relay 🌞 verified",
+        scroll: state.scroll,
+        target: state.target,
+        longPresses: state.longPresses,
+        sliderHeld: state.sliderHeld,
+        sliderProgress: state.sliderProgress,
         maxPointers: state.maxPointers,
         multiMoves: state.multiMoves,
+        commandResultCodes: Array.from(
+          { length: 11 },
+          (_, code) => code,
+        ).filter((code) => messages.includes(resultMessage(code))),
       });
     } catch {}
     throw error;
