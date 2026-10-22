@@ -166,7 +166,10 @@ runs; the current browser acceptance runner requests Balanced.
 The reusable emulator workflow runs browser/Keystore interoperability, native
 navigation/local-security controls, Room/storage/migrations, and (when a hosted
 origin is supplied) pairing, process-absent FCM and ordinary encrypted control.
-Hosted control includes viewing, input, H.264 and rotation. It uses synthetic
+Hosted control includes viewing, input, H.264 and rotation. Video continuity
+requires ten additional decoded frames within a bounded wait after the initial
+five-second sample; elapsed time and bytes are recorded, without treating a
+shared software emulator as a device throughput benchmark. It uses synthetic
 owned devices, not a physical phone. Android signing is gated on this profile.
 The hosted harness attempts native signed revocation before shutting down its
 owned emulator on either success or failure. An intentional post-pair failure

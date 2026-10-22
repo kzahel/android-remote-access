@@ -347,6 +347,19 @@ export async function controlAcceptance(f: Fixture) {
         () => (window as unknown as { __videoFrames: number }).__videoFrames,
       );
       await delay(5000);
+      // Shared CI runners use software capture/encoding. Verify bounded forward
+      // progress independently of machine speed, and record the actual duration.
+      await until(
+        () =>
+          page.evaluate(
+            (before) =>
+              (window as unknown as { __videoFrames: number }).__videoFrames -
+                before >=
+              10,
+            framesBefore,
+          ),
+        20000,
+      );
       videoMeasurement = {
         seconds: (Date.now() - begin) / 1000,
         receivedBytes: receivedBytes - bytesBefore,
