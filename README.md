@@ -87,6 +87,7 @@ availability and broader device qualification remain pending. See
 ## Documentation
 
 - [Beta builds, signing and Play publishing](docs/distribution/android-beta.md)
+- [Security decisions and open gaps](docs/security-gaps.md)
 - [Pairing and relay](docs/pairing-relay-v1.md) · [Session encryption](docs/crypto-session-v1.md)
 - [Smooth-view consent and lifecycle](docs/smooth-view-lifecycle.md)
 - [Android permissions and device management](docs/mobile-management.md)
