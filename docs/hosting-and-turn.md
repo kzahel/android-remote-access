@@ -3,8 +3,8 @@
 Updated **2026-10-22**. The owner chose a small SQLite/hardening investment in
 the Node relay, followed by a Cloudflare proof/investigation. Node remains useful
 for development and self-hosting; Workers + Durable Objects is a candidate for
-the future hosted service. Neither a production Cloudflare cutover nor a TURN
-installation has been selected or performed.
+the future hosted service. The owner later authorized the [production Cloudflare cutover](cloudflare-production.md); a TURN
+installation remains a separate, unimplemented direction.
 
 The owner subsequently agreed to retain Node/SQLite for local development and
 self-hosting, with FCM optional, and pursue Cloudflare for hosted operation.

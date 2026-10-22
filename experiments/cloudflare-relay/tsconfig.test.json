@@ -16,6 +16,7 @@
     "fcm-auth-test.ts",
     "fcm-runtime-test.ts",
     "admission-test.ts",
+    "migration-test.ts",
     "flow-test.ts"
   ]
 }

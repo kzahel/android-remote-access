@@ -3,7 +3,7 @@
 Relay versions are independent of Android versions. Use immutable tags such as
 `relay-v0.1.0` or `relay-v0.2.0-rc.1`; never move a released tag. The selected
 commit must belong to `main` and have a successful complete **Checks** run for
-that exact SHA. A tag push runs **Relay release and staging deployment**.
+that exact SHA. A tag push runs **Relay release and deployment**.
 
 The workflow tests the Node/shared code and the Cloudflare runtime, builds the
 matching Cloudflare viewer and Worker, and retains a version/SHA-labelled artifact
@@ -12,21 +12,21 @@ No credentials, Firebase key, pairing database or phone state enters the bundle.
 
 To deploy, dispatch the same workflow on `main` with an existing tag and
 `deploy=true`. The deployment job downloads and verifies the exact bytes built
-by its build job, then uses the `relay-staging` GitHub environment. Deployments
+by its build job, then uses the selected `relay-staging` or `relay-production` GitHub environment. Deployments
 are serialized; an in-progress deployment is never canceled by a newer request.
 The deployment receipt records the tag, commit, CI run, actual Cloudflare Worker
 version and a matching HTTPS health check.
 
 The Worker version must match Wrangler's structured `deploy` output, as well as
-the tag/source and closed admission. A health response from a previous deployment
+the tag/source and expected admission. A health response from a previous deployment
 of the same tag is insufficient. The verifier waits for the uploaded version to
 appear before marking the deployment verified.
 
-This first target is the isolated **gated Cloudflare staging service**. CI always
+The staging target is the isolated **gated Cloudflare staging service**. Staging always
 deploys with closed application admission (`PROOF_EXPIRES=1`), no production
 domain route, no preview URL and no FCM sender credential provisioning. An
 independently provisioned Worker secret supports [automatic FCM renewal](cloudflare-fcm.md);
-CI retains that secret and optionally configures its Firebase project. It cannot
+CI retains that secret and optionally configures its Firebase project. The staging configuration cannot
 select the production hostname or normal production Worker name. Existing
 Durable Object namespaces and authority remain intact. The Pi remains live;
 this workflow neither connects to it nor changes its service or DNS.
@@ -34,8 +34,8 @@ this workflow neither connects to it nor changes its service or DNS.
 `GET /health` exposes only release identity and whether admission is closed.
 It does not look up a pairing, allocate an object or prove Android/FCM acceptance.
 All application paths remain behind the existing fixture gate. Reopening staging
-for a bounded live acceptance run remains a separate operation. Production
-admission, deployment and pairing migration remain separate work.
+for a bounded live acceptance run remains a separate operation. The separate production target uses explicit maintenance/public admission; see
+[production cutover and migration](cloudflare-production.md).
 
 ## Environment provisioning
 
@@ -62,6 +62,12 @@ documents this scope. [Cloudflare CI authentication](https://developers.cloudfla
 and [GitHub environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments)
 were reviewed 2026-10-22.
 
+For `relay-production`, use `RELAY_WORKER_NAME=yepcontrol-relay`,
+`RELAY_ORIGIN=https://yepcontrol.com`, required `FCM_PROJECT`, and
+`RELAY_MODE=maintenance` or `production`. Optional `RELAY_HEALTH_ORIGIN` may be
+the matching workers.dev health endpoint before domain cutover. Bootstrap the
+Worker and provision its custom domains separately.
+
 The workflow fails clearly if environment provisioning is absent. Check the
 deployment receipt to confirm the actual released source and running version.
 
@@ -70,8 +76,8 @@ deployment receipt to confirm the actual released source and running version.
 1. Commit and push the intended source to `main`; wait for complete Checks.
 2. Create and push its version tag, for example `git tag relay-v0.1.0 COMMIT` and
    `git push origin relay-v0.1.0`. The tag build needs no Cloudflare credentials.
-3. Dispatch **Relay release and staging deployment** on `main`, specifying that
-   tag and enabling deployment. Inspect the resulting deployment receipt.
+3. Dispatch **Relay release and deployment** on `main`, specifying that
+   tag, `target=staging` or `target=production`, and enabling deployment. Inspect the resulting deployment receipt.
 4. To redeploy earlier compatible code, dispatch an earlier immutable tag whose
    workflow contains this release pipeline. This rebuilds that pinned source and
    deploys its newly verified bundle; it is not promotion of an older CI artifact.
@@ -79,8 +85,8 @@ deployment receipt to confirm the actual released source and running version.
 Code redeployment does not restore SQLite data, deleted authority or an older
 schema. Durable Object migration rollback has separate constraints; use a forward
 fix when an older release cannot read the current data. Do not restore a stale
-pairing database to roll code back. Production promotion and a CI-driven Pi
-installer remain future targets; neither is enabled by this staging workflow.
+pairing database to roll code back. The production target uses its own environment and dedicated Worker; a CI-driven
+Pi installer is not part of this workflow.
 
 For local development, keep the Node/SQLite runner and its optional FCM sender.
 CI deployment does not change offline/manual operation or couple the Android
@@ -93,7 +99,7 @@ at source `aa29d1d5d36ae143ccd41fded38fc5a9f4bbc204` passed complete Checks and
 [CI build/deployment](https://github.com/kzahel/yepcontrol/actions/runs/39781497566).
 The uploaded deployment receipt and an independent HTTPS check agree on version
 `0.1.0-rc.2`, that source, Worker version
-`f09c8883-f776-4d3f-86cb-e82d9cd9a41d` and closed admission. An application request
+`f09c8883-f776-4d3f-86cb-e82d9cd9a41d` and expected admission. An application request
 with the valid fixture key still returned 403. The live Pi's health/revision
 remained unchanged.
 

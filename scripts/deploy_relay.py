@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deploy only the gated Cloudflare staging relay, using the verified CI bundle."""
+"""Deploy the selected isolated relay using its verified CI bundle."""
 import json
 import os
 from pathlib import Path
@@ -47,6 +47,22 @@ def configuration(account, worker, origin, bundle, tag, source, fcm_project=None
     }
 
 
+def production_configuration(account, worker, origin, bundle, tag, source, fcm_project, mode="maintenance"):
+    if worker != "yepcontrol-relay" or origin != "https://yepcontrol.com":
+        raise ValueError("Production requires the dedicated Worker and canonical origin")
+    if mode not in ("maintenance", "production") or not fcm_project:
+        raise ValueError("Production requires explicit admission and FCM configuration")
+    config = configuration(account, "yepcontrol-relay-staging", "https://yepcontrol-relay-staging.example.workers.dev",
+                           bundle, tag, source, fcm_project)
+    config["name"] = worker
+    config["vars"].pop("PROOF_EXPIRES")
+    config["vars"].pop("PROOF_BUILD")
+    config["vars"].update(PUBLIC_ORIGIN=origin, RELAY_MODE=mode)
+    # Custom domains are provisioned once by the operator. This deployment token
+    # edits only this Worker, never DNS, zones or another Worker's domains.
+    return config
+
+
 def uploaded_version(events, worker):
     deployments = [event for event in events if event.get("type") == "deploy"]
     if len(deployments) != 1:
@@ -60,10 +76,10 @@ def uploaded_version(events, worker):
     return version
 
 
-def deployed_health(health, receipt, uploaded):
+def deployed_health(health, receipt, uploaded, admission="closed"):
     deployment = health.get("deployment")
     return (health.get("status") == "ok" and health.get("version") == receipt["version"]
-            and health.get("revision") == receipt["source"] and health.get("admission") == "closed"
+            and health.get("revision") == receipt["source"] and health.get("admission") == admission
             and deployment == uploaded
             and isinstance(deployment, str)
             and bool(re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", deployment)))
@@ -73,13 +89,22 @@ def main():
     bundle = Path(".local/relay-release")
     receipt = verify_bundle(bundle, os.environ["RELEASE_TAG"], os.environ["RELEASE_SOURCE"])
     if not os.environ.get("CLOUDFLARE_API_TOKEN"):
-        raise ValueError("Configure the relay-staging environment's dedicated Cloudflare API token")
-    config = configuration(os.environ.get("CLOUDFLARE_ACCOUNT_ID", ""),
+        raise ValueError("Configure the selected environment's dedicated Cloudflare API token")
+    target = os.environ.get("RELAY_TARGET", "staging")
+    if target not in ("staging", "production"):
+        raise ValueError("Invalid relay target")
+    build_config = configuration if target == "staging" else production_configuration
+    mode = os.environ.get("RELAY_MODE", "maintenance")
+    config = build_config(os.environ.get("CLOUDFLARE_ACCOUNT_ID", ""),
                            os.environ.get("RELAY_WORKER_NAME", ""), os.environ.get("RELAY_ORIGIN", ""),
-                           bundle, receipt["tag"], receipt["source"], os.environ.get("FCM_PROJECT"))
+                           bundle, receipt["tag"], receipt["source"], os.environ.get("FCM_PROJECT"), **({"mode": mode} if target == "production" else {}))
+    admission = "closed" if target == "staging" else ("public" if mode == "production" else "maintenance")
+    health_origin = os.environ.get("RELAY_HEALTH_ORIGIN") or config["vars"]["PUBLIC_ORIGIN"]
+    if health_origin != config["vars"]["PUBLIC_ORIGIN"] and not re.fullmatch(r"https://" + re.escape(config["name"]) + r"\.[a-z0-9-]+\.workers\.dev", health_origin):
+        raise ValueError("Unexpected health origin")
     for value in (config["account_id"], config["name"], config["vars"]["PUBLIC_ORIGIN"]):
         print(f"::add-mask::{value}", flush=True)
-    config_path = Path(".local/relay-staging.json")
+    config_path = Path(f".local/relay-{target}.json")
     config_path.write_text(json.dumps(config, indent=2) + "\n")
     output_path = Path(".local/relay-wrangler.jsonl").resolve()
     output_path.unlink(missing_ok=True)
@@ -90,23 +115,23 @@ def main():
     health = {}
     for attempt in range(30):
         try:
-            request = urllib.request.Request(config["vars"]["PUBLIC_ORIGIN"] + "/health",
+            request = urllib.request.Request(health_origin + "/health",
                                              headers={"Cache-Control": "no-cache",
                                                       "User-Agent": "YepControl-Relay-CI/1.0"})
             with urllib.request.urlopen(request, timeout=10) as response:
                 health = json.load(response)
-            if deployed_health(health, receipt, worker_version):
+            if deployed_health(health, receipt, worker_version, admission):
                 break
         except (OSError, ValueError):
             pass
         time.sleep(2)
     result = {"tag": receipt["tag"], "source": receipt["source"], "run": os.environ["GITHUB_RUN_ID"],
               "workerVersion": worker_version, "observedWorkerVersion": health.get("deployment"),
-              "verified": deployed_health(health, receipt, worker_version),
-              "admission": health.get("admission")}
+              "verified": deployed_health(health, receipt, worker_version, admission),
+              "admission": health.get("admission"), "target": target}
     Path(".local/relay-deployment.json").write_text(json.dumps(result, indent=2) + "\n")
     if not result["verified"]:
-        raise RuntimeError("Deployed relay did not report the exact expected source/version with closed admission")
+        raise RuntimeError("Deployed relay did not report the exact expected source/version with the expected admission")
     with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as output:
         output.write("```json\n" + json.dumps(result, indent=2) + "\n```\n")
 

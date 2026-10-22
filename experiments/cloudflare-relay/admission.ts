@@ -1,6 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
+import { digest, requireMigration, type MigrationEnv } from "./migration.js";
 
-type Env = {
+type Env = MigrationEnv & {
   PAIRING_CAPACITY?: string;
   PAIRING_STARTS_PER_HOUR?: string;
   REQUESTS_PER_MINUTE?: string;
@@ -33,6 +34,58 @@ export class Admission extends DurableObject<Env> {
     ctx.storage.sql.exec(
       "CREATE TABLE IF NOT EXISTS sockets (lease TEXT PRIMARY KEY, until INTEGER NOT NULL)",
     );
+    ctx.storage.sql.exec(
+      "CREATE TABLE IF NOT EXISTS migration (hash TEXT PRIMARY KEY, manifest TEXT NOT NULL)",
+    );
+  }
+  async importRoutes(
+    rows: { id: string; created: number }[],
+    manifest: string,
+  ) {
+    requireMigration(this.env, manifest);
+    if (
+      rows.length > bound(this.env.PAIRING_CAPACITY, 10000) ||
+      new Set(rows.map((row) => row.id)).size !== rows.length ||
+      rows.some(
+        (row) =>
+          !/^[0-9a-f]{32}$/.test(row.id) ||
+          !Number.isSafeInteger(row.created) ||
+          row.created < 0,
+      )
+    )
+      throw new Error("Invalid routes");
+    const sorted = [...rows].sort((a, b) => a.id.localeCompare(b.id));
+    const hash = await digest(JSON.stringify(sorted));
+    requireMigration(this.env, manifest);
+    const sql = this.ctx.storage.sql;
+    this.ctx.storage.transactionSync(() => {
+      const marker = sql
+        .exec<{ hash: string; manifest: string }>(
+          "SELECT hash, manifest FROM migration",
+        )
+        .toArray()[0];
+      if (marker) {
+        if (marker.hash !== hash || marker.manifest !== manifest)
+          throw new Error("Different import");
+        return;
+      }
+      if (
+        sql.exec("SELECT id FROM routes LIMIT 1").toArray().length ||
+        sql.exec("SELECT lease FROM sockets LIMIT 1").toArray().length
+      )
+        throw new Error("Destination is not empty");
+      for (const row of rows)
+        sql.exec("INSERT INTO routes VALUES (?, ?)", row.id, row.created);
+      sql.exec("INSERT INTO migration VALUES (?, ?)", hash, manifest);
+    });
+    const observed = sql
+      .exec<{ id: string; created: number }>(
+        "SELECT id, created FROM routes ORDER BY id",
+      )
+      .toArray();
+    if ((await digest(JSON.stringify(observed))) !== hash)
+      throw new Error("Imported routes changed");
+    return hash;
   }
   async fetch(req: Request): Promise<Response> {
     const { id, create, upgrade, lease } = (await req.json()) as {

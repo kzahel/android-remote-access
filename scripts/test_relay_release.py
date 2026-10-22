@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from deploy_relay_staging import configuration, deployed_health, uploaded_version
+from deploy_relay import configuration, deployed_health, production_configuration, uploaded_version
 from relay_release import file_hashes, validate_source, verify_bundle, version
 
 
@@ -82,6 +82,20 @@ class RelayReleaseTest(unittest.TestCase):
             candidate[index] = invalid
             with self.subTest(invalid=invalid), self.assertRaises(ValueError):
                 configuration(*candidate)
+
+    def test_production_is_separate_explicit_and_has_no_migration_authority(self):
+        args = ["a" * 32, "yepcontrol-relay", "https://yepcontrol.com", Path("bundle"), "relay-v0.1.0", "b" * 40, "firebase-fixture"]
+        maintenance = production_configuration(*args)
+        self.assertEqual(maintenance["vars"]["RELAY_MODE"], "maintenance")
+        live = production_configuration(*args, mode="production")
+        self.assertEqual(live["vars"]["RELAY_MODE"], "production")
+        for field in ("PROOF_KEY", "PROOF_EXPIRES", "MIGRATION_SHA256", "MIGRATION_EXPIRES", "FCM_SERVICE_ACCOUNT"):
+            self.assertNotIn(field, live["vars"])
+        self.assertNotIn("routes", live, "CI cannot change the operator-provisioned custom domains")
+        for index, value in ((1, "yepcontrol-relay-proof"), (2, "https://other.invalid"), (6, None)):
+            bad = args.copy(); bad[index] = value
+            with self.assertRaises(ValueError): production_configuration(*bad)
+        with self.assertRaises(ValueError): production_configuration(*args, mode="gated")
 
     def test_health_requires_exact_release_and_closed_gate(self):
         receipt = {"version": "0.1.0", "source": "a" * 40}

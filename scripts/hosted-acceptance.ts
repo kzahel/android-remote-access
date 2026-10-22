@@ -67,6 +67,11 @@ const state = process.env.HOSTED_STATE_DIRECTORY
 if (physical && process.env.HOSTED_STATE_DIRECTORY)
   throw new Error("Custom state directories require an owned emulator");
 const fcm = process.env.HOSTED_FCM === "1";
+const migration = process.env.HOSTED_MIGRATION === "1";
+if (migration && (physical || control || multi || !fcm))
+  throw new Error(
+    "Migration acceptance requires the owned pairing/FCM fixture",
+  );
 const sdk = process.env.ANDROID_HOME ?? path.join(os.homedir(), "Android/Sdk");
 const adbPath = path.join(sdk, "platform-tools/adb");
 const port = Number(process.env.HOSTED_EMULATOR_PORT ?? 5594);
@@ -502,8 +507,12 @@ try {
       )
         throw nativeFailure("Native acceptance failed", nativeLog);
     }
+    let resumePage: string | undefined;
     async function check() {
-      await page.reload();
+      if (resumePage) {
+        await page.goto(resumePage);
+        resumePage = undefined;
+      } else await page.reload();
       await page
         .getByRole("status")
         .filter({ hasText: "Ready to connect" })
@@ -532,6 +541,10 @@ try {
       };
     };
     async function wakeCheck() {
+      if (migration) {
+        resumePage = page.url();
+        await page.goto("about:blank");
+      }
       // Process reclamation, not force-stop: Firebase must be allowed to restart it.
       await until(() => {
         adb("shell", "am", "kill", "--user", "current", appId);
@@ -543,6 +556,20 @@ try {
           ) === "absent"
         );
       }, 20000);
+      if (migration) {
+        await writeFile(
+          path.join(state, "migration-ready.json"),
+          JSON.stringify({ origin, processAbsent: true }),
+          { mode: 0o600 },
+        );
+        console.log(
+          "Migration checkpoint ready; waiting for the explicit cutover continuation file",
+        );
+        await until(
+          () => existsSync(path.join(state, "migration-continue")),
+          1800000,
+        );
+      }
       const before = readCheckpoints();
       const clockStart = Date.now();
       const phoneTime = Number(adb("shell", "date", "+%s%3N"));
@@ -566,6 +593,7 @@ try {
         noApplicationSocketBeforeWake: true,
         firebaseReceived: true,
         nativeEncryptedExchange: true,
+        ...(migration ? { pairedBeforeRelayMigration: true } : {}),
         requestToReceiptMs: Math.round(checkpoints.receipt - requestedAt),
         requestToExchangeMs: Math.round(checkpoints.exchange - requestedAt),
         clockEstimateUncertaintyMs: Math.ceil((clockEnd - clockStart) / 2),

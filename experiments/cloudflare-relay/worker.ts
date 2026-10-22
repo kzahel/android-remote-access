@@ -1,4 +1,4 @@
-/** Isolated product proof. Gated admission; no production route or anonymous access. */
+/** Hosted relay. Production and the closed proof use separate Workers/state. */
 import { DurableObject } from "cloudflare:workers";
 import {
   authBytes,
@@ -14,6 +14,12 @@ import type { Admission } from "./admission.js";
 import { deliverFcm } from "./fcm.js";
 import { FcmAuth, type FcmToken, type TokenStore } from "./fcm-auth.js";
 import { acknowledge, type Flow, forward, freshFlow, receive } from "./flow.js";
+import {
+  digest,
+  requireMigration,
+  type MigrationRow,
+  validateRow,
+} from "./migration.js";
 
 export { Admission } from "./admission.js";
 
@@ -33,6 +39,9 @@ type Env = {
   RELEASE_VERSION?: string;
   REVISION?: string;
   CF_VERSION_METADATA?: { id: string };
+  RELAY_MODE?: string;
+  MIGRATION_SHA256?: string;
+  MIGRATION_EXPIRES?: string;
 };
 type Pair = Grant & {
   viewerSignature: string;
@@ -101,9 +110,14 @@ function text(value: unknown): string {
     throw new Error("Invalid field");
   return value;
 }
-export default {
+const worker = {
   async fetch(req: Request, env: Env) {
     const url = new URL(req.url);
+    if (env.RELAY_MODE && url.hostname === "www.yepcontrol.com")
+      return Response.redirect(
+        `https://yepcontrol.com${url.pathname}${url.search}`,
+        308,
+      );
     // Public deployment identity only; no pairing lookup, wake or object allocation.
     if (url.pathname === "/health" && req.method === "GET")
       return json({
@@ -112,25 +126,44 @@ export default {
         revision: env.REVISION ?? "development",
         deployment: env.CF_VERSION_METADATA?.id ?? null,
         admission:
-          env.PROOF_KEY &&
-          (env.PROOF_EXPIRES === undefined ||
-            (Number.isFinite(Number(env.PROOF_EXPIRES)) &&
-              Date.now() < Number(env.PROOF_EXPIRES)))
-            ? "gated"
-            : "closed",
+          env.RELAY_MODE === "production"
+            ? "public"
+            : env.RELAY_MODE === "maintenance"
+              ? "maintenance"
+              : env.PROOF_KEY &&
+                  (env.PROOF_EXPIRES === undefined ||
+                    (Number.isFinite(Number(env.PROOF_EXPIRES)) &&
+                      Date.now() < Number(env.PROOF_EXPIRES)))
+                ? "gated"
+                : "closed",
       });
     // A fixture gate, NOT the proposed production enrollment defense.
     if (
-      !env.PROOF_KEY ||
-      (req.headers.get("X-Proof-Key") ??
-        req.headers
-          .get("Cookie")
-          ?.match(
-            /(?:^|;\s*)__Host-yepcontrol-proof=([0-9a-f]{64})(?:;|$)/,
-          )?.[1]) !== env.PROOF_KEY ||
-      (env.PROOF_EXPIRES !== undefined &&
-        (!Number.isFinite(Number(env.PROOF_EXPIRES)) ||
-          Date.now() >= Number(env.PROOF_EXPIRES)))
+      env.RELAY_MODE === "maintenance" &&
+      (url.pathname.startsWith("/api/") || url.pathname.startsWith("/_proof/"))
+    )
+      return new Response(
+        JSON.stringify({ error: "Relay maintenance; reconnect shortly" }),
+        {
+          status: 503,
+          headers: { "Content-Type": "application/json", "Retry-After": "60" },
+        },
+      );
+    if (env.RELAY_MODE && url.origin !== env.PUBLIC_ORIGIN)
+      return json({ error: "Use the canonical origin" }, 421);
+    if (
+      env.RELAY_MODE !== "production" &&
+      env.RELAY_MODE !== "maintenance" &&
+      (!env.PROOF_KEY ||
+        (req.headers.get("X-Proof-Key") ??
+          req.headers
+            .get("Cookie")
+            ?.match(
+              /(?:^|;\s*)__Host-yepcontrol-proof=([0-9a-f]{64})(?:;|$)/,
+            )?.[1]) !== env.PROOF_KEY ||
+        (env.PROOF_EXPIRES !== undefined &&
+          (!Number.isFinite(Number(env.PROOF_EXPIRES)) ||
+            Date.now() >= Number(env.PROOF_EXPIRES))))
     )
       return json({ error: "Proof only" }, 403);
     if (
@@ -165,6 +198,8 @@ export default {
       if (!env.ASSETS) return json({ error: "No viewer" }, 404);
       if (url.pathname === "/enroll" || url.pathname === "/install")
         url.pathname = "/install.html";
+      else if (url.pathname === "/privacy" || url.pathname === "/privacy/")
+        url.pathname = "/privacy/index.html";
       else if (
         !url.pathname.startsWith("/assets/") &&
         !url.pathname.includes(".")
@@ -176,6 +211,7 @@ export default {
       /^\/api\/pair\/([0-9a-f]{32})(?:\/(offer|complete|revoke))?$/,
     );
     const diagnostic = url.pathname.match(/^\/_proof\/([0-9a-f]{32})$/);
+    if (env.RELAY_MODE && diagnostic) return json({ error: "Route" }, 404);
     const id =
       api?.[1] ??
       diagnostic?.[1] ??
@@ -242,6 +278,25 @@ export default {
   },
 } satisfies ExportedHandler<Env>;
 
+export default {
+  async fetch(req: Request, env: Env) {
+    const response = await worker.fetch(req, env);
+    if (response.status === 101) return response;
+    const secured = new Response(response.body, response);
+    for (const [name, value] of Object.entries({
+      "Strict-Transport-Security": "max-age=31536000",
+      "Content-Security-Policy":
+        "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+      "X-Content-Type-Options": "nosniff",
+      "Referrer-Policy": "no-referrer",
+      "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+      "Cache-Control": "no-store",
+    }))
+      secured.headers.set(name, value);
+    return secured;
+  },
+} satisfies ExportedHandler<Env>;
+
 export class Pairing extends DurableObject<Env> {
   private readonly boot = crypto.randomUUID();
   constructor(ctx: DurableObjectState, env: Env) {
@@ -265,6 +320,44 @@ export class Pairing extends DurableObject<Env> {
   }
   private drop(key: string) {
     this.ctx.storage.sql.exec("DELETE FROM state WHERE key = ?", key);
+  }
+  /** Internal RPC only; disabled in every normal production/staging deployment. */
+  async importState(row: MigrationRow, manifest: string): Promise<string> {
+    requireMigration(this.env, manifest);
+    await validateRow(row, this.env.PUBLIC_ORIGIN);
+    const hash = await digest(JSON.stringify(row));
+    requireMigration(this.env, manifest);
+    this.ctx.storage.transactionSync(() => {
+      const marker = this.get<{
+        manifest: string;
+        hash: string;
+        created: number;
+      }>("imported");
+      if (marker) {
+        if (marker.manifest !== manifest || marker.hash !== hash)
+          throw new Error("Different import");
+        return;
+      }
+      if (
+        this.ctx.storage.sql.exec("SELECT key FROM state LIMIT 1").toArray()
+          .length ||
+        this.ctx.getWebSockets().length
+      )
+        throw new Error("Destination is not empty");
+      this.put("pair", row.pair);
+      if (row.target) this.put("target", row.target);
+      this.put("imported", { manifest, hash, created: row.created });
+    });
+    const target = this.get<Target>("target");
+    const observed = await digest(
+      JSON.stringify({
+        pair: this.get<Pair>("pair"),
+        created: row.created,
+        ...(target ? { target } : {}),
+      }),
+    );
+    if (observed !== hash) throw new Error("Imported authority changed");
+    return observed;
   }
   private sockets(role?: string) {
     return this.ctx

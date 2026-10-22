@@ -1,4 +1,4 @@
-name: Relay release and staging deployment
+name: Relay release and deployment
 on:
   push:
     tags: ['relay-v*']
@@ -9,9 +9,14 @@ on:
         required: true
         type: string
       deploy:
-        description: Deploy to the gated Cloudflare staging service
+        description: Deploy to the selected relay environment
         type: boolean
         default: false
+      target:
+        description: Isolated deployment environment
+        type: choice
+        options: [staging, production]
+        default: staging
 permissions:
   contents: read
   actions: read
@@ -50,7 +55,7 @@ jobs:
       - run: pnpm --dir experiments/cloudflare-relay install --frozen-lockfile
       - run: pnpm --dir experiments/cloudflare-relay typecheck
       - run: pnpm --dir experiments/cloudflare-relay test
-      - name: Build the matched staging viewer and receipt the bundle
+      - name: Build the matched viewer and receipt the bundle
         env:
           RELEASE_TAG: ${{ steps.source.outputs.tag }}
           RELEASE_SOURCE: ${{ steps.source.outputs.source }}
@@ -58,6 +63,7 @@ jobs:
           pnpm --filter @remote/web build
           mkdir -p .local/relay-release/web
           cp experiments/cloudflare-relay/.local/bundle/worker.js .local/relay-release/worker.js
+          cp experiments/cloudflare-relay/.local/migration-bundle/migration-worker.js .local/relay-release/importer.js
           cp -R web/dist/. .local/relay-release/web/
           python3 scripts/relay_release.py receipt --tag "$RELEASE_TAG" --source "$RELEASE_SOURCE" --directory .local/relay-release
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
@@ -72,9 +78,9 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.deploy
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    environment: relay-staging
+    environment: relay-${{ inputs.target }}
     concurrency:
-      group: relay-staging-deployment
+      group: relay-${{ inputs.target }}-deployment
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -102,9 +108,12 @@ jobs:
           RELAY_WORKER_NAME: ${{ vars.RELAY_WORKER_NAME }}
           RELAY_ORIGIN: ${{ vars.RELAY_ORIGIN }}
           FCM_PROJECT: ${{ vars.FCM_PROJECT }}
+          RELAY_TARGET: ${{ inputs.target }}
+          RELAY_MODE: ${{ vars.RELAY_MODE }}
+          RELAY_HEALTH_ORIGIN: ${{ vars.RELAY_HEALTH_ORIGIN }}
           RELEASE_TAG: ${{ needs.build.outputs.tag }}
           RELEASE_SOURCE: ${{ needs.build.outputs.source }}
-        run: python3 scripts/deploy_relay_staging.py
+        run: python3 scripts/deploy_relay.py
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()
         with:
