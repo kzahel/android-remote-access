@@ -1,24 +1,47 @@
 import assert from "node:assert/strict";
-import { mkdir, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, expect, type Page } from "@playwright/test";
 import jsQR from "jsqr";
 import { PNG } from "pngjs";
 import { createServer } from "vite";
+import { type DeviceInfo, sealDevice } from "../protocol/src/device.js";
 import {
+  decodeInvitation,
   type Grant,
   grantBytes,
   grantMac,
   hex,
-  type Invitation,
   verifySignature,
 } from "../protocol/src/enrollment.js";
-import { b64, createIdentity, unb64 } from "../protocol/src/index.js";
+import { b64, createIdentity } from "../protocol/src/index.js";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const artifacts = path.join(root, ".local/viewer-phones-proof");
-await mkdir(artifacts, { recursive: true });
+await mkdir(artifacts, { recursive: true, mode: 0o700 });
+const key = path.join(artifacts, "fixture-key.pem");
+const cert = path.join(artifacts, "fixture-cert.pem");
+execFileSync(
+  "openssl",
+  [
+    "req",
+    "-x509",
+    "-newkey",
+    "rsa:2048",
+    "-nodes",
+    "-days",
+    "1",
+    "-subj",
+    "/CN=localhost",
+    "-keyout",
+    key,
+    "-out",
+    cert,
+  ],
+  { stdio: "ignore" },
+);
 const first = await createIdentity();
 const second = await createIdentity();
 const models = {
@@ -29,12 +52,22 @@ const server = await createServer({
   configFile: false,
   root: path.join(root, "web"),
   logLevel: "error",
-  server: { host: "127.0.0.1", port: 0, fs: { allow: [root] } },
+  server: {
+    host: "127.0.0.1",
+    port: 0,
+    fs: { allow: [root] },
+    https: { key: await readFile(key), cert: await readFile(cert) },
+  },
   plugins: [
     {
       name: "phones-proof",
       configureServer(vite) {
         vite.middlewares.use((req, res, next) => {
+          if (req.url?.startsWith("/api/pair/")) {
+            res.setHeader("Content-Type", "application/json");
+            res.end(JSON.stringify({ state: "pending" }));
+            return;
+          }
           if (req.url === "/fixture-models") {
             res.setHeader("Content-Type", "application/json");
             res.end(JSON.stringify(models));
@@ -70,7 +103,7 @@ async function records(page: Page) {
       {
         id: string;
         alias?: string;
-        model?: string;
+        device: DeviceInfo;
         lastContactAt?: number;
         grant: Grant;
       }[]
@@ -93,10 +126,11 @@ try {
   const address = server.httpServer?.address();
   if (!address || typeof address === "string")
     throw Error("Missing fixture address");
-  const origin = `http://127.0.0.1:${address.port}`;
+  const origin = `https://127.0.0.1:${address.port}`;
   browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
     viewport: { width: 1280, height: 1000 },
+    ignoreHTTPSErrors: true,
   });
   const errors: string[] = [];
   context.on("page", (page) =>
@@ -104,18 +138,12 @@ try {
   );
   const home = await context.newPage();
   await home.goto(`${origin}/fixture-bootstrap`);
-  // Real v1 database and structured-cloned non-exportable keys, as deployed.
-  const legacy = await home.evaluate(async (phone) => {
-    const keys = await crypto.subtle.generateKey(
-      { name: "ECDSA", namedCurve: "P-256" },
-      false,
-      ["sign", "verify"],
-    );
-    const viewer = btoa(
-      String.fromCharCode(
-        ...new Uint8Array(await crypto.subtle.exportKey("raw", keys.publicKey)),
-      ),
-    );
+  // Seed the current format through the real store; legacy formats intentionally reset.
+  const seeded = await home.evaluate(async (phone) => {
+    const module = "/src/store.ts";
+    const store = await import(module);
+    const identity = await store.browserIdentity();
+    const viewer = btoa(String.fromCharCode(...identity.publicKey));
     const grant: Grant = {
       id: "a".repeat(32),
       phone,
@@ -125,20 +153,14 @@ try {
       phoneSignature: "fixture",
       viewerSignature: "fixture",
     };
-    const db = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open("remote-access-v1", 1);
-      request.onupgradeneeded = () => request.result.createObjectStore("state");
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
+    await store.rememberPhone(grant, {
+      manufacturer: "Google",
+      model: "Pixel 9",
+      name: "Pixel 9",
+      android: "17",
+      sdk: 37,
+      app: "0.6.0",
     });
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction("state", "readwrite");
-      tx.objectStore("state").put(keys, "identity");
-      tx.objectStore("state").put(grant, "grant");
-      tx.oncomplete = () => resolve();
-      tx.onabort = () => reject(tx.error);
-    });
-    db.close();
     return grant;
   }, b64(first.publicKey));
   const other = await context.newPage();
@@ -146,20 +168,20 @@ try {
   await expect(
     home
       .locator(".phone-list")
-      .getByRole("link", { name: "Your phone", exact: true }),
+      .getByRole("link", { name: "Pixel 9", exact: true }),
   ).toBeVisible();
-  const migrated = await records(home);
-  assert.equal(migrated.length, 1);
-  assert.deepEqual(migrated[0]?.grant, legacy);
-  const firstId = migrated[0]?.id;
+  const stored = await records(home);
+  assert.equal(stored.length, 1);
+  assert.deepEqual(stored[0]?.grant, seeded);
+  const firstId = stored[0]?.id;
   assert.ok(firstId);
   const keyPreserved = await home.evaluate(async (viewer) => {
     const module = "/src/store.ts";
     const identity = await (await import(module)).browserIdentity();
     return btoa(String.fromCharCode(...identity.publicKey)) === viewer;
-  }, legacy.viewer);
+  }, seeded.viewer);
   assert.equal(keyPreserved, true);
-  console.log("Concurrent v1 migration preserved the pairing and browser key");
+  console.log("Concurrent tabs preserved the current pairing and browser key");
   const a = await context.newPage();
   await a.goto(`${origin}/phones/${firstId}`);
   await expect(a.getByRole("status")).toHaveText("Ready to connect");
@@ -208,7 +230,14 @@ try {
       .evaluateAll((elements) =>
         elements.map((element) => {
           const r = element.getBoundingClientRect();
-          return { x: r.x, y: r.y, width: r.width, height: r.height };
+          // The live dock adds Smooth viewing; its height may grow, while the
+          // phone frame and the dock's position/width must remain fixed.
+          return {
+            x: r.x,
+            y: r.y,
+            width: r.width,
+            ...(element.matches(".screen-stage") ? { height: r.height } : {}),
+          };
         }),
       );
   }
@@ -406,7 +435,7 @@ try {
   );
   await rename(home, "Pixel 9", "RV phone");
   await expect(a.getByRole("heading", { level: 1 })).toHaveText("RV phone");
-  await expect(a).toHaveTitle("RV phone · Remote access");
+  await expect(a).toHaveTitle("RV phone · YepControl");
   assert.equal(await a.evaluate(() => window.phonesFixture.checks), 1);
   // Exercise the persisted-pageshow lifecycle without depending on Chromium's
   // cache admission for a dev server page with open development sockets.
@@ -421,6 +450,7 @@ try {
   await expect(a.getByRole("status")).toHaveText("Ready to connect");
   // Pair another phone through the real QR/signature/receipt UI.
   const offered = new Map<string, Grant>();
+  const deviceOffers = new Map<string, string>();
   await context.route("**/api/pair/**", async (route) => {
     const request = route.request();
     const parts = new URL(request.url()).pathname.split("/");
@@ -438,7 +468,11 @@ try {
     } else
       await route.fulfill({
         json: offered.has(id)
-          ? { state: "offered", grant: offered.get(id) }
+          ? {
+              state: "offered",
+              grant: offered.get(id),
+              device: deviceOffers.get(id),
+            }
           : { state: "pending" },
       });
   });
@@ -450,9 +484,7 @@ try {
   );
   const decoded = jsQR(new Uint8ClampedArray(qr.data), qr.width, qr.height);
   assert.ok(decoded);
-  const invitation = JSON.parse(
-    new TextDecoder().decode(unb64(decoded.data.slice(18))),
-  ) as Invitation;
+  const invitation = decodeInvitation(decoded.data);
   const grant: Grant = {
     id: invitation.id,
     viewer: invitation.viewer,
@@ -464,6 +496,17 @@ try {
   const bytes = grantBytes(origin, grant);
   grant.phoneSignature = b64(await second.sign(bytes));
   grant.mac = hex(await grantMac(invitation.secret, bytes));
+  deviceOffers.set(
+    grant.id,
+    await sealDevice(invitation.secret, invitation.id, {
+      manufacturer: "Google",
+      model: "Pixel 7a",
+      name: "Pixel 7a",
+      android: "17",
+      sdk: 37,
+      app: "0.6.0",
+    }),
+  );
   offered.set(grant.id, grant);
   await expect(other).toHaveURL(/\/phones\/[a-f0-9]{64}$/);
   const both = await records(home);
@@ -486,7 +529,7 @@ try {
   await expect(a.getByRole("heading", { level: 1 })).toHaveText("RV phone");
   assert.deepEqual(
     await a.evaluate(() => window.phonesFixture.calls.slice(-1)),
-    [legacy.id],
+    [seeded.id],
   );
   assert.equal(await other.evaluate(() => window.phonesFixture.controls), 1);
   assert.ok(
@@ -602,13 +645,20 @@ try {
     }, firstId),
     other.evaluate(async (id) => {
       const module = "/src/store.ts";
-      await (await import(module)).contactedPhone(id, "Pixel 9");
+      await (await import(module)).contactedPhone(id, {
+        manufacturer: "Google",
+        model: "Pixel 9",
+        name: "Pixel 9",
+        android: "17",
+        sdk: 37,
+        app: "0.6.0",
+      });
     }, firstId),
   ]);
   await expect(a.getByRole("heading", { level: 1 })).toHaveText("Travel phone");
   const updated = (await records(home)).find((phone) => phone.id === firstId);
   assert.equal(updated?.alias, "Travel phone");
-  assert.equal(updated?.model, "Pixel 9");
+  assert.equal(updated?.device.model, "Pixel 9");
   assert.ok(updated.lastContactAt);
   await home.reload();
   await expect(
@@ -629,7 +679,7 @@ try {
     [],
   );
   // A fresh browser cannot use the URL as an authorization token.
-  const fresh = await browser.newContext();
+  const fresh = await browser.newContext({ ignoreHTTPSErrors: true });
   const unpaired = await fresh.newPage();
   await unpaired.goto(`${origin}/phones/${secondId}`);
   await expect(unpaired.getByRole("heading", { level: 1 })).toHaveText(
@@ -647,7 +697,10 @@ try {
     const existing = (await store.savedPhones()).find(
       (phone: { id: string }) => phone.id === id,
     );
-    await store.rememberPhone({ ...existing.grant, id: "b".repeat(32) });
+    await store.rememberPhone(
+      { ...existing.grant, id: "b".repeat(32) },
+      existing.device,
+    );
     return store.savedPhones() as Promise<
       { id: string; alias?: string; lastContactAt?: number; grant: Grant }[]
     >;
@@ -730,7 +783,7 @@ try {
     path.join(artifacts, "result.json"),
     JSON.stringify(
       {
-        migration: true,
+        currentStorage: true,
         pairingPreserved: true,
         independentPhones: true,
         samePhoneLease: true,
@@ -750,4 +803,5 @@ try {
 } finally {
   await browser?.close();
   await server.close();
+  await Promise.all([rm(key, { force: true }), rm(cert, { force: true })]);
 }

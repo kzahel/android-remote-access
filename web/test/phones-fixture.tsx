@@ -121,7 +121,16 @@ const services: ViewerServices = {
     window.phonesFixture.calls.push(grant.id);
     if (window.phonesFixture.delay) await deferred("finishCheck", signal);
     if (window.phonesFixture.fail) throw Error("Fixture phone is unavailable");
-    return window.phonesFixture.features;
+    const features = window.phonesFixture.features;
+    return features
+      ? {
+          ...features,
+          device: {
+            ...features.device,
+            name: models[grant.phone] ?? "Fixture phone",
+          },
+        }
+      : undefined;
   },
 };
 const root = document.getElementById("root");
