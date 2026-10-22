@@ -13,3 +13,55 @@ export function nativeFailure(message: string, output: string): Error {
     }`,
   );
 }
+
+// A corrupted/unexpected fixture file must never turn into a public log leak.
+export function safeFixtureDiagnostics(
+  raw: string,
+): Record<string, boolean | number | string> | undefined {
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const result: Record<string, boolean | number | string> = {};
+    for (const key of [
+      "armed",
+      "automatic",
+      "notificationsAllowed",
+      "fidPresent",
+    ]) {
+      if (typeof parsed[key] !== "boolean") return undefined;
+      result[key] = parsed[key];
+    }
+    for (const key of [
+      "devices",
+      "synced",
+      "wakeReady",
+      "registrationRunning",
+      "registrationQueued",
+    ]) {
+      const value = parsed[key];
+      if (
+        typeof value !== "number" ||
+        !Number.isSafeInteger(value) ||
+        value < 0 ||
+        value > 10000
+      )
+        return undefined;
+      result[key] = value;
+    }
+    const state = parsed.wakeState;
+    if (
+      typeof state !== "string" ||
+      ![
+        "unset",
+        "synchronized",
+        "registration-unavailable",
+        "sync-incomplete",
+        "other",
+      ].includes(state)
+    )
+      return undefined;
+    result.wakeState = state;
+    return result;
+  } catch {
+    return undefined;
+  }
+}

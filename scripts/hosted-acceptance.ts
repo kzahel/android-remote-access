@@ -10,7 +10,10 @@ import { chromium } from "@playwright/test";
 import jsQR from "jsqr";
 import { PNG } from "pngjs";
 import { decodeInvitation } from "../protocol/src/enrollment.js";
-import { nativeFailure } from "./acceptance-diagnostics.js";
+import {
+  nativeFailure,
+  safeFixtureDiagnostics,
+} from "./acceptance-diagnostics.js";
 import { controlAcceptance } from "./control-acceptance.js";
 import { mobileAcceptance } from "./mobile-management-acceptance.js";
 import { admitProofBrowser } from "./proof-relay.js";
@@ -515,7 +518,10 @@ try {
     }
     async function finishNative(label: string, action: string) {
       privateWrite("hosted-command", action);
-      await until(() => instrument?.exitCode !== null, fcm ? 90000 : 30000);
+      await until(
+        () => instrument?.exitCode !== null,
+        fcm && action === "wake" ? 150000 : fcm ? 90000 : 30000,
+      );
       const nativeLog = await readFile(
         path.join(state, `${label}.log`),
         "utf8",
@@ -720,6 +726,16 @@ try {
     );
     console.log(JSON.stringify(report));
   }
+} catch (error) {
+  if (!physical) {
+    try {
+      const diagnostic = safeFixtureDiagnostics(
+        adb("shell", "run-as", appId, "cat", "files/hosted-failure-state.json"),
+      );
+      if (diagnostic) console.error("Owned fixture readiness", diagnostic);
+    } catch {}
+  }
+  throw error;
 } finally {
   if (invitationId && !revoked)
     console.error(

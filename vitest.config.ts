@@ -5,6 +5,7 @@ export default defineConfig({
       "protocol/test/**/*.test.ts",
       "relay/test/**/*.test.ts",
       "web/test/**/*.test.ts",
+      "scripts/**/*.test.ts",
     ],
   },
 });

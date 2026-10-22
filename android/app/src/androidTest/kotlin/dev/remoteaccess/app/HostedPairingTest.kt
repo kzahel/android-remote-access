@@ -14,6 +14,7 @@ import androidx.test.uiautomator.UiScrollable
 import androidx.test.uiautomator.UiSelector
 import androidx.test.uiautomator.Until
 import org.json.JSONObject
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
@@ -24,6 +25,8 @@ import kotlin.test.assertTrue
 /** Normal pairing/deep link and native controls, coordinated with isolated real devices. */
 @RunWith(AndroidJUnit4::class)
 class HostedPairingTest {
+    @get:Rule val failureDiagnostics = FixtureFailureDiagnostics()
+
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
     private val device =
         run {
@@ -173,7 +176,9 @@ class HostedPairingTest {
                 if (!store.snapshot.settings.automatic) click("enable_wake")
                 val allow = device.wait(Until.findObject(By.res("com.android.permissioncontroller:id/permission_allow_button")), 2000)
                 allow?.click()
-                waitFor(60000) { store.snapshot.devices.all { it.wakeReady } }
+                // Initial Firebase/WorkManager setup on a fresh CI image is separate from
+                // the measured process-absent push-delivery deadline.
+                waitFor(120000) { store.snapshot.devices.all { it.wakeReady } }
                 device.pressHome()
                 stage.writeText("wake-ready")
             }

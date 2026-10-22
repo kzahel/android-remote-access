@@ -9,6 +9,7 @@ import androidx.test.uiautomator.Until
 import dev.remoteaccess.protocol.Crypto
 import dev.remoteaccess.protocol.JcaIdentity
 import org.json.JSONObject
+import org.junit.Rule
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFails
@@ -17,6 +18,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class EnrollmentLinkTest {
+    @get:Rule val failureDiagnostics = FixtureFailureDiagnostics()
+
     private val origin = BuildConfig.SHARING_WEBSITE
     private val identity = Crypto.generate().let { JcaIdentity(it.private, it.public) }
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
