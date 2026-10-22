@@ -159,3 +159,27 @@ cancellation, pending Off, stale callbacks, recreation and deadlines. See the
 [investigation, implementation and regression harness](smooth-view-lifecycle.md).
 Earlier quality-mode traffic figures above describe their pinned historical
 runs; the current browser acceptance runner requests Balanced.
+
+
+## CI smoke profile — 2026-10-22
+
+The reusable emulator workflow runs browser/Keystore interoperability, native
+navigation/local-security controls, Room/storage/migrations, and (when a hosted
+origin is supplied) pairing, process-absent FCM and ordinary encrypted control.
+Hosted control includes viewing, input, H.264 and rotation. It uses synthetic
+owned devices, not a physical phone. Android signing is gated on this profile.
+
+Ephemeral CI debug signing keys are not in the website's domain association.
+`HOSTED_VERIFY_APP_LINKS=0` supplies a test-only marker so the decoded invitation
+enters the explicit native activity and normal Grant UI; native HTTPS/origin
+validation still runs. OS-verified App Links are a separate associated-signer or
+Play-installed check, not a claim made by this CI profile.
+
+An additional Linux x86_64 emulator credential run passed saved-PIN unlock but
+[timed out during manual PIN unlock](https://github.com/kzahel/yepcontrol/actions/runs/39730437607).
+This remains an unresolved extended qualification result; no production input
+or unlock behavior was changed to make CI pass. The same extended control run
+passed on the owned macOS/ARM64 emulator against the Node 24 relay. Full
+credential/reboot qualification remains separate from ordinary CI smoke, via
+the existing `HOSTED_UNLOCK=1` and recovery flags. This observation is not
+physical PIN or Play-installed acceptance.

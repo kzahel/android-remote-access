@@ -83,7 +83,7 @@ Play bundle; never reuse a consumed code for changed bytes. On clean `main`:
 2. Dispatch **Android release artifacts** (`android-release.yml`) on `main`.
 3. The build job checks exact-source CI and builds/lints the actual release AAB
    without credentials, after the reusable owned-emulator crypto/navigation/storage
-   smoke suite and hosted pairing/FCM/control acceptance pass for the same source.
+   smoke suite and hosted pairing/FCM/ordinary-control acceptance pass for the same source.
    The repository variable `HOSTED_ACCEPTANCE_ORIGIN` designates the HTTPS development
    relay; release builds fail if it is unset. The matching viewer must already be
    deployed there. These tests own synthetic emulator pairings and never select a
@@ -92,6 +92,8 @@ Play bundle; never reuse a consumed code for changed bytes. On clean `main`:
    the decoded invitation enters the explicit native activity and normal Grant
    still runs. Native origin validation remains required. Verify OS App Links
    separately with an associated debug or Play-installed signer.
+   CI covers viewing, input, H.264 and rotation; credential/reboot qualification
+   stays separate (see `docs/control-acceptance.md` for the Linux fixture limit).
    A separate main-only `android-release`
    environment signs the exact unsigned artifact using a dedicated project upload key.
 4. Download `yepcontrol-play-CODE`: it contains the signed AAB, its public upload

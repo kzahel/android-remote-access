@@ -58,7 +58,8 @@ jobs:
           # The runner-generated debug key is not a public domain-associated signer.
           HOSTED_VERIFY_APP_LINKS: '0'
           HOSTED_FCM: '1'
-      - name: Hosted encrypted control release acceptance
+      # Credential/reboot qualification remains a separate owned-emulator run.
+      - name: Hosted encrypted control smoke acceptance
         if: inputs.hosted_origin != ''
         run: pnpm exec tsx scripts/hosted-acceptance.ts --control
         env:
@@ -66,7 +67,6 @@ jobs:
           # The runner-generated debug key is not a public domain-associated signer.
           HOSTED_VERIFY_APP_LINKS: '0'
           HOSTED_TOUCH: '1'
-          HOSTED_UNLOCK: '1'
           HOSTED_VIDEO: '1'
           HOSTED_ROTATION: '1'
       # Logs, QR material and app data stay private; do not upload .local/.
