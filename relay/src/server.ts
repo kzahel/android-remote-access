@@ -46,7 +46,7 @@ export function createRelay(options: Options) {
   const origin = originURL(options.origin);
   const state = new RelayState(options.stateDir);
   // Preserve shared row identity across async signature checks and revocations.
-  const pairs = state.pairs();
+  const pairs = new Map(Object.entries(state.pairs()));
   let unhealthy = false;
   const durable = (row: Stored) => {
     try {
@@ -73,7 +73,7 @@ export function createRelay(options: Options) {
   };
   const pending = new Map<string, Pending>();
   const pairState = (id: string): [number, Record<string, unknown>] => {
-    const paired = pairs[id];
+    const paired = pairs.get(id);
     if (paired?.revoked) return [410, { error: "Unavailable" }];
     if (paired) return [200, { state: "paired", grant: paired }];
     const p = pending.get(id);
@@ -169,7 +169,7 @@ export function createRelay(options: Options) {
       }
       const id = parts[1] ?? "";
       const action = parts[2];
-      const existing = pairs[id];
+      const existing = pairs.get(id);
       let p = pending.get(id);
       if (p && p.expires * 1000 <= Date.now()) {
         pending.delete(id);
@@ -239,7 +239,7 @@ export function createRelay(options: Options) {
           existing ||
           p ||
           pending.size >= 1000 ||
-          Object.keys(pairs).length >= 10000 ||
+          pairs.size >= 10000 ||
           !Number.isSafeInteger(expires) ||
           typeof expires !== "number" ||
           expires * 1000 <= Date.now() ||
@@ -252,7 +252,7 @@ export function createRelay(options: Options) {
           text("signature"),
         );
         if (
-          pairs[id] ||
+          pairs.has(id) ||
           pending.has(id) ||
           pending.size >= 1000 ||
           expires * 1000 <= Date.now() ||
@@ -288,7 +288,7 @@ export function createRelay(options: Options) {
         if (
           pending.get(id) !== p ||
           p.offer ||
-          pairs[id] ||
+          pairs.has(id) ||
           p.expires * 1000 <= Date.now() ||
           unhealthy
         )
@@ -307,7 +307,7 @@ export function createRelay(options: Options) {
         );
         if (
           pending.get(id) !== p ||
-          pairs[id] ||
+          pairs.has(id) ||
           p.expires * 1000 <= Date.now() ||
           unhealthy
         )
@@ -318,10 +318,11 @@ export function createRelay(options: Options) {
           reply(429, { error: "Enrollment temporarily unavailable" });
           return;
         }
-        pairs[id] = { ...p.offer, viewerSignature, revoked: false };
-        durable(pairs[id]);
+        const pair = { ...p.offer, viewerSignature, revoked: false };
+        pairs.set(id, pair);
+        durable(pair);
         pending.delete(id);
-        reply(200, { state: "paired", grant: pairs[id] });
+        reply(200, { state: "paired", grant: pair });
         changed(id);
       } else if (action === "revoke") {
         if (!existing) throw new Error("Unavailable");
@@ -428,7 +429,7 @@ export function createRelay(options: Options) {
           fromHex(message.id, 16);
           if (message.role !== "phone" && message.role !== "viewer")
             throw new Error("Invalid role");
-          const pair = pairs[message.id];
+          const pair = pairs.get(message.id);
           if (!pair) throw new Error("Unavailable");
           // Tombstones keep both keys, so only the paired viewer learns why it is refused.
           await verifySignature(
@@ -538,7 +539,7 @@ export function createRelay(options: Options) {
           }
         } else {
           if (managementOnly && binary) throw new Error("Registration only");
-          const pair = id ? pairs[id] : undefined;
+          const pair = id ? pairs.get(id) : undefined;
           const route = id ? routes.get(id) : undefined;
           const peer = role === "phone" ? route?.viewer : route?.phone;
           if (
