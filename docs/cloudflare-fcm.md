@@ -105,8 +105,20 @@ from the previous deployment of that same tag could pass before the newly
 uploaded version propagated. The verifier now pins the expected Worker version
 from Wrangler's structured output and waits for that exact version. A regression
 test rejects a well-formed previous Worker UUID with identical release/source.
-The corrected release receipt follows below. Production still uses the unchanged
-Pi revision; no DNS, Play or physical-phone changes were made.
+The closed-staging same-tag redeploy test also passed with the real Wrangler
+output: the previous version was rejected and the uploaded version matched health.
+
+The corrected [`relay-v0.1.0-rc.5`](https://github.com/kzahel/yepcontrol/tree/relay-v0.1.0-rc.5)
+at `3ca86f0b7419fe5aaf4a9bb23ce6556b711d0979` passed complete Checks/CodeQL and
+[CI deployment 39821185545](https://github.com/kzahel/yepcontrol/actions/runs/39821185545).
+Both Wrangler's uploaded version and independent HTTPS health report
+`bac7ce72-fd27-4f56-8076-b98f0d005bf8`. At 17:20:39 UTC, release/source/version
+matched, application admission was closed and a valid fixture-key request returned
+403. The Worker/viewer code hashes are identical to the native-tested rc.4 bundle.
+The service-account secret remains provisioned, the legacy static-token secret is
+absent, and the dedicated Google account has exactly one user-managed key.
+Production still uses the unchanged Pi revision; no DNS, Play or physical-phone
+changes were made.
 
 This qualifies real Google token minting and native wake after rotation/redeploy.
 Expiry, exchange failures and invalidation/backoff are deterministic local tests;
