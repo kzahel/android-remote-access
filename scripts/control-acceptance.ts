@@ -361,6 +361,8 @@ export async function controlAcceptance(f: Fixture) {
       await command("approve-video");
       // Return from the consent activity to an independent animated native view.
       await controlFixture();
+      // Shared runners cold-start software capture and decoding; the subsequent
+      // forward-progress measurement keeps its own tighter window.
       await until(
         () =>
           page.evaluate(
@@ -368,7 +370,7 @@ export async function controlAcceptance(f: Fixture) {
               (window as unknown as { __videoFrames: number }).__videoFrames >
               15,
           ),
-        20000,
+        process.env.CI === "true" ? 60000 : 20000,
       );
       console.log(
         `H264 frames decoded over encrypted ${process.env.HOSTED_DIRECT === "1" ? "WebRTC" : "relay"}`,
@@ -797,6 +799,21 @@ export async function controlAcceptance(f: Fixture) {
     );
     console.log("Hosted control effects passed");
   } catch (error) {
+    try {
+      console.error("Browser video diagnostics", {
+        receivedBytes,
+        ...(await page.evaluate(() => {
+          const counts = window as unknown as {
+            __videoFrames: number;
+            __stillFrames: number;
+          };
+          return {
+            decodedFrames: counts.__videoFrames,
+            stillFrames: counts.__stillFrames,
+          };
+        })),
+      });
+    } catch {}
     try {
       const state = witness();
       const messages = await page.getByRole("status").allTextContents();
