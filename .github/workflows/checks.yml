@@ -91,6 +91,14 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Use Ubuntu archive for browser dependencies
+        # The Azure mirror can spend the entire job downloading a few fonts.
+        run: |
+          for source in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do
+            if [ -f "$source" ]; then
+              sudo sed -i -E 's|https?://azure\.archive\.ubuntu\.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' "$source"
+            fi
+          done
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm build
       - run: pnpm test:viewer-layout
