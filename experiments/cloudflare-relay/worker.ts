@@ -23,6 +23,9 @@ type Env = {
   PROOF_KEY?: string;
   PROOF_EXPIRES?: string;
   PROOF_BUILD?: string;
+  RELEASE_VERSION?: string;
+  REVISION?: string;
+  CF_VERSION_METADATA?: { id: string };
 };
 type Pair = Grant & {
   viewerSignature: string;
@@ -90,6 +93,22 @@ function text(value: unknown): string {
 }
 export default {
   async fetch(req: Request, env: Env) {
+    const url = new URL(req.url);
+    // Public deployment identity only; no pairing lookup, wake or object allocation.
+    if (url.pathname === "/health" && req.method === "GET")
+      return json({
+        status: "ok",
+        version: env.RELEASE_VERSION ?? "development",
+        revision: env.REVISION ?? "development",
+        deployment: env.CF_VERSION_METADATA?.id ?? null,
+        admission:
+          env.PROOF_KEY &&
+          (env.PROOF_EXPIRES === undefined ||
+            (Number.isFinite(Number(env.PROOF_EXPIRES)) &&
+              Date.now() < Number(env.PROOF_EXPIRES)))
+            ? "gated"
+            : "closed",
+      });
     // A fixture gate, NOT the proposed production enrollment defense.
     if (
       !env.PROOF_KEY ||
@@ -109,7 +128,6 @@ export default {
       req.headers.get("Origin") !== env.PUBLIC_ORIGIN
     )
       return json({ error: "Origin" }, 403);
-    const url = new URL(req.url);
     if (
       !url.pathname.startsWith("/api/") &&
       !url.pathname.startsWith("/_proof/")

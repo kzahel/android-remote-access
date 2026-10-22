@@ -6,6 +6,14 @@ for development and self-hosting; Workers + Durable Objects is a candidate for
 the future hosted service. Neither a production Cloudflare cutover nor a TURN
 installation has been selected or performed.
 
+The owner subsequently agreed to retain Node/SQLite for local development and
+self-hosting, with FCM optional, and pursue Cloudflare for hosted operation.
+Hosting and background wake are separate choices. True internet-disconnected
+LAN access still needs explicit acceptance; the current development helper uses
+Tailscale HTTPS. Normal-client routing parity remains a small follow-up to the
+proof flags. Relay releases should be versioned independently and deployed by
+CI; see [release workflow and staging boundaries](relay-releases.md).
+
 ## Current service and sequence
 
 The development/beta service already runs at **https://yepcontrol.com** on the

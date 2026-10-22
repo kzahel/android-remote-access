@@ -121,6 +121,16 @@ async function socket() {
   };
 }
 try {
+  const health = await mf.dispatchFetch(`${origin}/health`);
+  assert.equal(health.status, 200);
+  assert.deepEqual(await health.json(), {
+    status: "ok",
+    version: "development",
+    revision: "development",
+    deployment: null,
+    admission: "gated",
+  });
+  assert.equal((await mf.listDurableObjectIds("PAIRINGS")).length, 0);
   assert.equal(
     (await mf.dispatchFetch(`${origin}/api/pair/${id}`)).status,
     403,
