@@ -3,8 +3,8 @@
 Implemented and locally verified **2026-10-22**. The isolated Cloudflare service
 remains behind the fixture gate; production remains on the Pi. This slice makes
 the normal clients compatible and adds conservative staging limits. Automatic
-FCM credential renewal, broader network qualification and public rollout remain
-separate work.
+FCM credential renewal is implemented in the [next slice](cloudflare-fcm.md);
+broader network qualification and public rollout remain separate work.
 
 ## Client routing and compatibility
 

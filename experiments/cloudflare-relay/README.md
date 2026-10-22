@@ -77,9 +77,11 @@ The product proof now implements management sockets, access policy/generation
 synchronization, push registration/removal, viewer refusal codes and FCM wake.
 Wake requests retain viewer-session/request/generation binding, expiry and
 coalescing in durable state. A separate SQLite object bounds sends across pairs.
-The sender uses a short-lived OAuth token with a configured expiry; production
-credential provisioning and renewal are not implemented. Its dedicated sender's
-private key stays on the existing server.
+The sender now obtains short-lived OAuth tokens from a dedicated service-account
+key stored as a Worker secret. The global wake-budget object coordinates renewal
+and persists the token cache/backoff across restarts. See
+[credential renewal and rotation](../../docs/cloudflare-fcm.md). The original
+product proof below used a manually supplied token; it is historical evidence.
 
 Held HTTP polls, heartbeat qualification,
 network diversity and a representative operating-cost sample remain open.

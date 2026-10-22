@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 from relay_release import verify_bundle
 
 
-def configuration(account, worker, origin, bundle, tag, source):
+def configuration(account, worker, origin, bundle, tag, source, fcm_project=None):
     if not re.fullmatch(r"[0-9a-f]{32}", account):
         raise ValueError("Missing or invalid Cloudflare account ID")
     if not re.fullmatch(r"yepcontrol-relay-(?:proof|staging)", worker):
@@ -22,6 +22,8 @@ def configuration(account, worker, origin, bundle, tag, source):
     if (url.scheme != "https" or url.netloc != url.hostname or url.path or url.query or url.fragment
             or not re.fullmatch(re.escape(worker) + r"\.[a-z0-9-]+\.workers\.dev", url.hostname or "")):
         raise ValueError("Expected the matching isolated workers.dev origin")
+    if fcm_project and not re.fullmatch(r"[a-z][a-z0-9-]{4,28}[a-z0-9]", fcm_project):
+        raise ValueError("Invalid Firebase project ID")
     return {
         "name": worker, "account_id": account, "main": str((bundle / "worker.js").resolve()),
         "compatibility_date": "2026-10-01", "workers_dev": True, "preview_urls": False,
@@ -30,7 +32,8 @@ def configuration(account, worker, origin, bundle, tag, source):
         "observability": {"enabled": False},
         "version_metadata": {"binding": "CF_VERSION_METADATA"},
         "vars": {"PUBLIC_ORIGIN": origin, "PROOF_EXPIRES": "1", "PROOF_BUILD": tag,
-                 "RELEASE_VERSION": tag.removeprefix("relay-v"), "REVISION": source},
+                 "RELEASE_VERSION": tag.removeprefix("relay-v"), "REVISION": source,
+                 **({"FCM_PROJECT": fcm_project} if fcm_project else {})},
         "durable_objects": {"bindings": [{"name": "PAIRINGS", "class_name": "Pairing"},
                                           {"name": "WAKE_BUDGET", "class_name": "WakeBudget"},
                                           {"name": "ADMISSION", "class_name": "Admission"}]},
@@ -59,7 +62,7 @@ def main():
         raise ValueError("Configure the relay-staging environment's dedicated Cloudflare API token")
     config = configuration(os.environ.get("CLOUDFLARE_ACCOUNT_ID", ""),
                            os.environ.get("RELAY_WORKER_NAME", ""), os.environ.get("RELAY_ORIGIN", ""),
-                           bundle, receipt["tag"], receipt["source"])
+                           bundle, receipt["tag"], receipt["source"], os.environ.get("FCM_PROJECT"))
     for value in (config["account_id"], config["name"], config["vars"]["PUBLIC_ORIGIN"]):
         print(f"::add-mask::{value}", flush=True)
     config_path = Path(".local/relay-staging.json")

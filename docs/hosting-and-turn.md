@@ -74,7 +74,8 @@ with a short-lived token from the existing dedicated sender. Its private key
 stays on the Pi. Real process-absent API 35 Android wake passed, followed by a
 fresh encrypted exchange in about 1.5–1.6 seconds. Management sockets, push
 registration, generation-bound policy, coalescing, expiry and send budgets are
-implemented for the proof; production credential renewal remains open.
+implemented for the proof. [Automatic credential renewal](cloudflare-fcm.md)
+now removes the need for a Pi-minted token; production cutover remains separate.
 
 Owned-emulator and real React-browser acceptance also passed QR/Grant pairing,
 restart persistence, tap/text/swipe/navigation/app launch, disabling access and
@@ -114,7 +115,7 @@ runs; they are not a per-minute video price or a posted invoice. Hibernatable
 incoming messages appear as invocation events and still receive the 20:1
 billing ratio. A representative longer cost sample remains open.
 
-The next evidence bar is public enrollment fairness/lifecycle, production FCM credentials,
+The next evidence bar is public enrollment fairness/lifecycle,
 network diversity, sustained slow-peer bounds, and representative cost. The
 private product test gate remains closed after acceptance. Keep the current Pi
 service available. Avoid a generic multi-backend framework now.

@@ -101,6 +101,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           RELAY_WORKER_NAME: ${{ vars.RELAY_WORKER_NAME }}
           RELAY_ORIGIN: ${{ vars.RELAY_ORIGIN }}
+          FCM_PROJECT: ${{ vars.FCM_PROJECT }}
           RELEASE_TAG: ${{ needs.build.outputs.tag }}
           RELEASE_SOURCE: ${{ needs.build.outputs.source }}
         run: python3 scripts/deploy_relay_staging.py

@@ -19,7 +19,9 @@ version and a matching HTTPS health check.
 
 This first target is the isolated **gated Cloudflare staging service**. CI always
 deploys with closed application admission (`PROOF_EXPIRES=1`), no production
-domain route, no preview URL and no FCM sender credential provisioning. It cannot
+domain route, no preview URL and no FCM sender credential provisioning. An
+independently provisioned Worker secret supports [automatic FCM renewal](cloudflare-fcm.md);
+CI retains that secret and optionally configures its Firebase project. It cannot
 select the production hostname or normal production Worker name. Existing
 Durable Object namespaces and authority remain intact. The Pi remains live;
 this workflow neither connects to it nor changes its service or DNS.
@@ -27,8 +29,8 @@ this workflow neither connects to it nor changes its service or DNS.
 `GET /health` exposes only release identity and whether admission is closed.
 It does not look up a pairing, allocate an object or prove Android/FCM acceptance.
 All application paths remain behind the existing fixture gate. Reopening staging
-for a bounded live acceptance run remains a separate operation until the public
-admission and durable FCM credential work is complete.
+for a bounded live acceptance run remains a separate operation. Production
+admission, deployment and pairing migration remain separate work.
 
 ## Environment provisioning
 
@@ -41,6 +43,7 @@ Create a `relay-staging` environment restricted to deployment workflows on
 | `CLOUDFLARE_ACCOUNT_ID` | Variable | Account containing the isolated staging service. |
 | `RELAY_WORKER_NAME` | Variable | `yepcontrol-relay-staging`, or the existing isolated `yepcontrol-relay-proof`. |
 | `RELAY_ORIGIN` | Variable | Matching HTTPS workers.dev origin, without trailing slash. |
+| `FCM_PROJECT` | Variable, optional | Firebase project for the separately provisioned Worker `FCM_SERVICE_ACCOUNT` secret. Omit to disable wake. |
 
 Keep concrete infrastructure values and token provisioning receipts in the
 private infrastructure repository. Do not upload the developer's Wrangler OAuth

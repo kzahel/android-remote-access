@@ -13,6 +13,8 @@
     "test.ts",
     "live-test.ts",
     "fcm-test.ts",
+    "fcm-auth-test.ts",
+    "fcm-runtime-test.ts",
     "admission-test.ts",
     "flow-test.ts"
   ]

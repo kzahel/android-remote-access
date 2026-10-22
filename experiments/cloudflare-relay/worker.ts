@@ -12,6 +12,7 @@ import {
 } from "../../protocol/src/enrollment.js";
 import type { Admission } from "./admission.js";
 import { deliverFcm } from "./fcm.js";
+import { FcmAuth, type FcmToken, type TokenStore } from "./fcm-auth.js";
 import { acknowledge, type Flow, forward, freshFlow, receive } from "./flow.js";
 
 export { Admission } from "./admission.js";
@@ -25,8 +26,7 @@ type Env = {
   ASSETS?: Fetcher;
   WAKE_BUDGET?: DurableObjectNamespace;
   FCM_PROJECT?: string;
-  FCM_ACCESS_TOKEN?: string;
-  FCM_TOKEN_EXPIRES?: string;
+  FCM_SERVICE_ACCOUNT?: string;
   PROOF_KEY?: string;
   PROOF_EXPIRES?: string;
   PROOF_BUILD?: string;
@@ -70,6 +70,7 @@ const json = (value: unknown, status = 200) =>
   Response.json(value, { status, headers: { "Cache-Control": "no-store" } });
 async function body(
   req: Pick<Request, "headers" | "body">,
+  limit = 4096,
 ): Promise<Record<string, unknown>> {
   if (req.headers.get("content-type")?.split(";")[0] !== "application/json")
     throw new Error("JSON required");
@@ -81,7 +82,7 @@ async function body(
     const next = await reader.read();
     if (next.done) break;
     length += next.value.length;
-    if (length > 4096) {
+    if (length > limit) {
       await reader.cancel();
       throw new Error("Body too large");
     }
@@ -531,7 +532,11 @@ export class Pairing extends DurableObject<Env> {
               ...this.sockets("viewer"),
             ])
               peer.send(JSON.stringify({ type: "ready" }));
-          } else if (role === "viewer" && this.env.FCM_ACCESS_TOKEN) {
+          } else if (
+            role === "viewer" &&
+            this.env.FCM_SERVICE_ACCOUNT &&
+            this.env.FCM_PROJECT
+          ) {
             this.put("wake", {
               requestId: hex(crypto.getRandomValues(new Uint8Array(16))),
               expires: Math.floor(Date.now() / 1000) + 60,
@@ -734,6 +739,9 @@ export class Pairing extends DurableObject<Env> {
           body: JSON.stringify({ fid: target.fid }),
         },
       );
+      const token = budget?.ok
+        ? ((await budget.json()) as { token: FcmToken }).token
+        : undefined;
       const latest = this.get<Wake>("wake"),
         authority = this.get<Pair>("pair");
       if (
@@ -750,11 +758,10 @@ export class Pairing extends DurableObject<Env> {
         this.get<Target>("target")?.generation !== target.generation
       )
         return;
-      if (budget?.ok)
-        delivery = await deliverFcm(
+      if (token) {
+        const result = await deliverFcm(
           this.env.FCM_PROJECT,
-          this.env.FCM_ACCESS_TOKEN,
-          this.env.FCM_TOKEN_EXPIRES,
+          token,
           target.fid,
           {
             intent: "connect-v1",
@@ -765,6 +772,17 @@ export class Pairing extends DurableObject<Env> {
               : {}),
           },
         );
+        delivery = result === "unauthorized" ? "unavailable" : result;
+        if (result === "unauthorized")
+          await this.env.WAKE_BUDGET?.getByName("global").fetch(
+            "https://budget.invalid/invalidate",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ accessToken: token.accessToken }),
+            },
+          );
+      }
       if (
         delivery === "invalid_target" &&
         this.get<Target>("target")?.fid === target.fid &&
@@ -813,17 +831,44 @@ export class Pairing extends DurableObject<Env> {
   }
 }
 
-/** Small proof-wide send budget. Only the Pairing class can reach this binding. */
+/** Global wake budget and OAuth token broker. Only Pairing can reach this binding. */
 export class WakeBudget extends DurableObject<Env> {
+  private auth: FcmAuth;
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     ctx.storage.sql.exec(
       "CREATE TABLE IF NOT EXISTS budget (key TEXT PRIMARY KEY, count INTEGER NOT NULL, until INTEGER NOT NULL)",
     );
+    ctx.storage.sql.exec(
+      "CREATE TABLE IF NOT EXISTS fcm_auth (id INTEGER PRIMARY KEY CHECK (id = 1), value TEXT NOT NULL)",
+    );
+    this.auth = new FcmAuth(env.FCM_PROJECT, env.FCM_SERVICE_ACCOUNT, {
+      read: () => {
+        const row = ctx.storage.sql
+          .exec<{ value: string }>("SELECT value FROM fcm_auth WHERE id = 1")
+          .toArray()[0];
+        return row ? JSON.parse(row.value) : undefined;
+      },
+      write: (state) => {
+        ctx.storage.sql.exec(
+          "INSERT INTO fcm_auth VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET value = excluded.value",
+          JSON.stringify(state),
+        );
+      },
+    } satisfies TokenStore);
   }
   async fetch(req: Request) {
-    const value = await body(req),
-      fid = text(value.fid),
+    const value = await body(req, 20000);
+    if (new URL(req.url).pathname === "/invalidate") {
+      if (
+        typeof value.accessToken !== "string" ||
+        value.accessToken.length > 16384
+      )
+        return json({ error: "Token" }, 400);
+      this.auth.invalidate(value.accessToken);
+      return json({ invalidated: true });
+    }
+    const fid = text(value.fid),
       now = Date.now();
     const sql = this.ctx.storage.sql;
     const admitted = this.ctx.storage.transactionSync(() => {
@@ -848,6 +893,11 @@ export class WakeBudget extends DurableObject<Env> {
         );
       return true;
     });
-    return json({ admitted }, admitted ? 200 : 429);
+    if (!admitted) return json({ admitted: false }, 429);
+    try {
+      return json({ token: await this.auth.getToken() });
+    } catch {
+      return json({ error: "Wake unavailable" }, 503);
+    }
   }
 }

@@ -295,14 +295,18 @@ try {
       body: JSON.stringify({ fid }),
     });
   for (let attempt = 0; attempt < 10; attempt++)
-    assert.equal((await admit("fixture-target")).status, 200);
+    assert.equal(
+      (await admit("fixture-target")).status,
+      503,
+      "Missing sender fails closed after consuming budget",
+    );
   assert.equal(
     (await admit("fixture-target")).status,
     429,
     "Per-target budget",
   );
   for (let attempt = 0; attempt < 90; attempt++)
-    assert.equal((await admit(`fixture-${attempt}`)).status, 200);
+    assert.equal((await admit(`fixture-${attempt}`)).status, 503);
   await mf.unsafeEvictDurableObject(workerName, "WakeBudget", {
     name: "global",
   });

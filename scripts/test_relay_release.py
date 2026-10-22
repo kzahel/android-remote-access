@@ -69,6 +69,13 @@ class RelayReleaseTest(unittest.TestCase):
         config = configuration(*args)
         self.assertEqual(config["vars"]["PROOF_EXPIRES"], "1")
         self.assertFalse(config["preview_urls"])
+        self.assertNotIn("FCM_PROJECT", config["vars"])
+        fcm = configuration(*args, fcm_project="firebase-fixture")
+        self.assertEqual(fcm["vars"]["FCM_PROJECT"], "firebase-fixture")
+        self.assertEqual(fcm["vars"]["PROOF_EXPIRES"], "1")
+        self.assertNotIn("FCM_SERVICE_ACCOUNT", json.dumps(fcm))
+        with self.assertRaises(ValueError):
+            configuration(*args, fcm_project="https://unexpected.invalid")
         for index, invalid in ((0, ""), (1, "yepcontrol-relay"), (2, "https://yepcontrol.com"),
                                (2, args[2] + "/"), (2, args[2] + "?unexpected")):
             candidate = args.copy()

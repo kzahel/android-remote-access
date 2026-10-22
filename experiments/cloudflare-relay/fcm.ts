@@ -1,13 +1,18 @@
-/** HTTP v1 sender for a short-lived proof token; no service-account private key here. */
+import type { FcmToken } from "./fcm-auth.js";
+
+/** HTTP v1 sender. Authentication comes from the internal global token cache. */
 export async function deliverFcm(
   project: string | undefined,
-  token: string | undefined,
-  tokenExpires: string | undefined,
+  token: FcmToken | undefined,
   fid: string,
   data: Record<string, string>,
-): Promise<"accepted" | "invalid_target" | "unavailable"> {
-  const expires = Number(tokenExpires);
-  if (!project || !token || !Number.isFinite(expires) || Date.now() >= expires)
+): Promise<"accepted" | "invalid_target" | "unavailable" | "unauthorized"> {
+  if (
+    !project ||
+    !token ||
+    !Number.isFinite(token.expiresAt) ||
+    Date.now() >= token.expiresAt
+  )
     return "unavailable";
   try {
     const response = await fetch(
@@ -15,7 +20,7 @@ export async function deliverFcm(
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${token.accessToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -30,9 +35,11 @@ export async function deliverFcm(
           },
         }),
         signal: AbortSignal.timeout(10000),
+        redirect: "manual",
       },
     );
     if (response.ok) return "accepted";
+    if (response.status === 401) return "unauthorized";
     const result = (await response.json()) as {
       error?: { details?: { errorCode?: string }[] };
     };
