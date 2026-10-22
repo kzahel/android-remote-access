@@ -596,7 +596,17 @@ export async function controlAcceptance(f: Fixture) {
     });
     await page.mouse.move(start.x, start.y);
     await page.mouse.down();
-    await page.mouse.move(end.x, end.y, { steps: 8 });
+    // Playwright's `steps` only interpolates positions; it does not give a
+    // gesture a duration. Keep the drag held across multiple native batches,
+    // including when a shared CI runner coalesces browser input events.
+    await delay(100);
+    for (let step = 1; step <= 8; step++) {
+      await page.mouse.move(
+        start.x + ((end.x - start.x) * step) / 8,
+        start.y + ((end.y - start.y) * step) / 8,
+      );
+      await delay(75);
+    }
     await page.mouse.up();
     await until(() => witness().scroll > 100);
     await page.screenshot({ path: path.join(f.state, "remote-control.png") });
