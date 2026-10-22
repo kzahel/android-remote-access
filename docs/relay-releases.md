@@ -94,3 +94,8 @@ The first rc.1 upload succeeded, but its health probe received Cloudflare error
 `YepControl-Relay-CI/1.0`; the scoped single-Worker token and edge protections
 remain unchanged. This verifies the CI deployment path; Android/FCM/video
 acceptance is recorded separately in [the hosting proof](hosting-and-turn.md).
+
+The subsequent `relay-v0.1.0-rc.3` release adds normal-client routing, bounded
+Cloudflare admission, connection leases and receipt-based backpressure. Both
+the tagged CI deployment and a native control/video run passed; a final CI
+deployment restored closed admission. See [the measured hardening receipt](cloudflare-hardening.md#live-staging-receipt--2026-10-22).

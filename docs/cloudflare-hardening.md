@@ -109,6 +109,39 @@ binding, malformed routing and the older bare route. Typechecks, Android Kotlin
 compilation/format checks, and the release-config regression suite also pass.
 Live deployment and native acceptance receipts are recorded separately.
 
+## Live staging receipt — 2026-10-22
+
+Complete exact-source Checks passed for `b8114e2c648188082b684c43f77c9a665180dabc`.
+[`relay-v0.1.0-rc.3`](https://github.com/kzahel/yepcontrol/tree/relay-v0.1.0-rc.3)
+was built and deployed by [CI run 39804760257](https://github.com/kzahel/yepcontrol/actions/runs/39804760257).
+Its verified Worker/viewer bundle was used unchanged for a bounded, secret-gated
+owned API 35 emulator and real React-browser acceptance run. No physical phone,
+production hostname or Pi service was changed.
+
+| Check | Result |
+| --- | --- |
+| Encrypted viewing, tap, Unicode text, swipe, held touch and multi-touch gestures | Pass |
+| Navigation, app launch and lost-packet input release | Pass |
+| Forced WebSocket video fallback | 61 decoded H.264 frames in 5.005 seconds; 1,240,165 received encrypted binary bytes |
+| Global disable ends control; local removal revokes the grant | Pass |
+| Browser page errors | None |
+| Owned emulator/browser cleanup | Complete |
+
+This run does not requalify FCM, credentials/unlock, reboot, display orientation,
+direct WebRTC, independent cellular networks or longer operating costs.
+
+[Closing CI run 39805478410](https://github.com/kzahel/yepcontrol/actions/runs/39805478410)
+rebuilt the same immutable tag, verified identical code-file hashes and closed
+admission. At 15:35:41 UTC, independent HTTPS verification matched version
+`0.1.0-rc.3`, exact source and Worker version
+`4c453a4e-2df7-4507-9c0a-6e5a8a66cd43`; an application request with the valid
+fixture key returned 403. Pi health/revision remained unchanged.
+
+CI also exposed test-only timing issues: large-buffer assertions now use native
+full-buffer equality, and the Node wake regression consumes bounded coalesced
+progress before asserting final delivery. These corrections do not change
+production runtime behavior; complete Checks also passed for the follow-up.
+
 Official references reviewed 2026-10-22:
 [Cloudflare rate limits and their locality/accuracy](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/),
 [hibernation and serialized socket attachments](https://developers.cloudflare.com/durable-objects/best-practices/websockets/),
