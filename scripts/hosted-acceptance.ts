@@ -227,6 +227,7 @@ const installed: string[] = [];
 let idleChanged = false;
 let batteryChanged = false;
 let displayChanged = false;
+let ownedScreenTimeout: string | undefined;
 let invitationId: string | undefined;
 let revoked = false;
 let controlCompleted = false;
@@ -318,6 +319,24 @@ try {
   if (fcm && !physical)
     adb("shell", "pm", "grant", appId, "android.permission.POST_NOTIFICATIONS");
   adb("shell", "run-as", appId, "mkdir", "-p", "files");
+  if (!physical) {
+    // Boot/DNS readiness does not imply an unlocked, awake display. Slow CI
+    // installs can outlast a fresh emulator's inactivity timeout. Foreground UI
+    // acceptance needs an explicit baseline; idle/recovery fixtures sleep later.
+    ownedScreenTimeout = adb(
+      "shell",
+      "settings",
+      "get",
+      "system",
+      "screen_off_timeout",
+    );
+    adb("shell", "settings", "put", "system", "screen_off_timeout", "1800000");
+    adb("shell", "input", "keyevent", "KEYCODE_WAKEUP");
+    adb("shell", "wm", "dismiss-keyguard");
+    await until(() =>
+      adb("shell", "dumpsys", "power").includes("mWakefulness=Awake"),
+    );
+  }
   if (!physical && origin === "https://yepcontrol.com") {
     if (process.env.HOSTED_VERIFY_APP_LINKS !== "0") {
       adb("shell", "pm", "verify-app-links", "--re-verify", appId);
@@ -359,7 +378,7 @@ try {
       mode: 0o600,
     });
     if (!links.includes("OK (6 tests)"))
-      throw new Error("Native enrollment link validation failed");
+      throw nativeFailure("Native enrollment link validation failed", links);
   }
   browser = await chromium.launch({ headless: true });
   if (origin === "https://yepcontrol.com") {
@@ -735,6 +754,20 @@ try {
     await cleanup("display wake", () =>
       adb("shell", "input", "keyevent", "KEYCODE_WAKEUP"),
     );
+  if (ownedScreenTimeout !== undefined)
+    await cleanup("owned display timeout", () => {
+      if (!/^\d+$/.test(ownedScreenTimeout ?? ""))
+        adb("shell", "settings", "delete", "system", "screen_off_timeout");
+      else
+        adb(
+          "shell",
+          "settings",
+          "put",
+          "system",
+          "screen_off_timeout",
+          ownedScreenTimeout as string,
+        );
+    });
   await cleanup("browser", () => browser?.close());
   if (instrument && instrument.exitCode === null) {
     await cleanup("owned instrumentation", () => {
