@@ -47,10 +47,24 @@ def configuration(account, worker, origin, bundle, tag, source, fcm_project=None
     }
 
 
-def deployed_health(health, receipt):
+def uploaded_version(events, worker):
+    deployments = [event for event in events if event.get("type") == "deploy"]
+    if len(deployments) != 1:
+        raise ValueError("Expected one Wrangler deployment result")
+    deployment = deployments[0]
+    version = deployment.get("version_id")
+    if (deployment.get("version") != 1 or deployment.get("worker_name") != worker
+            or not isinstance(version, str)
+            or not re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", version)):
+        raise ValueError("Invalid Wrangler deployment identity")
+    return version
+
+
+def deployed_health(health, receipt, uploaded):
     deployment = health.get("deployment")
     return (health.get("status") == "ok" and health.get("version") == receipt["version"]
             and health.get("revision") == receipt["source"] and health.get("admission") == "closed"
+            and deployment == uploaded
             and isinstance(deployment, str)
             and bool(re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", deployment)))
 
@@ -67,23 +81,28 @@ def main():
         print(f"::add-mask::{value}", flush=True)
     config_path = Path(".local/relay-staging.json")
     config_path.write_text(json.dumps(config, indent=2) + "\n")
+    output_path = Path(".local/relay-wrangler.jsonl").resolve()
+    output_path.unlink(missing_ok=True)
     subprocess.run(["pnpm", "--dir", "experiments/cloudflare-relay", "exec", "wrangler", "deploy",
-                    "--config", str(config_path.resolve()), "--no-bundle", "--tag", receipt["tag"]], check=True)
+                    "--config", str(config_path.resolve()), "--no-bundle", "--tag", receipt["tag"]], check=True,
+                   env={**os.environ, "WRANGLER_OUTPUT_FILE_PATH": str(output_path)})
+    worker_version = uploaded_version([json.loads(line) for line in output_path.read_text().splitlines() if line.strip()], config["name"])
     health = {}
-    for attempt in range(12):
+    for attempt in range(30):
         try:
             request = urllib.request.Request(config["vars"]["PUBLIC_ORIGIN"] + "/health",
                                              headers={"Cache-Control": "no-cache",
                                                       "User-Agent": "YepControl-Relay-CI/1.0"})
             with urllib.request.urlopen(request, timeout=10) as response:
                 health = json.load(response)
-            if deployed_health(health, receipt):
+            if deployed_health(health, receipt, worker_version):
                 break
         except (OSError, ValueError):
             pass
         time.sleep(2)
     result = {"tag": receipt["tag"], "source": receipt["source"], "run": os.environ["GITHUB_RUN_ID"],
-              "workerVersion": health.get("deployment"), "verified": deployed_health(health, receipt),
+              "workerVersion": worker_version, "observedWorkerVersion": health.get("deployment"),
+              "verified": deployed_health(health, receipt, worker_version),
               "admission": health.get("admission")}
     Path(".local/relay-deployment.json").write_text(json.dumps(result, indent=2) + "\n")
     if not result["verified"]:

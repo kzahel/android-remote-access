@@ -17,6 +17,11 @@ are serialized; an in-progress deployment is never canceled by a newer request.
 The deployment receipt records the tag, commit, CI run, actual Cloudflare Worker
 version and a matching HTTPS health check.
 
+The Worker version must match Wrangler's structured `deploy` output, as well as
+the tag/source and closed admission. A health response from a previous deployment
+of the same tag is insufficient. The verifier waits for the uploaded version to
+appear before marking the deployment verified.
+
 This first target is the isolated **gated Cloudflare staging service**. CI always
 deploys with closed application admission (`PROOF_EXPIRES=1`), no production
 domain route, no preview URL and no FCM sender credential provisioning. An

@@ -99,14 +99,14 @@ no ICMP reply. The successful native runs include that readiness check.
 
 Both fixture grants were revoked and owned emulators/Chromium processes reaped.
 Application admission was closed immediately afterward.
-[Final CI deployment 39819023518](https://github.com/kzahel/yepcontrol/actions/runs/39819023518)
-passed and produced Worker version `b7a06f97-882b-4f15-bc7f-f5ce20913bfb`. Its
-verified code-file hash map is identical to the native-tested bundle. Independent
-HTTPS verification matched the exact release/source/Worker version and closed
-admission; a valid fixture-key application request returned 403. The service-account
-secret remains provisioned and the legacy static-token secret is absent.
-Production still uses the unchanged Pi revision; no DNS, Play or physical-phone
-changes were made.
+The rc.4 closing build's code-file hash map is identical to the native-tested
+bundle. Independent checking found a deployment-receipt race: a health response
+from the previous deployment of that same tag could pass before the newly
+uploaded version propagated. The verifier now pins the expected Worker version
+from Wrangler's structured output and waits for that exact version. A regression
+test rejects a well-formed previous Worker UUID with identical release/source.
+The corrected release receipt follows below. Production still uses the unchanged
+Pi revision; no DNS, Play or physical-phone changes were made.
 
 This qualifies real Google token minting and native wake after rotation/redeploy.
 Expiry, exchange failures and invalidation/backoff are deterministic local tests;

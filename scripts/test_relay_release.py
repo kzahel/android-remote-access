@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from deploy_relay_staging import configuration, deployed_health
+from deploy_relay_staging import configuration, deployed_health, uploaded_version
 from relay_release import file_hashes, validate_source, verify_bundle, version
 
 
@@ -88,11 +88,25 @@ class RelayReleaseTest(unittest.TestCase):
         health = {"status": "ok", **receipt, "revision": receipt["source"],
                   "deployment": "a" * 8 + "-" + "a" * 4 + "-" + "a" * 4 + "-" + "a" * 4 + "-" + "a" * 12,
                   "admission": "closed"}
-        self.assertTrue(deployed_health(health, receipt))
+        uploaded = health["deployment"]
+        self.assertTrue(deployed_health(health, receipt, uploaded))
         for key, value in (("version", "other"), ("revision", "b" * 40), ("deployment", ""), ("deployment", None),
                            ("admission", "gated"), ("status", "failed")):
             with self.subTest(key=key):
-                self.assertFalse(deployed_health(health | {key: value}, receipt))
+                self.assertFalse(deployed_health(health | {key: value}, receipt, uploaded))
+        self.assertFalse(deployed_health(health | {"deployment": "b" * 8 + uploaded[8:]}, receipt, uploaded),
+                         "A previous deployment of the same source/tag must not pass")
+
+    def test_uploaded_identity_comes_from_one_structured_wrangler_deploy_result(self):
+        worker = "yepcontrol-relay-staging"
+        uuid = "01234567-89ab-cdef-0123-456789abcdef"
+        event = {"type": "deploy", "version": 1, "worker_name": worker, "version_id": uuid}
+        self.assertEqual(uploaded_version([{"type": "other"}, event], worker), uuid)
+        for events in ([], [event, event], [event | {"worker_name": "other"}],
+                       [event | {"version": 2}], [event | {"version_id": ""}],
+                       [event | {"type": "version-upload"}]):
+            with self.subTest(events=events), self.assertRaises(ValueError):
+                uploaded_version(events, worker)
 
 
 if __name__ == "__main__":
