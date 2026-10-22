@@ -80,6 +80,21 @@ const adb = (...args: string[]) =>
     stdio: ["ignore", "pipe", "pipe"],
   }).trim();
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+// Public CI may report code locations, never raw fixture output, QR data or grants.
+function nativeFailure(message: string, output: string): Error {
+  const frames = output.match(
+    /^\s*at dev\.remoteaccess\.[A-Za-z0-9_.$]+\([A-Za-z0-9_.-]+:\d+\)\s*$/gm,
+  );
+  return new Error(
+    `${message}\n${
+      frames
+        ?.slice(0, 8)
+        .map((line) => line.trim())
+        .join("\n") ??
+      "No application stack locations; private fixture log retained"
+    }`,
+  );
+}
 async function until<T>(
   work: () => T | Promise<T>,
   timeout = 120000,
@@ -436,8 +451,9 @@ try {
       let connected = false;
       while (Date.now() < deadline) {
         if (instrument.exitCode !== null)
-          throw new Error(
-            "Native fixture exited before connection; see private log",
+          throw nativeFailure(
+            "Native fixture exited before connection",
+            await readFile(path.join(state, `${label}.log`), "utf8"),
           );
         try {
           connected =
@@ -461,7 +477,7 @@ try {
         !nativeLog.includes("OK (1 test)") ||
         nativeLog.includes("FAILURES!!!")
       )
-        throw new Error("Native acceptance failed; see private log");
+        throw nativeFailure("Native acceptance failed", nativeLog);
     }
     async function check() {
       await page.reload();
