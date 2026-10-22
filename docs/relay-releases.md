@@ -54,8 +54,8 @@ documents this scope. [Cloudflare CI authentication](https://developers.cloudfla
 and [GitHub environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments)
 were reviewed 2026-10-22.
 
-The workflow fails clearly if environment provisioning is absent. The checked-in
-pipeline is not evidence that credentials are installed or a CI deployment ran.
+The workflow fails clearly if environment provisioning is absent. Check the
+deployment receipt to confirm the actual released source and running version.
 
 ## Releasing and recovery
 
@@ -77,3 +77,20 @@ installer remain future targets; neither is enabled by this staging workflow.
 For local development, keep the Node/SQLite runner and its optional FCM sender.
 CI deployment does not change offline/manual operation or couple the Android
 release version to the relay version.
+
+## Verified staging deployment — 2026-10-22
+
+[`relay-v0.1.0-rc.2`](https://github.com/kzahel/yepcontrol/tree/relay-v0.1.0-rc.2)
+at source `aa29d1d5d36ae143ccd41fded38fc5a9f4bbc204` passed complete Checks and
+[CI build/deployment](https://github.com/kzahel/yepcontrol/actions/runs/39781497566).
+The uploaded deployment receipt and an independent HTTPS check agree on version
+`0.1.0-rc.2`, that source, Worker version
+`f09c8883-f776-4d3f-86cb-e82d9cd9a41d` and closed admission. An application request
+with the valid fixture key still returned 403. The live Pi's health/revision
+remained unchanged.
+
+The first rc.1 upload succeeded, but its health probe received Cloudflare error
+1010 with Python's default User-Agent. Rc.2 identifies probes as
+`YepControl-Relay-CI/1.0`; the scoped single-Worker token and edge protections
+remain unchanged. This verifies the CI deployment path; Android/FCM/video
+acceptance is recorded separately in [the hosting proof](hosting-and-turn.md).
