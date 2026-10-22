@@ -189,6 +189,28 @@ try {
       path: path.join(artifacts, `${name}-unlocked.png`),
       fullPage: true,
     });
+    await page.evaluate(() =>
+      window.layoutFixture.patch({ localSettings: true }),
+    );
+    await expect(
+      page.getByRole("heading", {
+        name: "Change these settings on the phone",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/connected device cannot grant itself more access/),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Home", exact: true }).click();
+    await page.screenshot({
+      path: path.join(artifacts, `${name}-local-settings.png`),
+      fullPage: true,
+    });
+    await stable(page, baseline);
+    await page.evaluate(() =>
+      window.layoutFixture.patch({ localSettings: false }),
+    );
+    await expect(page.locator(".screen-overlay")).toBeHidden();
     // Native fullscreen and its viewport fallback keep the same live canvas.
     await page.locator("canvas").evaluate((c) => {
       c.setAttribute("data-fullscreen-original", "yes");

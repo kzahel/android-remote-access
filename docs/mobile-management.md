@@ -29,6 +29,45 @@ pairing/encrypted-check functionality; it does not claim screen control exists.
   no PINs, QR secrets, push addresses, screen content or arbitrary remote text.
   This is local history, not a tamper-proof audit service.
 
+## Local security settings (2026-10-22)
+
+Pairing/approval, per-device unlock permission and saved-PIN management use
+dedicated native screens that suspend remote input while visible. Ordinary
+management pages remain remotely usable. Both the phone and viewer explain:
+these changes must be made directly on the phone so a connected device cannot
+pair another device or grant itself unlock access. Remote Back and Home remain
+available, and local touches continue to work.
+
+The accessibility command boundary enforces this for relay and direct sessions,
+including modified clients. A protection revision invalidates queued input even
+if the screen has since closed. Entering/leaving protection invalidates input
+geometry and releases held contacts; protected controls appear only after any
+previously dispatched gesture/release has finished. Activity visibility owns the
+gate, including recreation and multiple activity instances, so returning to
+another app restores ordinary input. Saved-PIN entry dialogs inherit their protected
+page and retain their secure-window flag.
+
+The encrypted state includes the optional boolean `localSettings`; existing beta
+viewers can ignore it while native enforcement still applies. New viewers show
+the explanation over the phone screen, including when the PIN dialog prevents
+capture. No new result codes, storage changes or relay changes are required.
+
+`pnpm test:mobile-ui` includes native command-versus-local-input regression
+coverage on its owned emulator: permission escalation attempts, touch/swipe/text,
+held-input release, queued input across screen entry/exit, rotation, pairing
+approval, PIN save/forget, and Back/Home escape. `pnpm test:viewer-layout` checks
+the browser explanation and return to ordinary viewing at all five viewports.
+
+Verified 2026-10-22 on the runner-owned API 35 emulator: both navigation and
+security-setting instrumentation tests passed, including real persisted local
+unlock permission changes, synthetic PIN save/forget, rejected remote input and
+pairing approval, rotation, held-contact release, queued-input rejection and
+remote Back/Home escape. No device lock credential was changed. Browser layout
+acceptance passed at all five sizes; native and browser captures were inspected.
+The 120 TypeScript tests, Kotlin protocol tests, builds, type checking, formatting
+and Android lint passed. Private captures/receipts remain under `.local/`. This
+does not claim physical-phone or Play-installed acceptance or a deployment.
+
 ## Authority and transport
 
 Phone policy is authoritative for foreground and background work and every

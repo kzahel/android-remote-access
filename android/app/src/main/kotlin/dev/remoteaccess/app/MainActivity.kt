@@ -43,6 +43,7 @@ import androidx.core.net.toUri
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
+import dev.remoteaccess.app.control.LocalSettingsProtection
 import dev.remoteaccess.app.control.ScreenAccessService
 import dev.remoteaccess.app.unlock.PinVault
 import dev.remoteaccess.app.unlock.UnlockSetup
@@ -174,6 +175,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         listening = false
+        LocalSettingsProtection.set(foregroundOwner, false)
         handler.removeCallbacks(refresh)
         store.listeners.remove(listener)
         ForegroundAccess.stop(foregroundOwner)
@@ -231,6 +233,8 @@ class MainActivity : ComponentActivity() {
 
     private fun render() {
         if (isDestroyed || isFinishing) return
+        val protected = page in setOf("pair", "grant", "unlock", "saved-pin")
+        LocalSettingsProtection.set(foregroundOwner, listening && protected)
         shell.page(
             page,
             when (page) {
@@ -244,6 +248,8 @@ class MainActivity : ComponentActivity() {
                 "appearance" -> "Appearance"
                 "about" -> "About"
                 "grant" -> "Allow this device?"
+                "unlock" -> "Unlocking"
+                "saved-pin" -> "Saved PIN"
                 else -> "Home"
             },
         )
@@ -251,6 +257,16 @@ class MainActivity : ComponentActivity() {
         if (!loaded) {
             text(layout, "Loading…")
             return
+        }
+        if (protected) {
+            text(layout, getString(R.string.local_settings_explanation), 14f).id = R.id.local_settings_notice
+            // An already dispatched swipe or held-contact release must finish before
+            // sensitive controls exist; its final UP must not activate a new control.
+            if (ScreenAccessService.current?.inputInFlight == true) {
+                handler.removeCallbacks(refresh)
+                handler.postDelayed(refresh, 50)
+                return
+            }
         }
         notice?.let { text(layout, it, 16f).apply { accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE } }
         when (page) {
@@ -264,6 +280,8 @@ class MainActivity : ComponentActivity() {
             "appearance" -> appearance(layout)
             "about" -> about(layout)
             "grant" -> invitation(layout)
+            "unlock" -> unlockSettings(layout)
+            "saved-pin" -> savedPinSettings(layout)
             else -> home(layout)
         }
     }
@@ -519,24 +537,20 @@ class MainActivity : ComponentActivity() {
         val optional = section(layout)
         text(optional, "Optional · Unlocking", 14f)
         if (device != null) {
-            check(
+            row(
                 optional,
                 "Unlock from ${device.nickname}",
-                "Each unlock is still your explicit action",
-                device.unlockAllowed,
-                R.id.allow_unlock,
-            ) {
-                change { it.allowUnlock(device.id, !device.unlockAllowed) }
-            }
+                if (device.unlockAllowed) "Allowed · Change on this phone" else "Not allowed · Change on this phone",
+                R.id.unlock_settings,
+            ) { navigate("unlock", device.id) }
         }
         val saved = PinVault(this).saved()
-        check(
+        row(
             optional,
             "Save PIN on this phone",
             if (saved) "Unlock without typing the PIN" else "Otherwise type the PIN to unlock",
-            saved,
-            R.id.save_pin,
-        ) { if (saved) UnlockSetup.forget(this) { render() } else UnlockSetup.show(this) { render() } }
+            R.id.saved_pin_settings,
+        ) { navigate("saved-pin") }
     }
 
     private fun screenAccess(enabled: Boolean) {
@@ -747,13 +761,12 @@ class MainActivity : ComponentActivity() {
         if (setupIssue != null) {
             row(layout, "Phone setup", setupIssue, R.id.open_features) { navigate("features", device.id) }
         }
-        toggle(
+        row(
             layout,
-            "Allow unlocking",
-            device.unlockAllowed,
-            R.id.allow_unlock,
-        ) { enabled -> change { it.allowUnlock(device.id, enabled) } }
-        text(layout, "Lets this device submit a PIN or request the PIN saved on this phone. Each unlock is an explicit action.", 14f)
+            "Unlocking",
+            if (device.unlockAllowed) "Allowed · Change on this phone" else "Not allowed · Change on this phone",
+            R.id.unlock_settings,
+        ) { navigate("unlock", device.id) }
         shell.titleAction("Rename ${device.nickname}", R.drawable.ic_edit, R.id.rename_device) {
             val input =
                 EditText(this).apply {
@@ -778,6 +791,30 @@ class MainActivity : ComponentActivity() {
                     change(saved = { if (page == "device") goBack() }) { it.revoke(device.id) }
                 }.show()
         }
+    }
+
+    private fun unlockSettings(layout: LinearLayout) {
+        val device =
+            deviceId?.let(store::device)?.takeIf { !it.revoked } ?: run {
+                handler.post { if (page == "unlock") goBack() }
+                return
+            }
+        text(layout, device.nickname, 20f)
+        toggle(layout, "Allow unlocking", device.unlockAllowed, R.id.allow_unlock) { enabled ->
+            change { it.allowUnlock(device.id, enabled) }
+        }
+        text(layout, "Lets this device submit a PIN or request the PIN saved on this phone.", 14f)
+    }
+
+    private fun savedPinSettings(layout: LinearLayout) {
+        val saved = PinVault(this).saved()
+        check(
+            layout,
+            "Save PIN on this phone",
+            if (saved) "Unlock without typing the PIN" else "Otherwise type the PIN to unlock",
+            saved,
+            R.id.save_pin,
+        ) { if (saved) UnlockSetup.forget(this) { render() } else UnlockSetup.show(this) { render() } }
     }
 
     private fun activity(layout: LinearLayout) {

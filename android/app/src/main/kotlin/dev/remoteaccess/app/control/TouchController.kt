@@ -22,6 +22,8 @@ internal class TouchController(private val service: AccessibilityService, privat
     private var started = 0L
     private var allowed: () -> Boolean = { false }
     private var pending: ((Int) -> Unit)? = null
+    private var dispatches = 0
+    val dispatching get() = dispatches > 0
     val active get() = owner != null
     private val watchdog =
         object : Runnable {
@@ -107,7 +109,7 @@ internal class TouchController(private val service: AccessibilityService, privat
         fingers.clear()
         fingers.putAll(next)
         val accepted =
-            service.dispatchGesture(
+            dispatch(
                 builder.build(),
                 object : AccessibilityService.GestureResultCallback() {
                     override fun onCompleted(gestureDescription: GestureDescription) {
@@ -124,7 +126,6 @@ internal class TouchController(private val service: AccessibilityService, privat
                         reply(7)
                     }
                 },
-                main,
             )
         if (!accepted) {
             pending = null
@@ -145,13 +146,43 @@ internal class TouchController(private val service: AccessibilityService, privat
                     val path = Path().apply { moveTo(finger.x, finger.y) }
                     builder.addStroke(finger.stroke.continueStroke(path, 0, 16, false))
                 }
-                service.dispatchGesture(builder.build(), null, main)
+                dispatch(builder.build(), object : AccessibilityService.GestureResultCallback() {})
             } catch (_: Exception) {
                 // Public API cannot guarantee a raw ACTION_CANCEL. Never inject a dummy tap.
             }
         }
         clear()
         interrupted?.invoke(7)
+    }
+
+    private fun dispatch(
+        description: GestureDescription,
+        callback: AccessibilityService.GestureResultCallback,
+    ): Boolean {
+        dispatches++
+        try {
+            val accepted =
+                service.dispatchGesture(
+                    description,
+                    object : AccessibilityService.GestureResultCallback() {
+                        override fun onCompleted(gestureDescription: GestureDescription) {
+                            dispatches--
+                            callback.onCompleted(gestureDescription)
+                        }
+
+                        override fun onCancelled(gestureDescription: GestureDescription) {
+                            dispatches--
+                            callback.onCancelled(gestureDescription)
+                        }
+                    },
+                    main,
+                )
+            if (!accepted) dispatches--
+            return accepted
+        } catch (error: Exception) {
+            dispatches--
+            throw error
+        }
     }
 
     private fun clear() {

@@ -64,6 +64,12 @@ export function RemoteScreen({
   const [connectionPath, setConnectionPath] = useState(session.path);
   const [apps, setApps] = useState<AppEntry[]>([]);
   const unlocking = usePhoneUnlock(phoneId, session, initial, state, setState);
+  useEffect(() => {
+    if (state.localSettings) {
+      touch.current?.release();
+      frame.current = undefined;
+    }
+  }, [state.localSettings]);
   callbacks.current = {
     onContact,
     onEnded,
@@ -217,6 +223,9 @@ export function RemoteScreen({
         name={name || state.device.name}
         status={
           notice ||
+          (state.localSettings
+            ? "Remote input paused · Change security settings on the phone"
+            : "") ||
           unlocking.message ||
           actionMessage ||
           smoothState.message ||
@@ -281,6 +290,17 @@ export function RemoteScreen({
               <p>
                 On the phone, open YepControl › Settings and turn on Screen and
                 control to enable viewing and touch. Pairing stays saved.
+              </p>
+            </div>
+          </div>
+        ) : state.localSettings ? (
+          <div className="screen-overlay">
+            <div className="screen-panel">
+              <h2>Change these settings on the phone</h2>
+              <p>
+                Remote input is paused for pairing and unlock settings so a
+                connected device cannot grant itself more access. Make changes
+                directly on the phone. Back and Home still work remotely.
               </p>
             </div>
           </div>

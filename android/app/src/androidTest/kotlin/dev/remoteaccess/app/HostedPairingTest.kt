@@ -307,6 +307,7 @@ class HostedPairingTest {
                     assertTrue(device.executeShellCommand("getprop ro.kernel.qemu").trim() == "1")
                     start()
                     settings()
+                    click("saved_pin_settings")
                     click("save_pin")
                     // Disposable emulator credential; never used on a physical phone.
                     val pinField = device.wait(Until.findObject(By.res("${context.packageName}:id/save_pin_value")), 10000)
@@ -463,6 +464,7 @@ class HostedPairingTest {
                             waitFor { store.device(id)?.nickname == task.getString("name") }
                         }
                         "allow-unlock" -> {
+                            click("unlock_settings")
                             if (store.device(id)?.unlockAllowed != task.getBoolean("enabled")) click("allow_unlock")
                             waitFor { store.device(id)?.unlockAllowed == task.getBoolean("enabled") }
                             waitFor { store.snapshot.devices.all { it.synced } }

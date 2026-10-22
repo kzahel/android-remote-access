@@ -213,4 +213,37 @@ describe("control boundary", () => {
     ])
       expect(() => decodeReply(record(video))).toThrow("Invalid video state");
   });
+  it("validates the additive local-settings notice from the phone", () => {
+    for (const localSettings of [undefined, true, false, "true", 1, null]) {
+      const payload = new TextEncoder().encode(
+        JSON.stringify({
+          type: "state",
+          v: 1,
+          accessibility: true,
+          locked: false,
+          width: 1080,
+          height: 2400,
+          scene: 1,
+          device: {
+            manufacturer: "Google",
+            model: "Emulator",
+            name: "Test phone",
+            android: "16",
+            sdk: 36,
+            app: "0.6.0",
+          },
+          localSettings,
+        }),
+      );
+      const bytes = new Uint8Array(12 + payload.length);
+      bytes.set([65, 82, 80, 49, 1, 0, 0, 0]);
+      new DataView(bytes.buffer).setUint32(8, 1);
+      bytes.set(payload, 12);
+      if (localSettings === undefined || typeof localSettings === "boolean") {
+        expect(decodeReply(bytes)).toMatchObject({ kind: "state" });
+      } else {
+        expect(() => decodeReply(bytes)).toThrow("Invalid unlock state");
+      }
+    }
+  });
 });

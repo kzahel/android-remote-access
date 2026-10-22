@@ -41,6 +41,9 @@
     <item name="rename_device" type="id" />
     <item name="disconnect_device" type="id" />
     <item name="allow_unlock" type="id" />
+    <item name="unlock_settings" type="id" />
+    <item name="saved_pin_settings" type="id" />
+    <item name="local_settings_notice" type="id" />
     <item name="save_pin" type="id" />
     <item name="save_pin_value" type="id" />
     <item name="save_pin_confirm" type="id" />

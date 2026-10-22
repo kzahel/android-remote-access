@@ -35,6 +35,10 @@ class ScreenAccessService : AccessibilityService() {
     private val touch = TouchController(this, main)
     private val unlock = PinUnlock(this, main)
 
+    internal val inputInFlight get() = gesture || touch.dispatching
+
+    internal fun settingsChanged() = invalidate()
+
     @Volatile private var capturedAt = 0L
 
     @Volatile private var screenWidth = 0
@@ -104,6 +108,7 @@ class ScreenAccessService : AccessibilityService() {
                 "locked",
                 locked(),
             ).put("width", screenWidth).put("height", screenHeight).put("scene", scene).put("videoActive", VideoStream.available(this))
+            .put("localSettings", LocalSettingsProtection.blocked)
 
     fun execute(
         command: ControlCommand,
@@ -111,9 +116,15 @@ class ScreenAccessService : AccessibilityService() {
         allowed: () -> Boolean,
         reply: (Int, ByteArray) -> Unit,
     ) {
+        val inputRevision = LocalSettingsProtection.revision
+        val input = command.op in listOf(4, 5, 7, 8, 11, 13, 14) || (command.op == 6 && command.values[0] == 3)
+        val inputAllowed = {
+            allowed() && (!input || (!LocalSettingsProtection.blocked && inputRevision == LocalSettingsProtection.revision))
+        }
         main.post {
             fun result(code: Int) = reply(2, byteArrayOf(code.toByte()))
             if (!allowed() || current !== this) return@post result(8)
+            if (!inputAllowed()) return@post result(4)
             if (command.op == 2) return@post reply(1, state().toString().toByteArray())
             if (command.op == 9) {
                 unlock.wake()
@@ -143,7 +154,7 @@ class ScreenAccessService : AccessibilityService() {
                     } catch (_: Exception) {
                         return@post result(4)
                     }
-                unlock.attempt(pin, allowed, ::result)
+                unlock.attempt(pin, inputAllowed, ::result)
                 return@post
             }
             if (unlock.active) return@post result(6)
@@ -161,7 +172,7 @@ class ScreenAccessService : AccessibilityService() {
                 if (!touch.active && (capturedAt == 0L || android.os.SystemClock.elapsedRealtime() - capturedAt > 10000)) {
                     return@post result(2)
                 }
-                touch.accept(batch, owner, screenWidth, screenHeight, scene, allowed, ::result)
+                touch.accept(batch, owner, screenWidth, screenHeight, scene, inputAllowed, ::result)
                 return@post
             }
             if (command.op == 3) return@post capture(allowed, reply)

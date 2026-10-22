@@ -123,7 +123,7 @@ try {
     "-w",
     "-e",
     "class",
-    "dev.remoteaccess.app.MobileNavigationTest",
+    "dev.remoteaccess.app.MobileNavigationTest,dev.remoteaccess.app.LocalSettingsProtectionTest",
     `${app}.test/androidx.test.runner.AndroidJUnitRunner`,
   );
   await writeFile(path.join(state, "native.log"), result, { mode: 0o600 });
@@ -138,7 +138,7 @@ try {
   }
   assert.match(
     result,
-    /OK \(1 test\)/,
+    /OK \(2 tests\)/,
     "Native navigation acceptance failed; see private log/screenshots",
   );
   await writeFile(
@@ -154,6 +154,9 @@ try {
         followsSystemChanges: true,
         rotationPreservesHierarchy: true,
         screenshotsCaptured: true,
+        localSecuritySettings: true,
+        remoteInputRejectedOnProtectedScreens: true,
+        localSecurityChangesWork: true,
       },
       null,
       2,
@@ -161,7 +164,7 @@ try {
     { mode: 0o600 },
   );
   console.log(
-    "Native navigation, appearance persistence, system theme changes and rotation passed.",
+    "Native navigation, appearance, rotation and local-only security settings passed.",
   );
   console.log("Screenshots and receipt: .local/mobile-ui-proof/");
 } finally {

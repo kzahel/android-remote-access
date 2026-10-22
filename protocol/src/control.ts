@@ -164,6 +164,8 @@ export type ControlState = {
   unlockAllowed?: boolean;
   savedPin?: boolean;
   unlockBlocked?: boolean;
+  /** The phone is showing settings that accept only local input. */
+  localSettings?: boolean;
 };
 export type AppEntry = { name: string; packageName: string };
 export type Reply = { id: number } & (
@@ -253,6 +255,7 @@ export function decodeReply(data: Uint8Array<ArrayBuffer>): Reply {
         "unlockAllowed",
         "savedPin",
         "unlockBlocked",
+        "localSettings",
       ] as const) {
         if (state[field] !== undefined && typeof state[field] !== "boolean")
           throw new Error("Invalid unlock state");

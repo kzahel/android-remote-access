@@ -65,6 +65,7 @@ internal class ControlSession(
                     .put("accessibility", false).put("locked", context.getSystemService(KeyguardManager::class.java).isKeyguardLocked)
                     .put("width", 0).put("height", 0).put("scene", 0)
             val vault = PinVault(context)
+            state.put("localSettings", LocalSettingsProtection.blocked)
             state.put("video", VideoStream.state(this)).put("videoActive", VideoStream.available(context, this))
             state.put("device", dev.remoteaccess.app.DeviceInfo.report(context)).put(
                 "unlockSupported",
