@@ -148,6 +148,7 @@ function client(headers: Record<string, string> = {}, route = "") {
     JSON.parse((await next()).data.toString()) as {
       type: string;
       nonce: string;
+      delivery?: string;
     };
   return {
     socket,
@@ -572,7 +573,18 @@ it("delivers a fresh wake after a rapid check-to-control reconnect", async () =>
   await expect(
     stale.login(phone, "phone", { requestId: sent[0]?.requestId }),
   ).rejects.toThrow();
-  expect(await control.json()).toMatchObject({
+  // Refusing the stale phone can report the still-coalesced request again.
+  // Consume progress until delivery; arrival order depends on the event loop.
+  let progress = await control.json();
+  for (
+    let update = 0;
+    progress.delivery === "coalesced" && update < 4;
+    update++
+  ) {
+    expect(progress.type).toBe("contacting");
+    progress = await control.json();
+  }
+  expect(progress).toMatchObject({
     type: "contacting",
     delivery: "accepted",
   });
