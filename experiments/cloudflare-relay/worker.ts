@@ -15,6 +15,8 @@ type Env = {
   PAIRINGS: DurableObjectNamespace<Pairing>;
   PUBLIC_ORIGIN: string;
   PROOF_KEY?: string;
+  PROOF_EXPIRES?: string;
+  PROOF_BUILD?: string;
 };
 type Pair = Grant & { viewerSignature: string; revoked: boolean };
 type Pending = {
@@ -67,7 +69,13 @@ function text(value: unknown): string {
 export default {
   async fetch(req: Request, env: Env) {
     // A fixture gate, NOT the proposed production enrollment defense.
-    if (!env.PROOF_KEY || req.headers.get("X-Proof-Key") !== env.PROOF_KEY)
+    if (
+      !env.PROOF_KEY ||
+      req.headers.get("X-Proof-Key") !== env.PROOF_KEY ||
+      (env.PROOF_EXPIRES !== undefined &&
+        (!Number.isFinite(Number(env.PROOF_EXPIRES)) ||
+          Date.now() >= Number(env.PROOF_EXPIRES)))
+    )
       return json({ error: "Proof only" }, 403);
     if (
       req.headers.has("Origin") &&
@@ -78,8 +86,10 @@ export default {
     const api = url.pathname.match(
       /^\/api\/pair\/([0-9a-f]{32})(?:\/(offer|complete|revoke))?$/,
     );
+    const diagnostic = url.pathname.match(/^\/_proof\/([0-9a-f]{32})$/);
     const id =
       api?.[1] ??
+      diagnostic?.[1] ??
       (url.pathname === "/api/socket" ? url.searchParams.get("id") : null);
     if (!id || !/^[0-9a-f]{32}$/.test(id)) return json({ error: "Route" }, 404);
     try {
@@ -114,6 +124,7 @@ export default {
 } satisfies ExportedHandler<Env>;
 
 export class Pairing extends DurableObject<Env> {
+  private readonly boot = crypto.randomUUID();
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     ctx.storage.sql.exec(
@@ -150,6 +161,17 @@ export class Pairing extends DurableObject<Env> {
   }
   async fetch(req: Request): Promise<Response> {
     const url = new URL(req.url);
+    if (url.pathname.startsWith("/_proof/") && req.method === "GET") {
+      return json({
+        boot: this.boot,
+        build: this.env.PROOF_BUILD ?? "local",
+        sockets: this.ctx.getWebSockets().length,
+        authenticated: this.sockets().filter(
+          (ws) => (ws.deserializeAttachment() as Attachment).role !== undefined,
+        ).length,
+        revoked: this.get<Pair>("pair")?.revoked ?? false,
+      });
+    }
     if (url.pathname === "/api/socket") {
       if (
         req.headers.get("Upgrade") !== "websocket" ||

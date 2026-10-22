@@ -77,3 +77,28 @@ run the owned-emulator hosted/control suites with FCM and forced WebSocket
 fallback. Capture payload/message rates, active duration, storage reads/writes,
 selected lane, recovery and actual billed usage before choosing production.
 See [hosting and TURN direction](../../docs/hosting-and-turn.md).
+
+## Live test runner
+
+`pnpm test:live` targets only an explicitly configured, secret-gated
+`yepcontrol-relay-proof.*.workers.dev` deployment. It requires
+`PROOF_LIVE_CONFIG` and `PROOF_LIVE_SECRETS` pointing to private JSON files.
+Concrete account, hostname, secrets and deployment receipts belong in private
+infrastructure records. The runner refuses the production origin.
+
+Deploy with the pinned Wrangler, a separate SQLite Durable Object namespace,
+workers.dev enabled, preview URLs disabled, and the fixture secret supplied via
+`--secrets-file`. Configure `PROOF_EXPIRES` to at most two hours in the future;
+the Worker refuses new requests after that time. Disable invocation logging for
+the proof so URLs carrying fixture IDs are not collected as request logs.
+The default checked-in config remains local-only and closed.
+
+The live suite uses one synthetic pairing, actual HTTPS/WSS and the existing
+E2E implementation. It bounds streaming to 900 encrypted 16 KiB records over
+30 seconds, checks both directions, wrong keys/routing IDs, duplicates, idle
+hibernation via a changed constructor boot ID, authentication alarms, abrupt
+loss/reconnect and revocation. It redeploys only that proof Worker to verify
+revocation survives code replacement. Every client socket is terminated and
+completed fixture authority is revoked during cleanup. Reports and deploy logs
+stay beside the private config. This runner does not implement Android, FCM or
+TURN support.

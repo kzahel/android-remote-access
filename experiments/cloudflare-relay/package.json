@@ -6,7 +6,8 @@
   "scripts": {
     "build": "wrangler deploy --dry-run --outdir .local/bundle",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
-    "test": "pnpm build && tsx test.ts"
+    "test": "pnpm build && tsx test.ts",
+    "test:live": "tsx live-test.ts"
   },
   "devDependencies": {
     "@types/node": "22.19.15",
