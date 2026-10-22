@@ -150,6 +150,7 @@ export async function controlAcceptance(f: Fixture) {
       taps: number;
       text: string;
       keyboardShown: boolean;
+      fieldFocused: boolean;
       scroll: number;
       target: { x: number; y: number };
       field: { x: number; y: number };
@@ -405,6 +406,9 @@ export async function controlAcceptance(f: Fixture) {
     const field = await at(witness().field);
     await delay(800);
     await page.mouse.click(field.x, field.y);
+    // The remote click is asynchronous. Wait for the native editor and IME
+    // before sending text through the separate browser typing controls.
+    await until(() => witness().fieldFocused && witness().keyboardShown);
     await page
       .getByRole("button", { name: "Type or open an app", exact: true })
       .click();
@@ -426,6 +430,7 @@ export async function controlAcceptance(f: Fixture) {
       adb("shell", "dumpsys", "activity", "activities"),
       /topResumedActivity=.*ControlFixtureActivity/,
     );
+    console.log("Native tap, focused-field text and IME dismissal passed");
     if (process.env.HOSTED_TOUCH === "1") {
       const hold = await at(witness().target);
       await page.mouse.move(hold.x, hold.y);
@@ -736,6 +741,20 @@ export async function controlAcceptance(f: Fixture) {
       { mode: 0o600 },
     );
     console.log("Hosted control effects passed");
+  } catch (error) {
+    try {
+      const state = witness();
+      console.error("Synthetic native control state", {
+        taps: state.taps,
+        fieldFocused: state.fieldFocused,
+        keyboardShown: state.keyboardShown,
+        textLength: state.text.length,
+        expectedText: state.text === "Relay 🌞 verified",
+        maxPointers: state.maxPointers,
+        multiMoves: state.multiMoves,
+      });
+    } catch {}
+    throw error;
   } finally {
     if (native?.exitCode === null && syntheticLock) {
       await command("inspect-lock").catch(() => {});

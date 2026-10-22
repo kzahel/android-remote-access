@@ -61,6 +61,7 @@ public final class ControlFixtureActivity extends Activity {
         field = new EditText(this);
         field.setHint("Type witness");
         field.setSingleLine(true);
+        field.setOnFocusChangeListener((view, focused) -> witness());
         field.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) { entered = s.toString(); witness(); }
@@ -130,6 +131,7 @@ public final class ControlFixtureActivity extends Activity {
         try {
             JSONObject value = new JSONObject().put("taps", taps).put("text", entered).put("scroll", scroll.getScrollY())
                 .put("keyboardShown", keyboardShown)
+                .put("fieldFocused", field.hasFocus())
                 .put("target", center(target)).put("field", center(field)).put("slider", center(slider))
                 .put("sliderProgress", sliderProgress).put("longPresses", longPresses).put("sliderHeld", sliderHeld)
                 .put("multi", center(multi)).put("maxPointers", maxPointers).put("multiMoves", multiMoves)
