@@ -44,8 +44,9 @@ internal class RelayConnection(
 
     fun connect() {
         Website.requireConfigured(grant.getString("origin"))
-        val suffix = if (BuildConfig.DEBUG && BuildConfig.PROOF_RELAY) "?id=${grant.getString("id")}" else ""
-        val url = grant.getString("origin").replaceFirst("https:", "wss:") + "/api/socket" + suffix
+        val id = grant.getString("id")
+        unhex(id, 16)
+        val url = grant.getString("origin").replaceFirst("https:", "wss:") + "/api/socket?id=$id"
         socket = http.newWebSocket(Request.Builder().url(url).build(), this)
     }
 

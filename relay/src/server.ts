@@ -356,8 +356,14 @@ export function createRelay(options: Options) {
   const unauthenticated = new Set<WebSocket>();
   const managers = new Map<string, WebSocket>();
   server.on("upgrade", (req, socket, head) => {
+    const url = new URL(req.url ?? "/", origin);
+    const routeId = url.searchParams.get("id");
     if (
-      req.url !== "/api/socket" ||
+      url.pathname !== "/api/socket" ||
+      (url.search &&
+        (url.searchParams.size !== 1 ||
+          !routeId ||
+          !/^[0-9a-f]{32}$/.test(routeId))) ||
       !admit(req) ||
       wss.clients.size >= 1000 ||
       unauthenticated.size >= 64
@@ -365,9 +371,12 @@ export function createRelay(options: Options) {
       socket.destroy();
       return;
     }
-    wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws));
+    wss.handleUpgrade(req, socket, head, (ws) =>
+      wss.emit("connection", ws, req),
+    );
   });
-  wss.on("connection", (ws: WebSocket) => {
+  wss.on("connection", (ws: WebSocket, req) => {
+    const routeId = new URL(req.url ?? "/", origin).searchParams.get("id");
     unauthenticated.add(ws);
     const nonce = randomBytes(32).toString("hex");
     ws.send(JSON.stringify({ type: "challenge", nonce }));
@@ -427,6 +436,8 @@ export function createRelay(options: Options) {
             generation?: string;
           };
           fromHex(message.id, 16);
+          if (routeId !== null && routeId !== message.id)
+            throw new Error("Routing ID mismatch");
           if (message.role !== "phone" && message.role !== "viewer")
             throw new Error("Invalid role");
           const pair = pairs.get(message.id);

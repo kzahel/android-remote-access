@@ -13,7 +13,10 @@ it("explains a queued wake and updates the message after actual delivery", async
   class FakeSocket {
     onmessage?: (event: { data: string }) => void;
     binaryType = "";
-    constructor() {
+    constructor(url: URL) {
+      expect(url.href).toBe(
+        `wss://example.test/api/socket?id=${"ab".repeat(16)}`,
+      );
       socket = this;
     }
     send = vi.fn();

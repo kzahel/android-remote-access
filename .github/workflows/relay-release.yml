@@ -55,7 +55,7 @@ jobs:
           RELEASE_TAG: ${{ steps.source.outputs.tag }}
           RELEASE_SOURCE: ${{ steps.source.outputs.source }}
         run: |
-          VITE_PROOF_RELAY=1 pnpm --filter @remote/web build
+          pnpm --filter @remote/web build
           mkdir -p .local/relay-release/web
           cp experiments/cloudflare-relay/.local/bundle/worker.js .local/relay-release/worker.js
           cp -R web/dist/. .local/relay-release/web/

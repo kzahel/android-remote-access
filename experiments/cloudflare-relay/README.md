@@ -52,8 +52,8 @@ promoting any code. Production dependencies are unchanged.
 
 The front Worker needs the pairing ID **before** choosing an object. This proof
 uses `/api/socket?id=…`, then requires the signed authentication ID to match the
-stored pair. Normal builds provide the ID only after opening `/api/socket`;
-debug proof builds add the routing field. The ID remains routing metadata,
+stored pair. Normal Android and browser builds supply the same routing field;
+the Node relay also accepts the older bare `/api/socket` route. The ID remains routing metadata,
 not proof of authority. Query strings must not become identifiers in request logs.
 
 Hibernation requires `acceptWebSocket`, serialized attachments, and no ordinary

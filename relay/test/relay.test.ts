@@ -109,10 +109,13 @@ async function enroll() {
   ).toBe(200);
   return g;
 }
-function client(headers: Record<string, string> = {}) {
-  const socket = new WebSocket(`${base.replace("http:", "ws:")}/api/socket`, {
-    headers,
-  });
+function client(headers: Record<string, string> = {}, route = "") {
+  const socket = new WebSocket(
+    `${base.replace("http:", "ws:")}/api/socket${route}`,
+    {
+      headers,
+    },
+  );
   sockets.push(socket);
   const queue: { data: Buffer; binary: boolean }[] = [];
   let closed = false;
@@ -191,6 +194,31 @@ afterEach(async () => {
   await relay.close();
   await rm(directory, { recursive: true, force: true });
 });
+it("routes standard client URLs but binds authentication to that same pairing", async () => {
+  await enroll();
+  const viewerClient = client({}, `?id=${invitation.id}`);
+  expect((await viewerClient.login(viewer, "viewer")).type).toBe(
+    "authenticated",
+  );
+  const wrongRoute = client({}, `?id=${"ff".repeat(16)}`);
+  const closed = once(wrongRoute.socket, "close");
+  await expect(wrongRoute.login(phone, "phone")).rejects.toThrow("Closed");
+  expect((await closed)[0]).toBe(4003);
+  // Existing installed clients still use the bare route.
+  const phoneClient = client();
+  expect((await phoneClient.login(phone, "phone")).type).toBe("authenticated");
+  expect((await viewerClient.json()).type).toBe("ready");
+});
+
+it.each([
+  "?id=bad",
+  "?other=value",
+  `?id=${"ab".repeat(16)}&id=${"cd".repeat(16)}`,
+])("refuses malformed socket routing %s before upgrading", async (route) => {
+  const socket = client({}, route);
+  await expect(socket.json()).rejects.toThrow("Closed");
+});
+
 it("pairs only after both endpoint signatures and never stores the QR secret", async () => {
   await enroll();
   const state = new RelayState(directory);

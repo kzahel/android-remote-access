@@ -10,8 +10,8 @@ The owner subsequently agreed to retain Node/SQLite for local development and
 self-hosting, with FCM optional, and pursue Cloudflare for hosted operation.
 Hosting and background wake are separate choices. True internet-disconnected
 LAN access still needs explicit acceptance; the current development helper uses
-Tailscale HTTPS. Normal-client routing parity remains a small follow-up to the
-proof flags. Relay releases should be versioned independently and deployed by
+Tailscale HTTPS. Normal clients now supply the pairing ID in the socket URL for
+either relay; Node also accepts installed clients' bare socket route. Relay releases should be versioned independently and deployed by
 CI; see [release workflow and staging boundaries](relay-releases.md).
 
 ## Current service and sequence
@@ -56,7 +56,8 @@ closed afterward; details and remaining limits are in the
 A front Worker can route each pairing ID to one SQLite-backed Durable Object.
 The client must supply that ID when opening its socket; the proof uses
 `/api/socket?id=…` and still verifies the signed ID/role/key. Normal Android and
-browser builds send the ID only after connection; private proof builds add it.
+browser builds now send this routing field, and Node binds it to the same signed
+authentication ID. The proof-only Android flag supplies fixture admission only.
 Keep signing against the configured origin and keep identifiers out of logs.
 
 Use the hibernation API, serialized socket attachments and alarms. Memory resets
