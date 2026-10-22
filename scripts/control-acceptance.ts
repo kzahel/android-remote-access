@@ -469,10 +469,17 @@ export async function controlAcceptance(f: Fixture) {
         ];
       };
       try {
+        await cdp.send("Emulation.setTouchEmulationEnabled", {
+          enabled: true,
+          maxTouchPoints: 2,
+        });
         await cdp.send("Input.dispatchTouchEvent", {
           type: "touchStart",
           touchPoints: await points(60, 0),
         });
+        // Establish the native two-contact baseline before the motion sequence;
+        // remote admission and CDP input dispatch complete asynchronously.
+        await until(() => witness().maxPointers === 2, 10000);
         for (let n = 1; n <= 12; n++) {
           await cdp.send("Input.dispatchTouchEvent", {
             type: "touchMove",
@@ -488,10 +495,23 @@ export async function controlAcceptance(f: Fixture) {
             Math.abs(witness().angleChange) > 0.3,
           5000,
         );
+      } catch (error) {
+        const { maxPointers, multiMoves, distanceChange, angleChange } =
+          witness();
+        console.error("Synthetic multi-touch witness", {
+          maxPointers,
+          multiMoves,
+          distanceChange,
+          angleChange,
+        });
+        throw error;
       } finally {
         await cdp.send("Input.dispatchTouchEvent", {
           type: "touchEnd",
           touchPoints: [],
+        });
+        await cdp.send("Emulation.setTouchEmulationEnabled", {
+          enabled: false,
         });
         await cdp.detach();
       }
