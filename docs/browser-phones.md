@@ -23,9 +23,14 @@ inventory is introduced.
   state and this browser's own history (latest 200 events). Concurrent
   transactions merge metadata rather than replacing a shared array.
 - Schema 3 discards earlier phone records instead of migrating them (initial
-  development keeps no compatibility); pair again after the upgrade.
-  Re-pairing the same phone replaces its grant and device report and retains
-  alias, contact time and history; an active tab using the old grant is closed.
+  development keeps no compatibility); create a new pairing after the upgrade.
+  Pairing the same phone again currently replaces only the browser's visible
+  grant and device report and retains alias, contact time and history; an active
+  tab using the old grant is closed. It does not revoke the earlier grant on the
+  phone or relay. This is intentional independent access, explained on the QR
+  page and phone approval; no replacement transaction is required. Remove old
+  enabled entries in Devices on the phone to stop their access; see
+  [security gaps](security-gaps.md#sg-5-pairing-again-is-not-revocation).
 - The device report arrives sealed inside the pairing offer, so a new phone is
   named immediately, and refreshes on every authenticated check and control
   state. The displayed name is the local alias, else the phone's device name,
@@ -51,6 +56,14 @@ active/pending tab connections. It does not remotely revoke the grant; the
 confirmation explains removal from the phone app. Late metadata writes cannot
 recreate a forgotten record.
 
+If the final pairing response or local save fails after completion was submitted,
+the viewer shows an unconfirmed-pairing message and asks the owner to check
+Devices on the phone. It stops renewing QR codes automatically in that case,
+including when the response was lost at expiry. The owner can explicitly create
+another code, knowing it adds access. An extra phone entry can be removed there;
+an extra browser card can be forgotten here. Stale UI records do not restore a
+permission already removed on the phone.
+
 Web Locks coordinate one session/check per phone across tabs in the same browser,
 before any socket/wake request. Another tab gets an ordinary "already in use"
 message; different phone IDs have independent locks. The relay and Android still
@@ -74,8 +87,9 @@ stay under ignored `.local/viewer-phones-proof/`. The fixture is not a productio
 entry point and never selects a physical phone. Hosted native pairing/control
 acceptance remains separate.
 
-All those browser checks pass, including preserved metadata/no duplicate on
-re-pair and rejection of a saved-phone URL in a fresh unpaired browser. Visual
+All those browser checks pass, including preserved metadata/no duplicate local
+record when pairing an already saved phone and rejection of a saved-phone URL
+in a fresh unpaired browser. Visual
 captures at 1280×1000, 390×844 and 320×680 show the two-phone library without
 horizontal overflow; the existing four-size stable-viewer checks also pass.
 All 92 TypeScript tests, type checks, production build and Biome checks pass.

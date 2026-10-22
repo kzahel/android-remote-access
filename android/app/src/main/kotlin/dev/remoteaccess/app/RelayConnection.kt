@@ -123,7 +123,7 @@ internal class RelayConnection(
             }
         } catch (_: Exception) {
             close()
-            report("Connection rejected. Reconnect or pair again.")
+            report("Connection rejected. Review this device’s access in Devices.")
         }
     }
 

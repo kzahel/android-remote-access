@@ -29,6 +29,40 @@ pairing/encrypted-check functionality; it does not claim screen control exists.
   no PINs, QR secrets, push addresses, screen content or arbitrary remote text.
   This is local history, not a tamper-proof audit service.
 
+## Independent pairings and stale entries (2026-10-22)
+
+Owner-approved simplified model: every pairing adds independent access. Reusing
+the same browser identity creates another phone permission, and the browser may
+show its newest grant in the existing phone card. Earlier phone permissions stay
+enabled until the owner removes them. Pairing approval and the viewer explain
+this explicitly; there is no coordinated replacement workflow.
+
+Removing a device persists the existing local block and invalidates its
+generation before relay synchronization. Failed cleanup leaves a blocked record,
+shown on Devices as waiting for cleanup with Retry cleanup. A stale browser
+entry can be forgotten there; browser forgetting closes its sessions and removes
+its card without revoking phone-side permission. No protocol or storage format
+changes are needed. Unconfirmed pairing directs the owner to inspect Devices
+before another attempt, which adds another independent permission.
+
+The native storage regression creates two grants for one browser identity,
+verifies both remain independently enabled, removes one without acknowledging
+relay cleanup, reloads the database and verifies that neither its old nor current
+generation can regain access. The other grant remains enabled. Eventual cleanup
+only discards the blocked record. The browser acceptance fixture loses a committed
+completion reply at QR expiry and checks that the existing card is preserved,
+the owner sees the cleanup explanation and automatic QR renewal stops.
+
+Verified 2026-10-22: all 18 native smoke tests (two navigation/security and 16
+storage/enrollment) pass on the owned API-35 emulator. Browser phone-management
+acceptance passes the lost-receipt-at-expiry regression, ordinary pairing,
+preserved metadata, cross-tab session closure and forgetting, with readable
+pairing/recovery pages and no horizontal overflow at 320 pixels. The 130
+TypeScript tests, type checks, Biome checks, Kotlin protocol tests, Android
+debug/release APK builds and lint pass. Private evidence stays in ignored
+`.local/sg5-proof/` and the existing runner artifact directories. No physical
+phone, hosted deployment or Play release was changed.
+
 ## Local security settings (2026-10-22)
 
 Pairing/approval, per-device unlock permission and saved-PIN management use

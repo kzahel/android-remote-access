@@ -95,8 +95,8 @@ export function ForgetPhone({ phone }: { phone: SavedPhone }) {
       <dialog ref={dialog} aria-label={`Forget ${name}?`}>
         <h2>Forget {name}?</h2>
         <p>
-          This removes the phone from this browser. To stop this browser’s
-          access, also remove it in YepControl on the phone.
+          This only removes the entry from this browser. To stop this browser’s
+          access, remove its entries in Devices in YepControl on the phone.
         </p>
         <div className="dialog-actions">
           <button

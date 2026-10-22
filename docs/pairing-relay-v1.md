@@ -50,7 +50,12 @@ The relay passes it to the browser opaquely in the `offered` reply and never
 stores it. A new pairing's first enabled access policy leaves open routes alone,
 so the browser's check right after pairing is not cut off.
 Phone confirmation polls are bounded. Losing the final receipt may leave a
-browser-only grant; re-pair with a fresh QR, never silently replace a pin.
+stale entry on either endpoint. Show that pairing was not confirmed and ask the
+owner to check Devices on the phone before another code. Another pairing creates
+independent access. Stale entries are allowed and can be forgotten locally;
+removing an enabled permission on the phone stops its access. No coordinated
+replacement transaction is required; see the owner-approved
+[security model](security-gaps.md#sg-5-pairing-again-is-not-revocation).
 
 ## Routing and authority
 
@@ -59,8 +64,10 @@ its socket with 4010 (access removed: the pairing is a revoked tombstone) or 401
 (access paused by the phone's policy), on a live route when the phone revokes or
 pauses it and on later authentication. A viewer that cannot prove the key gets
 the generic 4003. The website records removed/paused for that exact pairing,
-clears it on the next authenticated connection or re-pairing, and checks saved
-pairings for the public 410 tombstone when the phone list opens.
+clears it on the next authenticated connection, and checks saved pairings for
+the public 410 tombstone when the phone list opens. A new pairing may replace
+the browser's displayed record, but it does not change the old pairing's relay
+authority.
 
 
 WebSocket clients select a durable pairing ID and role. The relay supplies a
@@ -82,6 +89,13 @@ retains tombstones to prevent reenrollment with an old ID. Losing/rolling back
 a relay database must never create endpoint trust: both endpoints retain exact
 peer-key pins. Backup/restore must preserve tombstones; restoring an old backup
 requires reconciling subsequent revocations before admission resumes.
+
+The phone enforces removal locally before relay synchronization. Unreachable
+relay cleanup leaves a locally blocked record and a pending-cleanup explanation
+with retry on the phone. A stale browser card can be forgotten independently.
+Browser forgetting deletes only local state and does not revoke a still-enabled
+phone permission. Earlier grants remain independent when a browser saves a new
+pairing for the same phone.
 
 ## Limits and deployment
 

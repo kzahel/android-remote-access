@@ -14,7 +14,7 @@ implementation is outside this review.
 | SG-2 | Enrollment-origin pinning | Implemented in source; release delivery pending | Ship the origin-pinned Android build. |
 | SG-3 | Relay enrollment-storage exhaustion | Mitigated for development/self-hosting; public-service policy open | SQLite and small admission budgets bound work; distributed abuse can still deny new enrollment. |
 | SG-4 | FCM before the end-to-end session | Protocol behavior accepted; abuse controls open | Preserve endpoint authentication while adding fair wake quotas and monitoring. |
-| SG-5 | Pair-again semantics | Open, high priority | Do not present another pairing as revocation or repair. Define an explicit replacement flow. |
+| SG-5 | Pair-again semantics | Simplified model implemented; delivery pending | Pairing adds access; enforce removal on the phone and allow stale entries with best-effort cleanup. |
 | SG-6 | Hosted viewer origin | Intentional trust boundary | Treat deployment integrity as endpoint security. |
 | SG-7 | HSTS | Enabled and verified 2026-10-22 | Maintain the explicit hostname policies; evaluate broader coverage and preload separately. |
 
@@ -121,28 +121,40 @@ a solution because the wake hint exists to make that handshake possible.
 
 ## SG-5: pairing again is not revocation
 
-Another successful pairing creates another durable authorization. It does not
-prove that an earlier browser grant has been deleted from the phone or revoked
-at the relay. The browser may replace the grant it displays locally while the
-older authorization remains usable elsewhere. Consequently, “re-pair” must not
-be offered as a generic recovery or security-repair action.
+Owner decision, 2026-10-22: keep independent pairings and allow stale entries.
+No coordinated replacement transaction is required. The phone remains the
+authority for whether a paired device can control it.
 
-Recommended product model:
+- **Pairing adds access.** A new pairing leaves earlier phone permissions
+  unchanged. The browser can update its local card to use the new grant while
+  preserving its name and history. Both the QR page and native approval explain
+  that earlier permissions remain enabled until removed in Devices on the phone.
+- **Remove on the phone.** Persistently block that grant locally, invalidate
+  its generation and end affected sessions immediately. Notify the relay best
+  effort. Failed cleanup retains an already-blocked record; Devices shows
+  pending cleanup and offers Retry cleanup. Service availability never determines
+  whether the local removal took effect.
+- **Forget in the browser.** Delete the local card and close its sessions.
+  This does not revoke the phone's permission. The confirmation directs the
+  owner to remove that old entry on the phone to stop its access. A browser
+  entry left after phone-side removal can simply be forgotten.
+- **Unconfirmed pairing.** An interrupted final receipt can leave a stale entry
+  on either side. Show that pairing was not confirmed and ask the owner to check
+  Devices before trying again. Once the browser has submitted completion, an
+  error stops automatic QR renewal even if the code expired while awaiting the
+  response. Another code is an explicit user action and still adds access.
 
-- Call the ordinary operation **Pair a new browser** or **Add access**. It
-  creates an independent grant.
-- If the same browser identity and phone are already paired, either return the
-  user to the existing grant or offer an explicit **Replace access** operation.
-- Replacement must identify the old grant, durably revoke it, and only then
-  make the new grant the visible authority. Failure must not hide the old
-  grant or imply that it was revoked.
-- If browser storage or its identity key is lost, instruct the owner to remove
-  that browser locally on the phone and then pair the replacement browser.
-- Treat loss of the final enrollment receipt as an incomplete transaction with
-  an explicit recovery design, not as a reason to silently accumulate grants.
+An old enabled grant remains usable by a browser that retains its key and grant;
+age and appearance do not revoke it. Once the phone has removed the grant,
+leftover relay/browser records cannot restore phone authority. Lost browser
+storage is handled by removing the old device entry on the phone and pairing
+the browser anew. Relay tombstone and backup rules remain unchanged.
 
-Until replacement is implemented, documentation and UI must warn that pairing
-again adds access and does not revoke an earlier pairing.
+This changes product copy and cleanup visibility while preserving the existing
+local-revocation and best-effort synchronization mechanism. No wire format or
+database change is required. Source verification is recorded in
+[mobile management](mobile-management.md#independent-pairings-and-stale-entries-2026-10-22);
+delivery in the Android app and hosted viewer remains separate.
 
 ## SG-6: the hosted viewer origin is an endpoint
 
@@ -197,7 +209,8 @@ and [HSTS behavior](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/
 No practical break was found in the reviewed transcript signatures, P-256
 ephemeral key agreement, HKDF key separation, directional AES-GCM framing,
 sequence checks or endpoint key pinning. That is a limited source-review result,
-not a cryptographic proof. The SG-2 fix must reach the distributed Android build,
-SG-3 and SG-5 need explicit resolution before wider release, and the complete
-protocol and hosted endpoint should receive an independent security review.
+not a cryptographic proof. The SG-2 and SG-5 fixes must reach the distributed app
+and viewer, SG-3 needs an explicit public-service policy before wider release,
+and the complete protocol and hosted endpoint should receive an independent
+security review.
 SG-7 is enabled and verified on the current deployment.

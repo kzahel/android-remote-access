@@ -183,10 +183,10 @@ export function PhonePage({
           name={phoneName(phone)}
           status="Access to this phone was removed on the phone."
         />
-        <p>To connect again, pair this browser with the phone again.</p>
+        <p>To add access, scan a new code and approve it on the phone.</p>
         <div className="phone-actions">
           <a className="button-link" href="/pair">
-            Pair again
+            Add access
           </a>
           <button
             type="button"

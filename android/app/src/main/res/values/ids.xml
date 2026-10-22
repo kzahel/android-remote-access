@@ -37,6 +37,8 @@
     <item name="open_settings" type="id" />
     <item name="notification_settings" type="id" />
     <item name="retry_setup" type="id" />
+    <item name="cleanup_status" type="id" />
+    <item name="retry_cleanup" type="id" />
     <item name="device_toggle" type="id" />
     <item name="rename_device" type="id" />
     <item name="disconnect_device" type="id" />

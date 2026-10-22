@@ -35,9 +35,7 @@ async function api(
         },
   );
   if (!response.ok)
-    throw new Error(
-      "Pairing expired, revoked, or unavailable. Try a new code.",
-    );
+    throw new Error("Pairing expired, revoked, or unavailable.");
   return response.json() as Promise<{
     state: string;
     grant?: Grant;
@@ -48,9 +46,9 @@ export function PairPhone() {
   const [invitation, setInvitation] = useState<Invitation>();
   const [status, setStatus] = useState("Creating a pairing code…");
   const steps = "Open YepControl on your phone and tap Scan pairing code.";
-  const [failed, setFailed] = useState(false);
+  const [failure, setFailure] = useState<"code" | "unconfirmed">();
   const pair = useCallback(async () => {
-    setFailed(false);
+    setFailure(undefined);
     try {
       const identity = await browserIdentity();
       const i: Invitation = {
@@ -71,7 +69,7 @@ export function PairPhone() {
       setStatus("Scan this code with your phone");
     } catch (error) {
       setInvitation(undefined);
-      setFailed(true);
+      setFailure("code");
       setStatus(error instanceof Error ? error.message : "Pairing failed");
     }
   }, []);
@@ -88,12 +86,13 @@ export function PairPhone() {
       if (document.visibilityState === "visible") void pair();
       else {
         setInvitation(undefined);
-        setFailed(true);
+        setFailure("code");
         setStatus("This code expired.");
       }
     };
     void (async () => {
       let seen = "waiting";
+      let completionStarted = false;
       try {
         while (!stopped()) {
           if (Date.now() >= invitation.expires * 1000) {
@@ -118,6 +117,7 @@ export function PairPhone() {
               await identity.sign(grantBytes(invitation.origin, g)),
             );
             if (stopped()) return;
+            completionStarted = true;
             const accepted = await api(invitation.id, "complete", {
               viewerSignature,
             });
@@ -135,11 +135,17 @@ export function PairPhone() {
         }
       } catch (error) {
         if (stopped()) return;
+        if (completionStarted) {
+          setInvitation(undefined);
+          setFailure("unconfirmed");
+          setStatus("Pairing could not be confirmed.");
+          return;
+        }
         // A held poll can outlast the code; the relay then no longer knows it.
         if (Date.now() >= invitation.expires * 1000 - 1000) expired();
         else {
           setInvitation(undefined);
-          setFailed(true);
+          setFailure("code");
           setStatus(error instanceof Error ? error.message : "Pairing failed");
         }
       }
@@ -152,6 +158,16 @@ export function PairPhone() {
   return (
     <main>
       <ViewerHeading name="Add phone" status={status} />
+      <p className="hint">
+        Pairing adds access. Earlier pairings keep their access until you remove
+        them in Devices in YepControl on the phone.
+      </p>
+      {failure === "unconfirmed" && (
+        <p role="alert">
+          Check Devices in YepControl on the phone for an added entry before
+          trying again.
+        </p>
+      )}
       {qr && invitation && (
         <section className="pairing-code" aria-label="Pairing code">
           <svg
@@ -182,7 +198,7 @@ export function PairPhone() {
           <p className="hint">A new code appears every five minutes.</p>
         </section>
       )}
-      {failed && (
+      {failure && (
         <button type="button" onClick={() => void pair()}>
           New code
         </button>

@@ -451,6 +451,8 @@ try {
   // Pair another phone through the real QR/signature/receipt UI.
   const offered = new Map<string, Grant>();
   const deviceOffers = new Map<string, string>();
+  const completed = new Set<string>();
+  const lostReceipts = new Set<string>();
   await context.route("**/api/pair/**", async (route) => {
     const request = route.request();
     const parts = new URL(request.url()).pathname.split("/");
@@ -464,6 +466,18 @@ try {
         grantBytes(origin, grant),
         body.viewerSignature,
       );
+      completed.add(id);
+      if (lostReceipts.has(id)) {
+        // Simulate a committed pairing whose reply is lost as the QR expires.
+        await request
+          .frame()
+          .page()
+          .evaluate((expires) => {
+            Date.now = () => expires * 1000 + 1;
+          }, grant.expires);
+        await route.abort("connectionreset");
+        return;
+      }
       await route.fulfill({ json: { state: "paired" } });
     } else
       await route.fulfill({
@@ -477,6 +491,9 @@ try {
       });
   });
   await other.getByRole("link", { name: "Add phone", exact: true }).click();
+  await expect(
+    other.getByText(/Pairing adds access\. Earlier pairings/),
+  ).toBeVisible();
   const qr = PNG.sync.read(
     await other
       .getByRole("img", { name: "Scan to pair this browser" })
@@ -513,8 +530,81 @@ try {
   assert.equal(both.length, 2);
   const secondId = both.find((phone) => phone.grant.phone === grant.phone)?.id;
   assert.ok(secondId);
+  const secondDevice = both.find((phone) => phone.id === secondId)?.device;
+  assert.ok(secondDevice);
   assert.equal(both.find((phone) => phone.id === firstId)?.alias, "RV phone");
   console.log("Pairing a second phone preserved the first phone and its alias");
+
+  const interrupted = await context.newPage();
+  await interrupted.setViewportSize({ width: 320, height: 680 });
+  await interrupted.goto(`${origin}/pair`);
+  await expect(
+    interrupted.getByRole("img", { name: "Scan to pair this browser" }),
+  ).toBeVisible();
+  await interrupted.screenshot({
+    path: path.join(artifacts, "sg5-add-access-mobile.png"),
+    fullPage: true,
+  });
+  const lostQr = PNG.sync.read(
+    await interrupted
+      .getByRole("img", { name: "Scan to pair this browser" })
+      .screenshot(),
+  );
+  const lostCode = jsQR(
+    new Uint8ClampedArray(lostQr.data),
+    lostQr.width,
+    lostQr.height,
+  );
+  assert.ok(lostCode);
+  const lostInvitation = decodeInvitation(lostCode.data);
+  const lostGrant: Grant = {
+    ...grant,
+    id: lostInvitation.id,
+    viewer: lostInvitation.viewer,
+    expires: lostInvitation.expires,
+    phoneSignature: "",
+    mac: "",
+  };
+  const lostBytes = grantBytes(origin, lostGrant);
+  lostGrant.phoneSignature = b64(await second.sign(lostBytes));
+  lostGrant.mac = hex(await grantMac(lostInvitation.secret, lostBytes));
+  lostReceipts.add(lostGrant.id);
+  deviceOffers.set(
+    lostGrant.id,
+    await sealDevice(lostInvitation.secret, lostInvitation.id, secondDevice),
+  );
+  offered.set(lostGrant.id, lostGrant);
+  await expect(interrupted.getByRole("status")).toHaveText(
+    "Pairing could not be confirmed.",
+  );
+  await expect(interrupted.getByRole("alert")).toHaveText(
+    "Check Devices in YepControl on the phone for an added entry before trying again.",
+  );
+  await expect(
+    interrupted.getByRole("button", { name: "New code", exact: true }),
+  ).toBeVisible();
+  await expect(
+    interrupted.getByRole("img", { name: "Scan to pair this browser" }),
+  ).toHaveCount(0);
+  assert.ok(completed.has(lostGrant.id));
+  assert.equal(
+    (await records(home)).find((phone) => phone.id === secondId)?.grant.id,
+    grant.id,
+  );
+  assert.equal(
+    await interrupted.evaluate(
+      () => document.documentElement.scrollWidth > innerWidth,
+    ),
+    false,
+  );
+  await interrupted.screenshot({
+    path: path.join(artifacts, "sg5-unconfirmed-mobile.png"),
+    fullPage: true,
+  });
+  await interrupted.close();
+  console.log(
+    "A lost completion receipt preserves saved access and explains manual cleanup without renewing the QR",
+  );
   await other
     .getByRole("button", { name: "Connect to phone", exact: true })
     .click();
@@ -690,7 +780,7 @@ try {
     [],
   );
   await fresh.close();
-  // Re-pair the same identity without creating a duplicate or losing metadata.
+  // Another pairing updates this browser's entry without claiming to revoke earlier access.
   const repaired = await home.evaluate(async (id) => {
     const module = "/src/store.ts";
     const store = await import(module);
@@ -743,6 +833,9 @@ try {
   await home
     .getByRole("button", { name: "Forget Travel phone", exact: true })
     .click();
+  await expect(
+    home.getByRole("dialog", { name: "Forget Travel phone?" }),
+  ).toContainText("This only removes the entry from this browser.");
   await home
     .getByRole("dialog", { name: "Forget Travel phone?" })
     .getByRole("button", { name: "Forget", exact: true })
@@ -791,6 +884,8 @@ try {
         sharedMetadata: true,
         deepLinks: true,
         forgetClosesSession: true,
+        pairingAddsAccess: true,
+        lostPairingReceiptExplained: true,
         responsive: true,
         errors,
       },

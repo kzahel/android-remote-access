@@ -465,9 +465,27 @@ class MainActivity : ComponentActivity() {
     private fun devices(layout: LinearLayout) {
         // A removed device is refused locally at once; telling the relay finishes in the background.
         val devices = store.snapshot.devices.filter { !it.revoked }
-        if (devices.isEmpty()) text(layout, "No paired devices yet.")
+        if (devices.isEmpty()) {
+            text(layout, "No paired devices yet.")
+        } else {
+            text(layout, "Each pairing has its own access. Remove old entries you no longer use.", 14f)
+        }
         devices.forEach { device ->
             row(layout, device.nickname, deviceSummary(device)) { navigate("device", device.id) }
+        }
+        val pendingRemovals = store.snapshot.devices.count { it.revoked }
+        if (pendingRemovals > 0) {
+            val label =
+                when (pendingRemovals) {
+                    1 -> "1 removed device is waiting for cleanup."
+                    else -> "$pendingRemovals removed devices are waiting for cleanup."
+                }
+            text(layout, "$label Access is already blocked on this phone.", 14f).id = R.id.cleanup_status
+            button(layout, "Retry cleanup", R.id.retry_cleanup) {
+                WakeSupport.enqueue(this, androidx.work.Data.EMPTY, registration = true)
+                notice = "Retrying cleanup. Access remains blocked on this phone."
+                render()
+            }
         }
         button(layout, "Add device", R.id.pair_device) { navigate("pair") }
     }
@@ -818,8 +836,9 @@ class MainActivity : ComponentActivity() {
                 .Builder(
                     this,
                 ).setTitle("Remove ${device.nickname}?")
-                .setMessage("Its access will be revoked. To connect again, pair this device again.")
-                .setNegativeButton("Cancel", null)
+                .setMessage(
+                    "This device will lose access to this phone immediately. An old entry may remain on your other device and can be forgotten there.",
+                ).setNegativeButton("Cancel", null)
                 .setPositiveButton("Remove") { _, _ ->
                     change(saved = { if (page == "device") goBack() }) { it.revoke(device.id) }
                 }.show()
@@ -929,6 +948,7 @@ class MainActivity : ComponentActivity() {
             layout.addView(progress, LinearLayout.LayoutParams(-1, dp(52)))
         } else {
             text(layout, "This name is supplied by the other device. Only allow a code you just created yourself.", 14f)
+            text(layout, "This adds access. Earlier pairings keep their access until you remove them in Devices.", 14f)
             button(layout, getString(R.string.grant_device), R.id.grant_device) { allow(invitation) }
         }
         button(layout, "Cancel", R.id.cancel_grant) {
@@ -963,7 +983,7 @@ class MainActivity : ComponentActivity() {
                 backStack.clear()
                 if (paired == null) {
                     page = "home" // A pairing code is single-use; the other device must create a new one.
-                    notice = "Couldn’t pair. Create a new code on your other device."
+                    notice = "Pairing wasn’t confirmed. Check Devices for an added entry before trying again. Another pairing adds access."
                 } else {
                     backStack.add("home")
                     page = if (firstDevice) "features" else "device"

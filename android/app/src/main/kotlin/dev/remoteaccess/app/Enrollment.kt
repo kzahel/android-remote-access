@@ -193,6 +193,6 @@ internal class Enrollment(
             // A relay without held polls answers at once; keep the earlier pace.
             if (System.nanoTime() - asked < TimeUnit.MILLISECONDS.toNanos(500)) Thread.sleep(750)
         }
-        error("Device did not confirm. Create a fresh code.")
+        error("The other device did not confirm pairing.")
     }
 }

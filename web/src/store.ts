@@ -69,7 +69,7 @@ export interface SavedPhone {
   device: DeviceInfo;
   deviceAt: number;
   lastContactAt?: number;
-  /** What the relay last reported after this browser proved its key; cleared on success or re-pairing. */
+  /** The relay's verdict for this grant, cleared on success or when another grant is saved. */
   access?: PhoneAccess;
   history: PhoneEvent[];
 }
@@ -172,7 +172,7 @@ export async function rememberPhone(
     };
     next.history = logged(
       { ...next, history: previous?.history ?? [] },
-      previous ? "Paired again" : "Paired",
+      previous ? "New pairing added; earlier access unchanged" : "Paired",
     );
     return next;
   });

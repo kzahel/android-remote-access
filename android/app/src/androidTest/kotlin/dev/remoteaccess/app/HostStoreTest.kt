@@ -107,6 +107,33 @@ class HostStoreTest {
     }
 
     @Test
+    fun anotherPairingAddsAccessAndFailedCleanupCannotRestoreRemovedAccess() {
+        store.load()
+        val old = store.pair(grant("old").put("viewer", "same-browser-key"), "Laptop")
+        val added = store.pair(grant("added").put("viewer", "same-browser-key"), "Laptop")
+        assertEquals("Laptop 2", added.nickname)
+        assertTrue(store.allowed(old.id, old.generation))
+        assertTrue(store.allowed(added.id, added.generation))
+
+        store.revoke(old.id)
+        // Leave the cleanup record unacknowledged, as when the relay is unreachable.
+        store = HostStore.fixture(context, db).load()
+        val pending = requireNotNull(store.device(old.id))
+        assertTrue(pending.revoked)
+        assertFalse(pending.synced)
+        assertFalse(store.allowed(old.id, old.generation))
+        assertFalse(store.allowed(old.id, pending.generation))
+        store.enable(old.id, true)
+        assertFalse(store.allowed(old.id, pending.generation))
+        assertTrue(store.allowed(added.id, added.generation))
+
+        // Eventual cleanup only discards the bookkeeping record; access was already blocked.
+        store.removed(old.id)
+        assertFalse(store.allowed(old.id, pending.generation))
+        assertEquals(listOf(added.id), store.snapshot.devices.map { it.id })
+    }
+
+    @Test
     fun rejectsNewGrantsForUnconfiguredServices() {
         store.load()
         assertFailsWith<IllegalArgumentException> { store.pair(grant("bad").put("origin", "https://other.example")) }
