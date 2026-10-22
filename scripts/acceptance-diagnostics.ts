@@ -26,6 +26,8 @@ export function safeFixtureDiagnostics(
       "automatic",
       "notificationsAllowed",
       "fidPresent",
+      "approvalVisible",
+      "pairingFailureVisible",
     ]) {
       if (typeof parsed[key] !== "boolean") return undefined;
       result[key] = parsed[key];
@@ -60,6 +62,14 @@ export function safeFixtureDiagnostics(
     )
       return undefined;
     result.wakeState = state;
+    if (
+      typeof parsed.pairingFailureKind !== "string" ||
+      !["none", "network", "protocol", "other"].includes(
+        parsed.pairingFailureKind,
+      )
+    )
+      return undefined;
+    result.pairingFailureKind = parsed.pairingFailureKind;
     return result;
   } catch {
     return undefined;

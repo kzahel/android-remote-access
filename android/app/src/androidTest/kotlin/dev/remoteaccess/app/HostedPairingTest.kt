@@ -74,7 +74,23 @@ class HostedPairingTest {
             if (body.exists()) body.scrollToEnd(5)
             device.waitForIdle()
         }
-        tap(By.res("${context.packageName}:id/$id"))
+        val selector = By.res("${context.packageName}:id/$id")
+        if (id == "grant_device") {
+            // A stale accessibility node can report a click without invoking
+            // the button. Confirm that approval started before waiting for the
+            // network result. Once started, the app removes the button and its
+            // granting guard prevents a second enrollment operation.
+            waitFor {
+                if (!device.hasObject(selector)) {
+                    true
+                } else {
+                    tap(selector)
+                    device.wait(Until.gone(selector), 1500)
+                }
+            }
+        } else {
+            tap(selector)
+        }
     }
 
     private fun settings(section: String? = null) {

@@ -1,6 +1,7 @@
 package dev.remoteaccess.app
 
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
@@ -23,6 +24,24 @@ class FixtureFailureDiagnostics : TestWatcher() {
             val context = instrumentation.targetContext
             val snapshot = HostStore.get(context).load().snapshot
             val preferences = WakeSupport.preferences(context)
+            val failureClass =
+                Regex("Pairing failed: ([A-Za-z]+)")
+                    .findAll(device.executeShellCommand("logcat -d -t 200 -s RemoteAccess:W"))
+                    .lastOrNull()
+                    ?.groupValues
+                    ?.get(1)
+            val pairingFailureKind =
+                when (failureClass) {
+                    null -> "none"
+                    "SocketTimeoutException",
+                    "SSLHandshakeException",
+                    "UnknownHostException",
+                    "ConnectException",
+                    "IOException",
+                    -> "network"
+                    "IllegalStateException", "IllegalArgumentException", "SignatureException", "JSONException" -> "protocol"
+                    else -> "other"
+                }
             val wakeState =
                 when (preferences.getString("wakeState", null)) {
                     null -> "unset"
@@ -42,6 +61,9 @@ class FixtureFailureDiagnostics : TestWatcher() {
                     .put("automatic", snapshot.settings.automatic)
                     .put("notificationsAllowed", WakeSupport.notificationsAllowed(context))
                     .put("fidPresent", preferences.contains("fid"))
+                    .put("approvalVisible", device.hasObject(By.res("${context.packageName}:id/grant_device")))
+                    .put("pairingFailureVisible", device.hasObject(By.textStartsWith("Pairing wasn’t confirmed.")))
+                    .put("pairingFailureKind", pairingFailureKind)
                     .put("devices", snapshot.devices.size)
                     .put("synced", snapshot.devices.count { it.synced })
                     .put("wakeReady", snapshot.devices.count { it.wakeReady })

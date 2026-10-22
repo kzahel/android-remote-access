@@ -9,6 +9,9 @@ const valid = {
   automatic: true,
   notificationsAllowed: true,
   fidPresent: false,
+  approvalVisible: false,
+  pairingFailureVisible: false,
+  pairingFailureKind: "none",
   devices: 1,
   synced: 1,
   wakeReady: 0,
@@ -32,6 +35,7 @@ describe("private fixture diagnostics in public CI", () => {
   it("refuses arbitrary provider strings, malformed values and out-of-range counts", () => {
     for (const changed of [
       { wakeState: "secret provider response" },
+      { pairingFailureKind: "secret provider response" },
       { automatic: "true" },
       { devices: 10001 },
       { synced: -1 },
