@@ -19,11 +19,12 @@ for (let i = 1; i <= 3; i++) {
     expires: 100,
     mac: "0".repeat(64),
   };
+  const grantOrigin = i === 3 ? "https://retired.invalid" : origin;
   snapshot.rows.push({
     pair: {
       ...grant,
-      phoneSignature: b64(await phone.sign(grantBytes(origin, grant))),
-      viewerSignature: b64(await viewer.sign(grantBytes(origin, grant))),
+      phoneSignature: b64(await phone.sign(grantBytes(grantOrigin, grant))),
+      viewerSignature: b64(await viewer.sign(grantBytes(grantOrigin, grant))),
       revoked: i === 2,
       accessEnabled: i !== 3,
       accessGeneration: "a".repeat(32),

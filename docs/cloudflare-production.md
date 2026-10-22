@@ -41,8 +41,11 @@ for production. CI never enables migration authority.
    maintenance configuration. Deploy the temporary importer with bindings to
    that Worker's Pairing and Admission classes, the same hash/deadline, and a
    random secret bearer token. Its only HTTP operation is POST `/import`.
-5. Send the exact frozen manifest over HTTPS. The importer validates both grant
-   signatures and all rows before allocating objects. It writes only empty
+5. Send the exact frozen manifest over HTTPS. The importer validates stored keys, signature encodings, policy and all rows
+   before allocating objects. The SHA-256-pinned source database is existing
+   authority, including historical grants signed under retired hostnames; it is
+   not a new enrollment. Fresh socket authentication still binds the current
+   origin and a new challenge. It writes only empty
    destinations, checks each stored record's digest and the complete route
    directory, and reports only digest/counts. Identical retries resume; a changed
    manifest or existing destination authority refuses. This small-service tool

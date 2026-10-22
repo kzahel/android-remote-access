@@ -1,11 +1,11 @@
 /** One-time, fail-closed Node -> Durable Object authority transfer. No public relay route. */
 import {
   fromHex,
-  grantBytes,
   hex,
   type Grant,
-  verifySignature,
+  keyBytes,
 } from "../../protocol/src/enrollment.js";
+import { b64, unb64 } from "../../protocol/src/index.js";
 
 export type Pair = Grant & {
   viewerSignature: string;
@@ -52,8 +52,19 @@ export async function validateRow(row: MigrationRow, origin: string) {
   )
     throw new Error("Invalid authority");
   if (p.accessGeneration !== undefined) fromHex(p.accessGeneration, 16);
-  await verifySignature(p.phone, grantBytes(origin, p), p.phoneSignature);
-  await verifySignature(p.viewer, grantBytes(origin, p), p.viewerSignature);
+  // The frozen, hash-pinned source database is the authority being transferred.
+  // Historical grants may have been enrolled under a retired hostname. Rechecking
+  // their enrollment signatures under today's hostname would reject existing
+  // records/tombstones. Preserve their bytes; normal socket auth still requires
+  // fresh signatures binding the current origin, role, ID and challenge.
+  if (new URL(origin).origin !== origin) throw new Error("Invalid origin");
+  keyBytes(p.phone);
+  keyBytes(p.viewer);
+  for (const signature of [p.phoneSignature, p.viewerSignature]) {
+    const raw = unb64(signature);
+    if (raw.length !== 64 || b64(raw) !== signature)
+      throw new Error("Invalid signature encoding");
+  }
   if (row.target) {
     if (p.revoked || !/^[cdef][A-Za-z0-9_-]{21}$/.test(row.target.fid))
       throw new Error("Invalid target");
