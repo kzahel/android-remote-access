@@ -62,6 +62,13 @@ class HostedPairingTest {
 
     private fun click(id: String) {
         if (id in setOf("open_settings", "open_activity", "open_devices")) tap(By.res("${context.packageName}:id/navigation_menu"))
+        if (id == "remove_device") {
+            // The device detail is taller than lower-density CI viewports. A
+            // partially clipped accessibility node is not a reliable tap target.
+            val body = UiScrollable(UiSelector().scrollable(true))
+            if (body.exists()) body.scrollToEnd(5)
+            device.waitForIdle()
+        }
         tap(By.res("${context.packageName}:id/$id"))
     }
 
