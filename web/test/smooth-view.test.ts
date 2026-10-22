@@ -7,14 +7,14 @@ let commands: Command[];
 let start: (() => Promise<void>) | undefined;
 let stopError = false;
 let controller: SmoothView;
-let reset: ReturnType<typeof vi.fn>;
+let reset: ReturnType<typeof vi.fn<() => void>>;
 beforeEach(() => {
   vi.useFakeTimers();
   commands = [];
   host = { id: 0, phase: "off", reason: "none" };
   start = undefined;
   stopError = false;
-  reset = vi.fn();
+  reset = vi.fn<() => void>();
   controller = new SmoothView(
     {
       connected: true,

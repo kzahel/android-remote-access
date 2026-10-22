@@ -297,7 +297,9 @@ class MainActivity : ComponentActivity() {
                 live != null -> "${store.device(live.deviceId)?.nickname ?: "Device"} · ${sessionStatus(live.status)}"
                 devices.none { it.enabled } -> "Access is paused for all paired devices"
                 !state.settings.automatic -> "Available while this app is open"
-                com.google.firebase.FirebaseApp.getApps(this).isEmpty() -> "Background connections need attention"
+                com.google.firebase.FirebaseApp
+                    .getApps(this)
+                    .isEmpty() -> "Background connections need attention"
                 !WakeSupport.notificationsAllowed(this) -> "Background connections need notifications"
                 devices.any { it.enabled && (!it.synced || !it.wakeReady) } -> "Updating connection setup…"
                 else -> "Ready for connection requests"
@@ -317,7 +319,8 @@ class MainActivity : ComponentActivity() {
             if (ScreenAccessService.current == null) {
                 row(layout, "Screen access is off", "Review to enable viewing and control", R.id.review_settings) { navigate("settings") }
             }
-            if (state.settings.automatic && (
+            if (state.settings.automatic &&
+                (
                     !WakeSupport.notificationsAllowed(this) ||
                         devices.any { it.enabled && (!it.synced || !it.wakeReady) }
                 )
@@ -413,7 +416,8 @@ class MainActivity : ComponentActivity() {
                 imageTintList = ColorStateList.valueOf(color(android.R.attr.textColorPrimary))
                 background =
                     RippleDrawable(
-                        ColorStateList.valueOf(color(android.R.attr.colorControlHighlight)), null,
+                        ColorStateList.valueOf(color(android.R.attr.colorControlHighlight)),
+                        null,
                         GradientDrawable().apply {
                             cornerRadius = dp(24).toFloat()
                             setColor(Color.WHITE)
@@ -469,12 +473,15 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun scanPairingCode() {
-        GmsBarcodeScanning.getClient(this).startScan().addOnSuccessListener { code ->
-            showInvitation(code.rawValue ?: "")
-        }.addOnFailureListener {
-            notice = "Couldn’t open the scanner. Check that Google Play services is up to date and try again."
-            render()
-        }
+        GmsBarcodeScanning
+            .getClient(this)
+            .startScan()
+            .addOnSuccessListener { code ->
+                showInvitation(code.rawValue ?: "")
+            }.addOnFailureListener {
+                notice = "Couldn’t open the scanner. Check that Google Play services is up to date and try again."
+                render()
+            }
     }
 
     private fun features(layout: LinearLayout) {
@@ -556,26 +563,29 @@ class MainActivity : ComponentActivity() {
 
     private fun screenAccess(enabled: Boolean) {
         if (enabled) {
-            AlertDialog.Builder(this).setTitle("Turn off screen access?")
+            AlertDialog
+                .Builder(this)
+                .setTitle("Turn off screen access?")
                 .setMessage(
                     "Paired devices will no longer see or control the screen. Turning it back on takes a few steps in Android settings.",
-                )
-                .setNegativeButton("Cancel", null)
+                ).setNegativeButton("Cancel", null)
                 .setPositiveButton("Turn off") { _, _ ->
                     ScreenAccessService.current?.disableSelf()
                     handler.postDelayed({ render() }, 500)
                 }.show()
             return
         }
-        AlertDialog.Builder(this).setTitle("Allow remote screen access?")
+        AlertDialog
+            .Builder(this)
+            .setTitle("Allow remote screen access?")
             .setMessage(
                 "YepControl uses Android accessibility to let browsers you approve view this phone’s screen " +
                     "and perform taps, swipes and typing you request. Screen content may include private information from other apps.\n\n" +
                     "Screen content and controls are encrypted between your devices. " +
                     "You can stop remote access in YepControl or Android settings.",
-            )
-            .setNegativeButton("Cancel", null)
-            .setPositiveButton("Agree and continue") { _, _ -> startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }.show()
+            ).setNegativeButton("Cancel", null)
+            .setPositiveButton("Agree and continue") { _, _ -> startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+            .show()
     }
 
     /** Android stops showing the prompt after repeated refusals; then only its settings page can allow notifications. */
@@ -677,8 +687,10 @@ class MainActivity : ComponentActivity() {
         text(layout, "When this app is unused", 20f)
         // Android exempts apps with an enabled accessibility service; its own status check does not say so.
         val exempt =
-            Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
-                ?.split(':')?.any { it.startsWith("$packageName/") } == true
+            Settings.Secure
+                .getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+                ?.split(':')
+                ?.any { it.startsWith("$packageName/") } == true
         val restricted =
             unusedRestrictions in
                 setOf(
@@ -715,7 +727,10 @@ class MainActivity : ComponentActivity() {
             notice = "Updating connection settings…"
             render()
         }
-        if (com.google.firebase.FirebaseApp.getApps(this).isEmpty()) {
+        if (com.google.firebase.FirebaseApp
+                .getApps(this)
+                .isEmpty()
+        ) {
             text(layout, "Connection requests are unavailable in this installation. Install an app update to complete setup.", 14f)
         }
     }
@@ -786,17 +801,26 @@ class MainActivity : ComponentActivity() {
                 }
             val field = android.widget.FrameLayout(this).apply { setPadding(dp(24), dp(8), dp(24), 0) }
             field.addView(input)
-            AlertDialog.Builder(this).setTitle("Rename device").setView(field).setNegativeButton("Cancel", null)
-                .setPositiveButton("Save") { _, _ -> perform { store.rename(device.id, input.text.toString()) } }.show()
-                .window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
+            AlertDialog
+                .Builder(this)
+                .setTitle("Rename device")
+                .setView(field)
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Save") { _, _ -> perform { store.rename(device.id, input.text.toString()) } }
+                .show()
+                .window
+                ?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
             input.requestFocus()
         }
         text(layout, "Paired ${time(device.pairedAt)}\n${lastConnected(device)}", 14f)
         button(layout, getString(R.string.remove_device), R.id.remove_device) {
-            AlertDialog.Builder(
-                this,
-            ).setTitle("Remove ${device.nickname}?").setMessage("Its access will be revoked. To connect again, pair this device again.")
-                .setNegativeButton("Cancel", null).setPositiveButton("Remove") { _, _ ->
+            AlertDialog
+                .Builder(
+                    this,
+                ).setTitle("Remove ${device.nickname}?")
+                .setMessage("Its access will be revoked. To connect again, pair this device again.")
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Remove") { _, _ ->
                     change(saved = { if (page == "device") goBack() }) { it.revoke(device.id) }
                 }.show()
         }

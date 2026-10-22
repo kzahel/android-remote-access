@@ -8,7 +8,9 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /** Visible-app reachability needs no notification, accessibility or capture permission. */
 internal object ForegroundAccess {
-    private class Entry(val device: Device) {
+    private class Entry(
+        val device: Device,
+    ) {
         val active = AtomicBoolean(true)
         lateinit var connection: RelayConnection
 
@@ -58,7 +60,10 @@ internal object ForegroundAccess {
                 visible = owners.isNotEmpty()
                 if (!visible) {
                     handler.removeCallbacks(retry)
-                    entries.values.toList().filter { !it.control }.forEach { end(it) }
+                    entries.values
+                        .toList()
+                        .filter { !it.control }
+                        .forEach { end(it) }
                     retryAfter.clear()
                 }
             }
@@ -82,8 +87,11 @@ internal object ForegroundAccess {
     }
 
     private fun valid(entry: Entry): Boolean =
-        (visible || entry.control) && entry.active.get() && store.allowed(entry.device.id, entry.device.generation) &&
-            (entry.lease?.active?.get() != false) && System.currentTimeMillis() < entry.expires
+        (visible || entry.control) &&
+            entry.active.get() &&
+            store.allowed(entry.device.id, entry.device.generation) &&
+            (entry.lease?.active?.get() != false) &&
+            System.currentTimeMillis() < entry.expires
 
     private fun admit(entry: Entry): Boolean {
         if (!valid(entry)) return false
@@ -111,7 +119,10 @@ internal object ForegroundAccess {
 
     @Synchronized
     private fun reconcile() {
-        entries.values.toList().filter { !valid(it) }.forEach { end(it) }
+        entries.values
+            .toList()
+            .filter { !valid(it) }
+            .forEach { end(it) }
         if (!visible) return
         var delay = Long.MAX_VALUE
         for (device in store.snapshot.devices) {
@@ -126,11 +137,14 @@ internal object ForegroundAccess {
             entries[device.id] = entry
             entry.connection =
                 RelayConnection(
-                    KeystoreIdentity.loadOrCreate("phone-identity-v1"), device.authority(),
+                    KeystoreIdentity.loadOrCreate("phone-identity-v1"),
+                    device.authority(),
                     { state -> HostRuntime.io.execute { report(entry, state) } },
                     accessGeneration = device.generation,
-                    current = { valid(entry) }, admit = { admit(entry) },
-                    features = { PhoneFeatures.report(app) }, context = app,
+                    current = { valid(entry) },
+                    admit = { admit(entry) },
+                    features = { PhoneFeatures.report(app) },
+                    context = app,
                     onControl = {
                         entry.control = true
                         entry.expires = System.currentTimeMillis() + 30 * 60 * 1000

@@ -45,7 +45,8 @@ internal fun grantBytes(
     )
 
 internal val http =
-    OkHttpClient.Builder()
+    OkHttpClient
+        .Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
         .callTimeout(20, TimeUnit.SECONDS)
@@ -68,7 +69,7 @@ internal fun request(
     if (body != null) request.post(body.toString().toRequestBody("application/json".toMediaType()))
     return http.newCall(request.build()).execute().use {
         check(it.isSuccessful) { "Pairing expired, revoked, or unavailable" }
-        val source = it.body ?: error("Missing reply")
+        val source = it.body
         require(source.contentLength() <= 8192)
         val buffer = ByteArray(8193)
         var size = 0
@@ -84,14 +85,18 @@ internal fun request(
 }
 
 internal fun validDeviceName(name: String) =
-    name == name.trim() && name.length in 1..40 &&
+    name == name.trim() &&
+        name.length in 1..40 &&
         name.none {
             it.isISOControl() || it.category in setOf(CharCategory.FORMAT, CharCategory.LINE_SEPARATOR, CharCategory.PARAGRAPH_SEPARATOR)
         }
 
 internal class EnrollmentOriginMismatch : IllegalArgumentException()
 
-internal class Enrollment(uri: String, expectedOrigin: String) {
+internal class Enrollment(
+    uri: String,
+    expectedOrigin: String,
+) {
     private val invite: JSONObject
     val origin: String
 
@@ -103,8 +108,12 @@ internal class Enrollment(uri: String, expectedOrigin: String) {
         require(uri.length < 4096)
         val link = URI(uri)
         require(
-            link.scheme == "https" && link.host != null && link.rawUserInfo == null &&
-                link.rawQuery == null && link.rawPath == "/enroll" && link.rawFragment != null,
+            link.scheme == "https" &&
+                link.host != null &&
+                link.rawUserInfo == null &&
+                link.rawQuery == null &&
+                link.rawPath == "/enroll" &&
+                link.rawFragment != null,
         )
         if (link.scheme + "://" + link.rawAuthority != expectedOrigin) throw EnrollmentOriginMismatch()
         invite = JSONObject(decoded(link.rawFragment).toString(Charsets.UTF_8))
@@ -112,8 +121,12 @@ internal class Enrollment(uri: String, expectedOrigin: String) {
         origin = invite.getString("origin")
         val url = URI(origin)
         require(
-            url.scheme == "https" && url.host != null && url.rawUserInfo == null &&
-                url.rawQuery == null && url.rawFragment == null && url.rawPath.isEmpty(),
+            url.scheme == "https" &&
+                url.host != null &&
+                url.rawUserInfo == null &&
+                url.rawQuery == null &&
+                url.rawFragment == null &&
+                url.rawPath.isEmpty(),
         )
         if (origin != expectedOrigin) throw EnrollmentOriginMismatch()
         name = invite.getString("name")
@@ -137,10 +150,13 @@ internal class Enrollment(uri: String, expectedOrigin: String) {
         checkTime()
         val id = invite.getString("id")
         val grant =
-            JSONObject().put(
-                "id",
-                id,
-            ).put("viewer", invite.getString("viewer")).put("phone", encoded(identity.publicKey)).put("expires", invite.getLong("expires"))
+            JSONObject()
+                .put(
+                    "id",
+                    id,
+                ).put("viewer", invite.getString("viewer"))
+                .put("phone", encoded(identity.publicKey))
+                .put("expires", invite.getLong("expires"))
         val data = grantBytes(origin, grant)
         val mac =
             Mac.getInstance("HmacSHA256").run {

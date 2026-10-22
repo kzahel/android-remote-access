@@ -2,11 +2,24 @@ package dev.remoteaccess.protocol
 
 import java.nio.ByteBuffer
 
-data class TouchPoint(val x: Float, val y: Float)
+data class TouchPoint(
+    val x: Float,
+    val y: Float,
+)
 
-data class TouchContact(val id: Int, val held: Boolean, val path: List<TouchPoint>)
+data class TouchContact(
+    val id: Int,
+    val held: Boolean,
+    val path: List<TouchPoint>,
+)
 
-data class TouchBatch(val scene: Int, val gesture: Int, val sequence: Int, val duration: Int, val contacts: List<TouchContact>) {
+data class TouchBatch(
+    val scene: Int,
+    val gesture: Int,
+    val sequence: Int,
+    val duration: Int,
+    val contacts: List<TouchContact>,
+) {
     companion object {
         fun decode(input: ByteBuffer): TouchBatch {
             require(input.remaining() >= 16)

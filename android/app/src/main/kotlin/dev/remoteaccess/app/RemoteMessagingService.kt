@@ -29,8 +29,13 @@ class RemoteMessagingService : FirebaseMessagingService() {
             WakeSupport.preferences(this).save { putLong("lastPushReceipt", System.currentTimeMillis()) }
             WakeSupport.enqueue(
                 this,
-                Data.Builder().putString("pairingId", id).putString("generation", generation)
-                    .putString("requestId", hint.requestId).putLong("expires", hint.expires).build(),
+                Data
+                    .Builder()
+                    .putString("pairingId", id)
+                    .putString("generation", generation)
+                    .putString("requestId", hint.requestId)
+                    .putLong("expires", hint.expires)
+                    .build(),
             )
         }
     }

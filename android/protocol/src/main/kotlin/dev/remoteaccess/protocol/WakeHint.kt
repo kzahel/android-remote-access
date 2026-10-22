@@ -1,7 +1,12 @@
 package dev.remoteaccess.protocol
 
 /** Untrusted delivery metadata: only a hint to fetch authenticated pending authority. */
-data class WakeHint(val requestId: String, val expires: Long, val pairingId: String? = null, val generation: String? = null) {
+data class WakeHint(
+    val requestId: String,
+    val expires: Long,
+    val pairingId: String? = null,
+    val generation: String? = null,
+) {
     companion object {
         fun parse(
             data: Map<String, String>,

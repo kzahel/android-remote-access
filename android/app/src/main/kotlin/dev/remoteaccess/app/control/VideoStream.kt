@@ -59,8 +59,18 @@ internal object VideoStream {
             }
             val geometry = ScreenAccessService.current?.videoGeometry(w, h) ?: return
             val packet =
-                ByteBuffer.allocate(36 + data.size).putInt(generation).putInt(geometry)
-                    .putInt(width).putInt(height).putInt(w).putInt(h).putInt(if (key) 1 else 0).putLong(timestamp).put(data).array()
+                ByteBuffer
+                    .allocate(36 + data.size)
+                    .putInt(generation)
+                    .putInt(geometry)
+                    .putInt(width)
+                    .putInt(height)
+                    .putInt(w)
+                    .putInt(h)
+                    .putInt(if (key) 1 else 0)
+                    .putLong(timestamp)
+                    .put(data)
+                    .array()
             if (!frames.offer(packet, key)) {
                 keyframe = true
             } else if (!lifecycle.frame(SystemClock.elapsedRealtime())) {
@@ -106,7 +116,8 @@ internal object VideoStream {
         request = next
         try {
             context.startActivity(
-                Intent(context, ProjectionConsentActivity::class.java).putExtra("request", next.id)
+                Intent(context, ProjectionConsentActivity::class.java)
+                    .putExtra("request", next.id)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             )
             watch(context.applicationContext, next)
@@ -199,14 +210,18 @@ internal object VideoStream {
         context: Context,
         owner: Any? = null,
     ) = request?.let {
-        (owner == null || it.owner === owner) && it.allowed() && it.active &&
+        (owner == null || it.owner === owner) &&
+            it.allowed() &&
+            it.active &&
             !context.getSystemService(KeyguardManager::class.java).isKeyguardLocked
     } == true
 
     fun state(owner: Any): JSONObject {
         val current = request?.takeIf { it.owner === owner }
         val snapshot = current?.lifecycle?.snapshot() ?: synchronized(states) { states[owner] }
-        return JSONObject().put("id", snapshot?.id ?: 0).put("phase", snapshot?.phase?.wire ?: "off")
+        return JSONObject()
+            .put("id", snapshot?.id ?: 0)
+            .put("phase", snapshot?.phase?.wire ?: "off")
             .put("reason", snapshot?.reason?.wire ?: "none")
     }
 }
@@ -230,7 +245,10 @@ class ProjectionConsentActivity : Activity() {
             @Suppress("DEPRECATION")
             startActivityForResult(
                 if (android.os.Build.VERSION.SDK_INT >= 34) {
-                    manager.createScreenCaptureIntent(android.media.projection.MediaProjectionConfig.createConfigForDefaultDisplay())
+                    manager.createScreenCaptureIntent(
+                        android.media.projection.MediaProjectionConfig
+                            .createConfigForDefaultDisplay(),
+                    )
                 } else {
                     manager.createScreenCaptureIntent()
                 },

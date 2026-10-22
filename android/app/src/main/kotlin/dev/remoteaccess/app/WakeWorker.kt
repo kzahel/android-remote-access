@@ -8,7 +8,10 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** Bounded work. Neither push receipt nor relay policy establishes endpoint authority. */
-class WakeWorker(context: Context, parameters: WorkerParameters) : Worker(context, parameters) {
+class WakeWorker(
+    context: Context,
+    parameters: WorkerParameters,
+) : Worker(context, parameters) {
     override fun doWork(): Result {
         val store = HostStore.get(applicationContext).load()
         if (inputData.getBoolean("registration", false)) return synchronize(store)
@@ -33,7 +36,9 @@ class WakeWorker(context: Context, parameters: WorkerParameters) : Worker(contex
         val control = AtomicBoolean(false)
         val sessionDeadline = System.currentTimeMillis() + 30 * 60 * 1000
         val current = {
-            lease.active.get() && !isStopped && store.allowed(id, generation, automatic) &&
+            lease.active.get() &&
+                !isStopped &&
+                store.allowed(id, generation, automatic) &&
                 (!automatic || WakeSupport.notificationsAllowed(applicationContext)) &&
                 (if (control.get()) System.currentTimeMillis() < sessionDeadline else expires > System.currentTimeMillis() / 1000)
         }
@@ -64,10 +69,13 @@ class WakeWorker(context: Context, parameters: WorkerParameters) : Worker(contex
                 requestId = if (automatic) inputData.getString("requestId") else null,
                 accessGeneration = generation,
                 current = current,
-                features = { PhoneFeatures.report(applicationContext) }, context = applicationContext,
+                features = { PhoneFeatures.report(applicationContext) },
+                context = applicationContext,
                 onControl = { control.set(true) },
                 startSession = {
-                    val notification = dev.remoteaccess.app.control.SessionService.notification(applicationContext)
+                    val notification =
+                        dev.remoteaccess.app.control.SessionService
+                            .notification(applicationContext)
                     val info =
                         if (android.os.Build.VERSION.SDK_INT >= 34) {
                             androidx.work.ForegroundInfo(
@@ -86,7 +94,7 @@ class WakeWorker(context: Context, parameters: WorkerParameters) : Worker(contex
             if (!current()) return Result.success()
             store.record("Connection requested", id)
             connection.connect()
-            while (current() && !done.await(100, TimeUnit.MILLISECONDS)) Unit
+            while (current() && !done.await(100, TimeUnit.MILLISECONDS)) {}
             if (passed.get()) {
                 WakeSupport.preferences(applicationContext).save { putLong("lastWakeExchange", System.currentTimeMillis()) }
                 if (automatic) WakeSupport.notify(applicationContext, "Secure connection verified")
@@ -150,7 +158,8 @@ class WakeWorker(context: Context, parameters: WorkerParameters) : Worker(contex
         val current = { !isStopped && store.device(device.id)?.let { !it.revoked && it.generation == device.generation } == true }
         val connection =
             RelayConnection(
-                KeystoreIdentity.loadOrCreate("phone-identity-v1"), device.authority(),
+                KeystoreIdentity.loadOrCreate("phone-identity-v1"),
+                device.authority(),
                 { state ->
                     if (state == expected) {
                         passed.set(true)
@@ -159,13 +168,17 @@ class WakeWorker(context: Context, parameters: WorkerParameters) : Worker(contex
                         done.countDown()
                     }
                 },
-                fid = fid, registrationOnly = true, removePush = fid == null,
-                accessGeneration = device.generation, accessEnabled = enabled, current = current,
+                fid = fid,
+                registrationOnly = true,
+                removePush = fid == null,
+                accessGeneration = device.generation,
+                accessEnabled = enabled,
+                current = current,
             )
         return try {
             connection.connect()
             val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(20)
-            while (current() && System.nanoTime() < deadline && !done.await(100, TimeUnit.MILLISECONDS)) Unit
+            while (current() && System.nanoTime() < deadline && !done.await(100, TimeUnit.MILLISECONDS)) {}
             if (passed.get() && current()) {
                 store.synced(device.id, device.generation, wakeReady = fid != null)
             } else {

@@ -74,24 +74,29 @@ internal class RelayConnection(
                     unhex(nonce, 32)
                     val data = fields("ara/relay/auth/v1", grant.getString("origin"), grant.getString("id"), "phone", nonce)
                     webSocket.send(
-                        JSONObject().put(
-                            "id",
-                            grant.getString("id"),
-                        ).put(
-                            "role",
-                            "phone",
-                        ).put("signature", encoded(identity.sign(data))).apply {
-                            requestId?.let { put("requestId", it) }
-                            if (!registrationOnly) accessGeneration?.let { put("generation", it) }
-                            if (registrationOnly) put("mode", "registration")
-                        }.toString(),
+                        JSONObject()
+                            .put(
+                                "id",
+                                grant.getString("id"),
+                            ).put(
+                                "role",
+                                "phone",
+                            ).put("signature", encoded(identity.sign(data)))
+                            .apply {
+                                requestId?.let { put("requestId", it) }
+                                if (!registrationOnly) accessGeneration?.let { put("generation", it) }
+                                if (registrationOnly) put("mode", "registration")
+                            }.toString(),
                     )
                 }
                 "authenticated" -> {
                     if (registrationOnly && accessGeneration != null) {
                         webSocket.send(
-                            JSONObject().put("type", "setAccess").put("enabled", accessEnabled)
-                                .put("generation", accessGeneration).toString(),
+                            JSONObject()
+                                .put("type", "setAccess")
+                                .put("enabled", accessEnabled)
+                                .put("generation", accessGeneration)
+                                .toString(),
                         )
                     } else {
                         sendRegistration(webSocket)
@@ -146,7 +151,11 @@ internal class RelayConnection(
                         direct = null
                         control =
                             ControlSession(
-                                context, grant.getString("id"), { active.get() && this.current() }, ::sendControl, ::offerDirect,
+                                context,
+                                grant.getString("id"),
+                                { active.get() && this.current() },
+                                ::sendControl,
+                                ::offerDirect,
                             )
                         report("Remote control connected")
                         control!!.receive(plaintext)

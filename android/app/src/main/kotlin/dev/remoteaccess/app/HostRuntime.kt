@@ -9,7 +9,10 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** Process-owned sessions, separate from activity navigation. Policy is checked again per record. */
 internal object HostSessions {
-    class Lease(val deviceId: String, val generation: String) {
+    class Lease(
+        val deviceId: String,
+        val generation: String,
+    ) {
         val active = AtomicBoolean(true)
 
         @Volatile var status = "Connecting"
@@ -86,8 +89,13 @@ internal object HostRuntime {
             if (!store.allowed(id, device.generation)) return@execute
             WakeSupport.enqueue(
                 context,
-                Data.Builder().putString("pairingId", id).putString("generation", device.generation)
-                    .putBoolean("manual", true).putLong("expires", System.currentTimeMillis() / 1000 + 65).build(),
+                Data
+                    .Builder()
+                    .putString("pairingId", id)
+                    .putString("generation", device.generation)
+                    .putBoolean("manual", true)
+                    .putLong("expires", System.currentTimeMillis() / 1000 + 65)
+                    .build(),
             )
         }
     }

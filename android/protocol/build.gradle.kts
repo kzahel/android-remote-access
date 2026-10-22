@@ -8,6 +8,6 @@ kotlin {
 }
 dependencies {
     testImplementation(kotlin("test-junit"))
-    testImplementation("org.json:json:20250107")
+    testImplementation("org.json:json:20260814")
 }
 tasks.test { systemProperty("vectors", rootProject.file("../protocol/vectors/session-v1.json").absolutePath) }

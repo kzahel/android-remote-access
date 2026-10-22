@@ -41,16 +41,17 @@ class SessionTest {
         assertContentEquals(value("transcript"), transcript)
         val fixtureKey = vectors.getJSONObject("viewerEphemeral")
         val privateKey =
-            KeyFactory.getInstance(
-                "EC",
-            ).generatePrivate(PKCS8EncodedKeySpec(Base64.getDecoder().decode(fixtureKey.getString("privatePkcs8"))))
+            KeyFactory
+                .getInstance(
+                    "EC",
+                ).generatePrivate(PKCS8EncodedKeySpec(Base64.getDecoder().decode(fixtureKey.getString("privatePkcs8"))))
         val peer = Base64.getDecoder().decode(vectors.getJSONObject("phoneEphemeral").getString("publicKey"))
         val secret = Crypto.agree(privateKey, peer)
         assertContentEquals(value("secret"), secret)
         val material = Crypto.deriveMaterial(secret, transcript)
         material.forEachIndexed {
-                index,
-                key,
+            index,
+            key,
             ->
             assertContentEquals(Base64.getDecoder().decode(vectors.getJSONArray("material").getString(index)), key)
         }

@@ -50,8 +50,10 @@ class HostDatabaseMigrationTest {
             db.execSQL("INSERT INTO settings VALUES (1,1,1)")
         }
         val database =
-            Room.databaseBuilder(instrumentation.targetContext, HostDatabase::class.java, "chain-migration-fixture")
-                .addMigrations(HostStore.MIGRATION_1_2, HostStore.MIGRATION_2_3).build()
+            Room
+                .databaseBuilder(instrumentation.targetContext, HostDatabase::class.java, "chain-migration-fixture")
+                .addMigrations(HostStore.MIGRATION_1_2, HostStore.MIGRATION_2_3)
+                .build()
         try {
             val stored = database.dao().devices().single()
             assertEquals("Work laptop", stored.nickname)

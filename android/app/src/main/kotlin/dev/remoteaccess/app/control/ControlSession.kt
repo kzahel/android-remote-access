@@ -46,32 +46,50 @@ internal class ControlSession(
             }
         } else if (command.op == 10) {
             val intent =
-                android.content.Intent(android.content.Intent.ACTION_MAIN)
+                android.content
+                    .Intent(android.content.Intent.ACTION_MAIN)
                     .addCategory(android.content.Intent.CATEGORY_LAUNCHER)
             val apps =
-                context.packageManager.queryIntentActivities(intent, 0).distinctBy { it.activityInfo.packageName }
+                context.packageManager
+                    .queryIntentActivities(intent, 0)
+                    .distinctBy { it.activityInfo.packageName }
                     .map {
                         it.loadLabel(context.packageManager).toString().take(100) to it.activityInfo.packageName
-                    }.sortedBy { it.first }.take(200)
+                    }.sortedBy { it.first }
+                    .take(200)
             reply(
                 4,
-                org.json.JSONArray().apply {
-                    apps.forEach { (name, pkg) -> put(JSONObject().put("name", name).put("packageName", pkg)) }
-                }.toString().toByteArray(),
+                org.json
+                    .JSONArray()
+                    .apply {
+                        apps.forEach { (name, pkg) -> put(JSONObject().put("name", name).put("packageName", pkg)) }
+                    }.toString()
+                    .toByteArray(),
             )
         } else if (command.op == 1 || command.op == 2) {
             val state =
-                ScreenAccessService.current?.state() ?: JSONObject().put("type", "state").put("v", 1)
-                    .put("accessibility", false).put("locked", context.getSystemService(KeyguardManager::class.java).isKeyguardLocked)
-                    .put("width", 0).put("height", 0).put("scene", 0)
+                ScreenAccessService.current?.state() ?: JSONObject()
+                    .put("type", "state")
+                    .put("v", 1)
+                    .put("accessibility", false)
+                    .put("locked", context.getSystemService(KeyguardManager::class.java).isKeyguardLocked)
+                    .put("width", 0)
+                    .put("height", 0)
+                    .put("scene", 0)
             val vault = PinVault(context)
             state.put("localSettings", LocalSettingsProtection.blocked)
             state.put("video", VideoStream.state(this)).put("videoActive", VideoStream.available(context, this))
-            state.put("device", dev.remoteaccess.app.DeviceInfo.report(context)).put(
-                "unlockSupported",
-                true,
-            ).put("unlockAllowed", HostStore.get(context).device(deviceId)?.unlockAllowed == true)
-                .put("savedPin", vault.saved()).put("unlockBlocked", vault.guard.blocked())
+            state
+                .put(
+                    "device",
+                    dev.remoteaccess.app.DeviceInfo
+                        .report(context),
+                ).put(
+                    "unlockSupported",
+                    true,
+                ).put("unlockAllowed", HostStore.get(context).device(deviceId)?.unlockAllowed == true)
+                .put("savedPin", vault.saved())
+                .put("unlockBlocked", vault.guard.blocked())
             reply(1, state.toString().toByteArray())
         } else if (command.op == 16 && command.values[0] == 0) {
             // Stopping needs neither an unlocked display nor the accessibility service.
@@ -85,10 +103,12 @@ internal class ControlSession(
                 reply(2, byteArrayOf(1))
             } else {
                 val permitted = {
-                    active.get() && current() && (
-                        command.op !in listOf(13, 14) ||
-                            HostStore.get(context).device(deviceId)?.unlockAllowed == true
-                    )
+                    active.get() &&
+                        current() &&
+                        (
+                            command.op !in listOf(13, 14) ||
+                                HostStore.get(context).device(deviceId)?.unlockAllowed == true
+                        )
                 }
                 if (command.op in listOf(13, 14) && permitted()) {
                     HostRuntime.io.execute { HostStore.get(context).record("Unlock requested", deviceId) }

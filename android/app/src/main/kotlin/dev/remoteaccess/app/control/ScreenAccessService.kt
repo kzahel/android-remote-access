@@ -47,7 +47,10 @@ class ScreenAccessService : AccessibilityService() {
 
     override fun onServiceConnected() {
         current = this
-        dev.remoteaccess.app.HostStore.get(this).listeners.forEach { it() }
+        dev.remoteaccess.app.HostStore
+            .get(this)
+            .listeners
+            .forEach { it() }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
@@ -74,7 +77,10 @@ class ScreenAccessService : AccessibilityService() {
 
     override fun onUnbind(intent: Intent): Boolean {
         if (current === this) current = null
-        dev.remoteaccess.app.HostStore.get(this).listeners.forEach { it() }
+        dev.remoteaccess.app.HostStore
+            .get(this)
+            .listeners
+            .forEach { it() }
         invalidate()
         VideoStream.close(this, reason = dev.remoteaccess.protocol.CaptureLifecycle.Reason.PERMISSION)
         return super.onUnbind(intent)
@@ -82,7 +88,10 @@ class ScreenAccessService : AccessibilityService() {
 
     override fun onDestroy() {
         if (current === this) current = null
-        dev.remoteaccess.app.HostStore.get(this).listeners.forEach { it() }
+        dev.remoteaccess.app.HostStore
+            .get(this)
+            .listeners
+            .forEach { it() }
         invalidate()
         VideoStream.close(this, reason = dev.remoteaccess.protocol.CaptureLifecycle.Reason.PERMISSION)
         compression.shutdownNow()
@@ -103,11 +112,17 @@ class ScreenAccessService : AccessibilityService() {
     }
 
     fun state(): JSONObject =
-        JSONObject().put("type", "state").put("v", 1).put("accessibility", true)
+        JSONObject()
+            .put("type", "state")
+            .put("v", 1)
+            .put("accessibility", true)
             .put(
                 "locked",
                 locked(),
-            ).put("width", screenWidth).put("height", screenHeight).put("scene", scene).put("videoActive", VideoStream.available(this))
+            ).put("width", screenWidth)
+            .put("height", screenHeight)
+            .put("scene", scene)
+            .put("videoActive", VideoStream.available(this))
             .put("localSettings", LocalSettingsProtection.blocked)
 
     fun execute(
@@ -195,9 +210,11 @@ class ScreenAccessService : AccessibilityService() {
                     gesture = true
                     val accepted =
                         dispatchGesture(
-                            GestureDescription.Builder().addStroke(
-                                GestureDescription.StrokeDescription(path, 0, if (command.op == 4) 50 else v[5].toLong()),
-                            ).build(),
+                            GestureDescription
+                                .Builder()
+                                .addStroke(
+                                    GestureDescription.StrokeDescription(path, 0, if (command.op == 4) 50 else v[5].toLong()),
+                                ).build(),
                             object : GestureResultCallback() {
                                 override fun onCompleted(gestureDescription: GestureDescription) {
                                     gesture = false
@@ -296,7 +313,8 @@ class ScreenAccessService : AccessibilityService() {
                             scaled =
                                 image.scale(
                                     (width * factor).toInt().coerceAtLeast(1),
-                                    (height * factor).toInt().coerceAtLeast(1), true,
+                                    (height * factor).toInt().coerceAtLeast(1),
+                                    true,
                                 )
                             val output = ByteArrayOutputStream()
                             check(scaled.compress(Bitmap.CompressFormat.JPEG, 65, output))
@@ -313,7 +331,13 @@ class ScreenAccessService : AccessibilityService() {
                                     capturedAt = android.os.SystemClock.elapsedRealtime()
                                     reply(
                                         3,
-                                        ByteBuffer.allocate(12 + bytes.size).putInt(scene).putInt(width).putInt(height).put(bytes).array(),
+                                        ByteBuffer
+                                            .allocate(12 + bytes.size)
+                                            .putInt(scene)
+                                            .putInt(width)
+                                            .putInt(height)
+                                            .put(bytes)
+                                            .array(),
                                     )
                                 }
                             }

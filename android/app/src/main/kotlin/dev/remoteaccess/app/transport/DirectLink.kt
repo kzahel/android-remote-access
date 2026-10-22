@@ -255,8 +255,10 @@ internal class DirectLink(
         @Synchronized private fun factory(context: Context): PeerConnectionFactory {
             factory?.let { return it }
             PeerConnectionFactory.initialize(
-                PeerConnectionFactory.InitializationOptions.builder(context.applicationContext)
-                    .setEnableInternalTracer(false).createInitializationOptions(),
+                PeerConnectionFactory.InitializationOptions
+                    .builder(context.applicationContext)
+                    .setEnableInternalTracer(false)
+                    .createInitializationOptions(),
             )
             org.webrtc.Logging.enableLogToDebugOutput(org.webrtc.Logging.Severity.LS_ERROR)
             return PeerConnectionFactory.builder().createPeerConnectionFactory().also { factory = it }

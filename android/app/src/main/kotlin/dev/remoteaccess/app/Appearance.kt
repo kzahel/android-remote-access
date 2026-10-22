@@ -6,7 +6,9 @@ import android.content.res.Configuration
 /** Local presentation preference; it has no bearing on remote access authority. */
 internal object Appearance {
     fun choice(context: Context): String =
-        context.getSharedPreferences("appearance", Context.MODE_PRIVATE).getString("mode", "system")
+        context
+            .getSharedPreferences("appearance", Context.MODE_PRIVATE)
+            .getString("mode", "system")
             ?.takeIf { it in setOf("system", "light", "dark") } ?: "system"
 
     fun save(

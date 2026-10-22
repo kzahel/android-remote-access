@@ -22,7 +22,7 @@ restrictions. No account or AI service is required.
 ## Development
 
 Requires Node 24 LTS (pinned in `.node-version`), pnpm 10.30.3, JDK 17 and
-Android SDK platform 36 with build tools 35.0.0 or 36.0.0. Set `ANDROID_HOME`;
+Android SDK platform 37 with build tools 36.0.0. Set `ANDROID_HOME`;
 the Gradle wrapper is included.
 
 ```sh

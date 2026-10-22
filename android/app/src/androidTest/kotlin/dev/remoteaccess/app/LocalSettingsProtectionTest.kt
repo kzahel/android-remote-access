@@ -69,16 +69,25 @@ class LocalSettingsProtectionTest {
     }
 
     private fun activity() =
-        ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED)
-            .filterIsInstance<MainActivity>().single()
+        ActivityLifecycleMonitorRegistry
+            .getInstance()
+            .getActivitiesInStage(Stage.RESUMED)
+            .filterIsInstance<MainActivity>()
+            .single()
 
     private fun command(
         op: Int,
         payload: ByteArray = byteArrayOf(),
     ): ByteArray {
         owner.receive(
-            ByteBuffer.allocate(12 + payload.size).putInt(0x41524331).put(op.toByte()).put(byteArrayOf(0, 0, 0))
-                .putInt(++sequence).put(payload).array(),
+            ByteBuffer
+                .allocate(12 + payload.size)
+                .putInt(0x41524331)
+                .put(op.toByte())
+                .put(byteArrayOf(0, 0, 0))
+                .putInt(++sequence)
+                .put(payload)
+                .array(),
         )
         return assertNotNull(replies.poll(10, TimeUnit.SECONDS), "Missing native command reply")
     }
@@ -111,16 +120,36 @@ class LocalSettingsProtectionTest {
         scene: Int,
     ): ByteArray {
         val bounds = view(selector(id)).visibleBounds
-        return command(4, ByteBuffer.allocate(12).putInt(scene).putInt(bounds.centerX()).putInt(bounds.centerY()).array())
+        return command(
+            4,
+            ByteBuffer
+                .allocate(12)
+                .putInt(scene)
+                .putInt(bounds.centerX())
+                .putInt(bounds.centerY())
+                .array(),
+        )
     }
 
     private fun touch(
         scene: Int,
         sequence: Int = 0,
     ): ByteArray =
-        ByteBuffer.allocate(32)
-            .putInt(scene).putInt(1).putInt(sequence).putShort(40).put(1).put(0)
-            .putInt(0).put(1).put(1).putShort(0).putFloat(100f).putFloat(1600f).array()
+        ByteBuffer
+            .allocate(32)
+            .putInt(scene)
+            .putInt(1)
+            .putInt(sequence)
+            .putShort(40)
+            .put(1)
+            .put(0)
+            .putInt(0)
+            .put(1)
+            .put(1)
+            .putShort(0)
+            .putFloat(100f)
+            .putFloat(1600f)
+            .array()
 
     private fun settings() {
         click("navigation_menu")
@@ -168,7 +197,21 @@ class LocalSettingsProtectionTest {
             assertTrue(view(selector("local_settings_notice")).text.contains("cannot pair another device"))
             result(4, tap("allow_unlock", capture()))
             result(4, command(11, touch(scene, 1)))
-            result(4, command(5, ByteBuffer.allocate(24).putInt(scene).putInt(100).putInt(200).putInt(100).putInt(300).putInt(100).array()))
+            result(
+                4,
+                command(
+                    5,
+                    ByteBuffer
+                        .allocate(24)
+                        .putInt(scene)
+                        .putInt(100)
+                        .putInt(200)
+                        .putInt(100)
+                        .putInt(300)
+                        .putInt(100)
+                        .array(),
+                ),
+            )
             assertFalse(assertNotNull(store.device(id)).unlockAllowed)
             assertTrue(device.takeScreenshot(File(context.filesDir, "ui-local-settings.png")))
 
@@ -236,7 +279,18 @@ class LocalSettingsProtectionTest {
             }
             click("save_pin")
             val forget = view(By.res("android:id/button1")).visibleBounds
-            result(4, command(4, ByteBuffer.allocate(12).putInt(1).putInt(forget.centerX()).putInt(forget.centerY()).array()))
+            result(
+                4,
+                command(
+                    4,
+                    ByteBuffer
+                        .allocate(12)
+                        .putInt(1)
+                        .putInt(forget.centerX())
+                        .putInt(forget.centerY())
+                        .array(),
+                ),
+            )
             assertTrue(vault.saved())
             view(By.res("android:id/button1")).click()
             waitFor { !vault.saved() }
@@ -245,9 +299,14 @@ class LocalSettingsProtectionTest {
 
             // A valid incoming invitation cannot be approved by another paired device's input.
             val invitation =
-                JSONObject().put("v", 1).put("origin", Website.current(context)).put("id", "b".repeat(32))
-                    .put("viewer", encoded(Crypto.publicBytes(Crypto.generate().public))).put("secret", "c".repeat(64))
-                    .put("expires", System.currentTimeMillis() / 1000 + 300).put("name", "Unapproved fixture")
+                JSONObject()
+                    .put("v", 1)
+                    .put("origin", Website.current(context))
+                    .put("id", "b".repeat(32))
+                    .put("viewer", encoded(Crypto.publicBytes(Crypto.generate().public)))
+                    .put("secret", "c".repeat(64))
+                    .put("expires", System.currentTimeMillis() / 1000 + 300)
+                    .put("name", "Unapproved fixture")
             context.startActivity(
                 Intent(
                     context,
@@ -266,7 +325,11 @@ class LocalSettingsProtectionTest {
         } finally {
             owner.close()
             vault.forget()
-            WorkManager.getInstance(context).cancelAllWork().result.get(10, TimeUnit.SECONDS)
+            WorkManager
+                .getInstance(context)
+                .cancelAllWork()
+                .result
+                .get(10, TimeUnit.SECONDS)
             store.revoke(id)
             store.removed(id)
             device.setOrientationNatural()

@@ -86,10 +86,16 @@ internal abstract class HostDatabase : RoomDatabase() {
     abstract fun dao(): HostDao
 }
 
-internal data class HostSnapshot(val settings: HostSettings = HostSettings(armed = false), val devices: List<Device> = emptyList())
+internal data class HostSnapshot(
+    val settings: HostSettings = HostSettings(armed = false),
+    val devices: List<Device> = emptyList(),
+)
 
 /** All disk operations run off the UI thread; record authority reads use an immutable snapshot. */
-internal class HostStore private constructor(private val legacy: android.content.SharedPreferences, internal val database: HostDatabase) {
+internal class HostStore private constructor(
+    private val legacy: android.content.SharedPreferences,
+    internal val database: HostDatabase,
+) {
     private val dao = database.dao()
 
     @Volatile private var loaded = false
@@ -141,8 +147,12 @@ internal class HostStore private constructor(private val legacy: android.content
     ): Boolean {
         val state = snapshot
         val device = state.devices.find { it.id == id } ?: return false
-        return device.originAllowed && state.settings.armed && (!automatic || state.settings.automatic) &&
-            device.enabled && !device.revoked && device.generation == generation
+        return device.originAllowed &&
+            state.settings.armed &&
+            (!automatic || state.settings.automatic) &&
+            device.enabled &&
+            !device.revoked &&
+            device.generation == generation
     }
 
     @Synchronized
@@ -345,8 +355,10 @@ internal class HostStore private constructor(private val legacy: android.content
             instance ?: synchronized(this) {
                 instance ?: HostStore(
                     WakeSupport.preferences(context.applicationContext),
-                    Room.databaseBuilder(context.applicationContext, HostDatabase::class.java, "remote-access.db")
-                        .addMigrations(MIGRATION_1_2, MIGRATION_2_3).build(),
+                    Room
+                        .databaseBuilder(context.applicationContext, HostDatabase::class.java, "remote-access.db")
+                        .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                        .build(),
                 ).also {
                     instance = it
                 }

@@ -1,7 +1,10 @@
 package dev.remoteaccess.protocol
 
 /** Dependent frames cannot survive a drop. Bound memory and require a fresh keyframe to recover. */
-class VideoQueue(private val maxBytes: Int = 524236, private val maxFrames: Int = 4) {
+class VideoQueue(
+    private val maxBytes: Int = 524236,
+    private val maxFrames: Int = 4,
+) {
     private val queue = ArrayDeque<ByteArray>()
     private var bytes = 0
     var needsKey = true

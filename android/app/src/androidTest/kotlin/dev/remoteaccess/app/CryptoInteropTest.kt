@@ -50,9 +50,13 @@ class CryptoInteropTest {
             // Check shared derivation and exact AES-GCM records on the Android provider.
             val v =
                 JSONObject(
-                    InstrumentationRegistry.getInstrumentation().context.assets.open(
-                        "session-v1.json",
-                    ).bufferedReader().use { it.readText() },
+                    InstrumentationRegistry
+                        .getInstrumentation()
+                        .context.assets
+                        .open(
+                            "session-v1.json",
+                        ).bufferedReader()
+                        .use { it.readText() },
                 )
             val material = Crypto.deriveMaterial(decode(v.getString("secret")), decode(v.getString("transcript")))
             material.forEachIndexed { i, value -> assertContentEquals(decode(v.getJSONArray("material").getString(i)), value) }
@@ -89,7 +93,12 @@ class CryptoInteropTest {
                         }
                         val lines = head.toString().split("\r\n")
                         val path = lines.first().split(" ")[1]
-                        val length = lines.firstOrNull { it.startsWith("Content-Length:", true) }?.substringAfter(':')?.trim()?.toInt() ?: 0
+                        val length =
+                            lines
+                                .firstOrNull { it.startsWith("Content-Length:", true) }
+                                ?.substringAfter(':')
+                                ?.trim()
+                                ?.toInt() ?: 0
                         require(length in 0..65536)
                         val body = ByteArray(length)
                         var at = 0
@@ -114,10 +123,12 @@ class CryptoInteropTest {
                                         identity.publicKey
                                     }
                                     "/hello" ->
-                                        PhoneHandshake.start(identity, auth ?: error("Setup required"), body).also {
-                                            pending?.close()
-                                            pending = it
-                                        }.offer
+                                        PhoneHandshake
+                                            .start(identity, auth ?: error("Setup required"), body)
+                                            .also {
+                                                pending?.close()
+                                                pending = it
+                                            }.offer
                                     "/proof" -> {
                                         val result = (pending ?: error("No handshake")).finish(body)
                                         channel = result.second

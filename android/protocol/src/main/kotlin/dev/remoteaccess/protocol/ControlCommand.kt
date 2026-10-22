@@ -51,8 +51,12 @@ data class ControlCommand(
                             },
                     )
                     text =
-                        Charsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
-                            .onUnmappableCharacter(CodingErrorAction.REPORT).decode(input).toString()
+                        Charsets.UTF_8
+                            .newDecoder()
+                            .onMalformedInput(CodingErrorAction.REPORT)
+                            .onUnmappableCharacter(CodingErrorAction.REPORT)
+                            .decode(input)
+                            .toString()
                     if (op == 19) require(text.startsWith("v=0\r\n"))
                     if (op == 13) require(text.matches(Regex("[0-9]{4,16}")))
                     if (op == 8) require(text.matches(Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+")))
@@ -69,8 +73,14 @@ data class ControlCommand(
             payload: ByteArray,
         ): ByteArray {
             require(id in 1..0xffffffffL && kind in 1..6 && payload.size <= 1048564)
-            return ByteBuffer.allocate(12 + payload.size).putInt(0x41525031).put(kind.toByte())
-                .put(byteArrayOf(0, 0, 0)).putInt(id.toInt()).put(payload).array()
+            return ByteBuffer
+                .allocate(12 + payload.size)
+                .putInt(0x41525031)
+                .put(kind.toByte())
+                .put(byteArrayOf(0, 0, 0))
+                .putInt(id.toInt())
+                .put(payload)
+                .array()
         }
     }
 }

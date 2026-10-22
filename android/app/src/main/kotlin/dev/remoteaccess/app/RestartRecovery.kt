@@ -16,7 +16,8 @@ class RestartRecovery : BroadcastReceiver() {
         intent: Intent,
     ) {
         if (intent.action !in setOf(Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_MY_PACKAGE_REPLACED) ||
-            !enabled(context) || !context.getSystemService(UserManager::class.java).isUserUnlocked
+            !enabled(context) ||
+            !context.getSystemService(UserManager::class.java).isUserUnlocked
         ) {
             return
         }

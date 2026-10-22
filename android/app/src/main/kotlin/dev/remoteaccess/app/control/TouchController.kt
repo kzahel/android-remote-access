@@ -9,8 +9,15 @@ import android.os.SystemClock
 import dev.remoteaccess.protocol.TouchBatch
 
 /** Port of the spike's measured continuation mechanics. All operations run on main. */
-internal class TouchController(private val service: AccessibilityService, private val main: Handler) {
-    private data class Finger(val stroke: GestureDescription.StrokeDescription, val x: Float, val y: Float)
+internal class TouchController(
+    private val service: AccessibilityService,
+    private val main: Handler,
+) {
+    private data class Finger(
+        val stroke: GestureDescription.StrokeDescription,
+        val x: Float,
+        val y: Float,
+    )
 
     private val fingers = linkedMapOf<Int, Finger>()
     private var owner: Any? = null
@@ -48,17 +55,18 @@ internal class TouchController(private val service: AccessibilityService, privat
             return
         }
         val mismatch = owner !== who || gesture != batch.gesture || batch.sequence != sequence + 1 || scene != currentScene
-        if (batch.scene != currentScene || (active && mismatch) ||
+        if (batch.scene != currentScene ||
+            (active && mismatch) ||
             (!active && batch.sequence != 0)
         ) {
             release()
             reply(2)
             return
         }
-        if (batch.contacts.any {
-                    c ->
+        if (batch.contacts.any { c ->
                 c.path.any { it.x >= width || it.y >= height }
-            } || !batch.contacts.map { it.id }.containsAll(fingers.keys)
+            } ||
+            !batch.contacts.map { it.id }.containsAll(fingers.keys)
         ) {
             release()
             reply(2)

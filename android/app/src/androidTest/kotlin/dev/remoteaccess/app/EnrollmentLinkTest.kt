@@ -24,9 +24,14 @@ class EnrollmentLinkTest {
     private fun invitation(
         service: String = origin,
         name: String = "Chrome on macOS",
-    ) = JSONObject().put("v", 1).put("origin", service)
-        .put("id", "11".repeat(16)).put("secret", "22".repeat(32)).put("viewer", encoded(identity.publicKey))
-        .put("expires", System.currentTimeMillis() / 1000 + 300).put("name", name)
+    ) = JSONObject()
+        .put("v", 1)
+        .put("origin", service)
+        .put("id", "11".repeat(16))
+        .put("secret", "22".repeat(32))
+        .put("viewer", encoded(identity.publicKey))
+        .put("expires", System.currentTimeMillis() / 1000 + 300)
+        .put("name", name)
 
     private fun link(
         service: String = origin,
@@ -134,7 +139,8 @@ class EnrollmentLinkTest {
         ) {
             val flag = if (reuse) Intent.FLAG_ACTIVITY_SINGLE_TOP else Intent.FLAG_ACTIVITY_CLEAR_TASK
             context.startActivity(
-                Intent(context, MainActivity::class.java).setData(uri.toUri())
+                Intent(context, MainActivity::class.java)
+                    .setData(uri.toUri())
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or flag),
             )
         }

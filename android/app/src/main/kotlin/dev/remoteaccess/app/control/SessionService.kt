@@ -45,9 +45,15 @@ class SessionService : Service() {
                     PendingIntent.FLAG_IMMUTABLE,
                 )
             val open = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
-            return Notification.Builder(context, WakeSupport.CHANNEL).setSmallIcon(android.R.drawable.ic_lock_lock)
-                .setContentTitle("Remote control connected").setContentText("A paired device can view and control this phone.")
-                .setContentIntent(open).setOngoing(true).addAction(Notification.Action.Builder(null, "Disconnect", stop).build()).build()
+            return Notification
+                .Builder(context, WakeSupport.CHANNEL)
+                .setSmallIcon(android.R.drawable.ic_lock_lock)
+                .setContentTitle("Remote control connected")
+                .setContentText("A paired device can view and control this phone.")
+                .setContentIntent(open)
+                .setOngoing(true)
+                .addAction(Notification.Action.Builder(null, "Disconnect", stop).build())
+                .build()
         }
 
         fun start(context: Context) {

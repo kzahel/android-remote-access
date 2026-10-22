@@ -24,7 +24,11 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /** User-consented H.264 encoder. All encoder/display resources have one worker owner. */
 class VideoService : Service() {
-    private class Run(val stream: VideoStream.Request, val projection: MediaProjection, val startId: Int) {
+    private class Run(
+        val stream: VideoStream.Request,
+        val projection: MediaProjection,
+        val startId: Int,
+    ) {
         val running = AtomicBoolean(true)
 
         @Volatile var resize: Pair<Int, Int>? = null
@@ -148,8 +152,14 @@ class VideoService : Service() {
                 if (display == null) {
                     display =
                         capture.createVirtualDisplay(
-                            "Remote screen", width, height, density,
-                            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, surface, null, null,
+                            "Remote screen",
+                            width,
+                            height,
+                            density,
+                            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                            surface,
+                            null,
+                            null,
                         )
                 } else {
                     display?.resize(width, height, density)
@@ -159,7 +169,9 @@ class VideoService : Service() {
                 stream.reset()
             }
             configure()
-            while (active.running.get() && VideoStream.request === stream && stream.allowed() &&
+            while (active.running.get() &&
+                VideoStream.request === stream &&
+                stream.allowed() &&
                 !getSystemService(KeyguardManager::class.java).isKeyguardLocked
             ) {
                 active.resize?.let {
@@ -181,9 +193,10 @@ class VideoService : Service() {
                 if (index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
                     val format = codec.outputFormat
                     configuration =
-                        listOf("csd-0", "csd-1").flatMap { name ->
-                            format.getByteBuffer(name)?.let { b -> ByteArray(b.remaining()).also { b.get(it) }.toList() } ?: emptyList()
-                        }.toByteArray()
+                        listOf("csd-0", "csd-1")
+                            .flatMap { name ->
+                                format.getByteBuffer(name)?.let { b -> ByteArray(b.remaining()).also { b.get(it) }.toList() } ?: emptyList()
+                            }.toByteArray()
                 } else if (index >= 0) {
                     val bytes = ByteArray(info.size)
                     codec.getOutputBuffer(index)?.apply {

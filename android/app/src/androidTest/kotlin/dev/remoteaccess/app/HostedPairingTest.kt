@@ -101,7 +101,8 @@ class HostedPairingTest {
         val intent =
             (
                 if (
-                    uri != null && Uri.parse(uri).host == "yepcontrol.com" &&
+                    uri != null &&
+                    Uri.parse(uri).host == "yepcontrol.com" &&
                     !File(context.filesDir, "hosted-explicit-link-fixture").exists()
                 ) {
                     // Exercise Android's verified App Link resolver, as an external camera would.
@@ -123,7 +124,11 @@ class HostedPairingTest {
     }
 
     private fun pairedDevice() {
-        openDevice(store.snapshot.devices.first { !it.revoked }.id)
+        openDevice(
+            store.snapshot.devices
+                .first { !it.revoked }
+                .id,
+        )
     }
 
     private fun title(expected: String) {
@@ -148,8 +153,17 @@ class HostedPairingTest {
         val before = KeystoreIdentity.loadOrCreate("phone-identity-v1").publicKey
         assertTrue(before.contentEquals(KeystoreIdentity.loadOrCreate("phone-identity-v1").publicKey))
         pairedDevice()
-        waitFor { store.snapshot.devices.first().synced }
-        HostRuntime.connect(context, store.snapshot.devices.first { !it.revoked }.id)
+        waitFor {
+            store.snapshot.devices
+                .first()
+                .synced
+        }
+        HostRuntime.connect(
+            context,
+            store.snapshot.devices
+                .first { !it.revoked }
+                .id,
+        )
         waitFor { HostSessions.current.get()?.status == "Waiting for your device" }
         stage.writeText("connected")
         waitFor(120000) { command.exists() }
@@ -259,7 +273,12 @@ class HostedPairingTest {
                         tap(By.res("android:id/button1"))
                         val service = By.text("YepControl")
                         if (!device.wait(Until.hasObject(service), 2000)) {
-                            tap(By.text(java.util.regex.Pattern.compile("Downloaded apps|Installed apps|Downloaded services")))
+                            tap(
+                                By.text(
+                                    java.util.regex.Pattern
+                                        .compile("Downloaded apps|Installed apps|Downloaded services"),
+                                ),
+                            )
                         }
                         tap(service)
                         tap(By.textStartsWith("Use YepControl"))
@@ -283,20 +302,37 @@ class HostedPairingTest {
                     assertTrue(RestartRecovery.enabled(context))
                     waitFor(60000) { store.events().any { it.kind == "Setup restored after restart" } }
                     waitFor { dev.remoteaccess.app.control.ScreenAccessService.current != null }
-                    val value = dev.remoteaccess.app.unlock.PinVault(context).read()
+                    val value =
+                        dev.remoteaccess.app.unlock
+                            .PinVault(context)
+                            .read()
                     assertTrue(value.contentEquals("314159".toCharArray()))
                     value.fill('\u0000')
                     waitFor(60000) { store.snapshot.devices.all { it.synced && it.wakeReady } }
                 }
                 "assert-unlock-blocked" -> {
                     assertTrue(device.executeShellCommand("getprop ro.kernel.qemu").trim() == "1")
-                    assertTrue(dev.remoteaccess.app.unlock.PinVault(context).guard.blocked())
-                    assertTrue(!dev.remoteaccess.app.unlock.PinVault(context).saved())
+                    assertTrue(
+                        dev.remoteaccess.app.unlock
+                            .PinVault(context)
+                            .guard
+                            .blocked(),
+                    )
+                    assertTrue(
+                        !dev.remoteaccess.app.unlock
+                            .PinVault(context)
+                            .saved(),
+                    )
                     val extra = if (task.optBoolean("wake")) 1 else 0
                     kotlin.test.assertEquals(3 + extra, store.events().count { it.kind == "Unlock requested" })
                     kotlin.test.assertEquals(2 + extra, store.events().count { it.kind == "Phone unlocked" })
                     // A new vault instance cannot admit a repeat after transport/session replacement.
-                    kotlin.test.assertFails { dev.remoteaccess.app.unlock.PinVault(context).guard.begin() }
+                    kotlin.test.assertFails {
+                        dev.remoteaccess.app.unlock
+                            .PinVault(context)
+                            .guard
+                            .begin()
+                    }
                 }
                 "approve-video" -> {
                     assertTrue(
@@ -307,8 +343,16 @@ class HostedPairingTest {
                         it.click()
                         tap(By.text("Entire screen"))
                     }
-                    tap(By.text(java.util.regex.Pattern.compile("Start now|Start|Share screen")))
-                    waitFor(20000) { dev.remoteaccess.app.control.VideoStream.available(context) }
+                    tap(
+                        By.text(
+                            java.util.regex.Pattern
+                                .compile("Start now|Start|Share screen"),
+                        ),
+                    )
+                    waitFor(20000) {
+                        dev.remoteaccess.app.control.VideoStream
+                            .available(context)
+                    }
                 }
                 "inspect-lock" -> {
                     device.dumpWindowHierarchy(File(context.filesDir, "lock-hierarchy.xml"))
@@ -324,7 +368,9 @@ class HostedPairingTest {
                         )
                         repeat(node.childCount) { visit(node.getChild(it), depth + 1) }
                     }
-                    dev.remoteaccess.app.control.ScreenAccessService.current?.windows?.forEach { visit(it.root, 0) }
+                    dev.remoteaccess.app.control.ScreenAccessService.current
+                        ?.windows
+                        ?.forEach { visit(it.root, 0) }
                     File(context.filesDir, "service-nodes.txt").writeText(rows.joinToString("\n"))
                 }
                 "save-fixture-pin" -> {
@@ -339,11 +385,16 @@ class HostedPairingTest {
                     assertNotNull(pinField).text = "314159"
                     assertNotNull(confirmation).text = "314159"
                     assertNotNull(device.findObject(By.res("android:id/button1"))).click()
-                    waitFor { dev.remoteaccess.app.unlock.PinVault(context).saved() }
+                    waitFor {
+                        dev.remoteaccess.app.unlock
+                            .PinVault(context)
+                            .saved()
+                    }
                 }
                 "control-fixture" -> {
                     context.startActivity(
-                        Intent().setClassName("${context.packageName}.test", "dev.remoteaccess.app.ControlFixtureActivity")
+                        Intent()
+                            .setClassName("${context.packageName}.test", "dev.remoteaccess.app.ControlFixtureActivity")
                             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
                     )
                     assertTrue(device.wait(Until.hasObject(By.text("Tap witness")), 10000))
@@ -356,7 +407,12 @@ class HostedPairingTest {
                     assertTrue(scan.isEnabled)
                     click("copy_website")
                     val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
-                    waitFor { clipboard.primaryClip?.getItemAt(0)?.text?.toString() == BuildConfig.SHARING_WEBSITE }
+                    waitFor {
+                        clipboard.primaryClip
+                            ?.getItemAt(0)
+                            ?.text
+                            ?.toString() == BuildConfig.SHARING_WEBSITE
+                    }
                 }
                 "website-qr" -> click("show_website_qr")
                 "share-link" -> {
@@ -518,18 +574,25 @@ class HostedPairingTest {
                 }
             }
             val result =
-                JSONObject().put("action", action).put(
-                    "devices",
-                    org.json.JSONArray(
-                        store.snapshot.devices.map {
-                            JSONObject().put(
-                                "id",
-                                it.id,
-                            ).put("nickname", it.nickname).put("enabled", it.enabled).put("generation", it.generation)
-                                .put("lastConnected", it.lastConnected).put("wakeReady", it.wakeReady)
-                        },
-                    ),
-                ).put("armed", store.snapshot.settings.armed).put("active", HostSessions.current.get()?.deviceId)
+                JSONObject()
+                    .put("action", action)
+                    .put(
+                        "devices",
+                        org.json.JSONArray(
+                            store.snapshot.devices.map {
+                                JSONObject()
+                                    .put(
+                                        "id",
+                                        it.id,
+                                    ).put("nickname", it.nickname)
+                                    .put("enabled", it.enabled)
+                                    .put("generation", it.generation)
+                                    .put("lastConnected", it.lastConnected)
+                                    .put("wakeReady", it.wakeReady)
+                            },
+                        ),
+                    ).put("armed", store.snapshot.settings.armed)
+                    .put("active", HostSessions.current.get()?.deviceId)
             stage.writeText(result.toString())
         }
         error("Management fixture timed out")
@@ -539,14 +602,17 @@ class HostedPairingTest {
     fun revokeFixture() {
         assertTrue(File(context.filesDir, "hosted-stage").exists(), "Not an enrolled acceptance fixture")
         HostSessions.stop()
-        androidx.work.WorkManager.getInstance(context).cancelAllWork()
+        androidx.work.WorkManager
+            .getInstance(context)
+            .cancelAllWork()
         for (pairedDevice in store.snapshot.devices) {
             store.revoke(pairedDevice.id)
             val grant = pairedDevice.authority()
             val signature =
-                KeystoreIdentity.loadOrCreate(
-                    "phone-identity-v1",
-                ).sign(fields("ara/pair/revoke/v1", grant.getString("origin"), pairedDevice.id))
+                KeystoreIdentity
+                    .loadOrCreate(
+                        "phone-identity-v1",
+                    ).sign(fields("ara/pair/revoke/v1", grant.getString("origin"), pairedDevice.id))
             request(grant.getString("origin"), pairedDevice.id, "revoke", JSONObject().put("signature", encoded(signature)))
             store.removed(pairedDevice.id)
         }

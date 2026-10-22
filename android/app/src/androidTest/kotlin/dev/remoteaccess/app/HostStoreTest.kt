@@ -34,15 +34,22 @@ class HostStoreTest {
     }
 
     private fun grant(id: String) =
-        JSONObject().put(
-            "id",
-            id,
-        ).put("origin", BuildConfig.SHARING_WEBSITE).put("viewer", "public-identity-$id")
+        JSONObject()
+            .put(
+                "id",
+                id,
+            ).put("origin", BuildConfig.SHARING_WEBSITE)
+            .put("viewer", "public-identity-$id")
 
     @Test
     fun migratesOnceAndPreservesRevocationAndWakeChoice() {
         val raw = grant("a").toString()
-        legacy.edit().putString("grant", raw).putBoolean("revoked", true).putBoolean("wakeEnabled", true).commit()
+        legacy
+            .edit()
+            .putString("grant", raw)
+            .putBoolean("revoked", true)
+            .putBoolean("wakeEnabled", true)
+            .commit()
         store.load()
         val pairedDevice = store.snapshot.devices.single()
         assertEquals(raw, pairedDevice.grant)
@@ -123,6 +130,11 @@ class HostStoreTest {
         assertFalse(store.allowed(unsupported.id, requireNotNull(store.device(unsupported.id)).generation))
         store.revoke(unsupported.id)
         store.removed(unsupported.id)
-        assertEquals(setOf(allowed.id, "malformed"), store.snapshot.devices.map { it.id }.toSet())
+        assertEquals(
+            setOf(allowed.id, "malformed"),
+            store.snapshot.devices
+                .map { it.id }
+                .toSet(),
+        )
     }
 }

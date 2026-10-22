@@ -5,9 +5,18 @@ class CaptureLifecycle(
     val id: Int,
     now: Long,
 ) {
-    enum class Phase(val wire: String) { OFF("off"), CONSENT("consent"), STARTING("starting"), ACTIVE("active") }
+    enum class Phase(
+        val wire: String,
+    ) {
+        OFF("off"),
+        CONSENT("consent"),
+        STARTING("starting"),
+        ACTIVE("active"),
+    }
 
-    enum class Reason(val wire: String) {
+    enum class Reason(
+        val wire: String,
+    ) {
         NONE("none"),
         STOPPED("stopped"),
         CANCELED("canceled"),
@@ -19,7 +28,11 @@ class CaptureLifecycle(
         PERMISSION("permission"),
     }
 
-    data class Snapshot(val id: Int, val phase: Phase, val reason: Reason)
+    data class Snapshot(
+        val id: Int,
+        val phase: Phase,
+        val reason: Reason,
+    )
 
     @Volatile var phase = Phase.CONSENT
         private set

@@ -9,7 +9,13 @@ object RecordFraming {
         require(record.isNotEmpty() && record.size <= LIMIT)
         return (record.indices step 16384).map { offset ->
             val size = minOf(16384, record.size - offset)
-            ByteBuffer.allocate(12 + size).putInt(0x41524431).putInt(record.size).putInt(offset).put(record, offset, size).array()
+            ByteBuffer
+                .allocate(12 + size)
+                .putInt(0x41524431)
+                .putInt(record.size)
+                .putInt(offset)
+                .put(record, offset, size)
+                .array()
         }
     }
 }
@@ -31,8 +37,10 @@ class RecordAssembler {
         val total = input.int
         val position = input.int
         require(
-            total in 1..RecordFraming.LIMIT && position == offset &&
-                (buffer == null || buffer?.size == total) && position.toLong() + input.remaining() <= total,
+            total in 1..RecordFraming.LIMIT &&
+                position == offset &&
+                (buffer == null || buffer?.size == total) &&
+                position.toLong() + input.remaining() <= total,
         )
         if (buffer == null) {
             buffer = ByteArray(total)

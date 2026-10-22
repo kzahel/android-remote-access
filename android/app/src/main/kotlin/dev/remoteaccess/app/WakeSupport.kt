@@ -34,8 +34,10 @@ internal object WakeSupport {
 
     fun allowed(context: Context): Boolean {
         val store = HostStore.get(context)
-        return store.snapshot.settings.armed && store.snapshot.settings.automatic &&
-            store.snapshot.devices.any { store.allowed(it.id, it.generation, automatic = true) } && notificationsAllowed(context)
+        return store.snapshot.settings.armed &&
+            store.snapshot.settings.automatic &&
+            store.snapshot.devices.any { store.allowed(it.id, it.generation, automatic = true) } &&
+            notificationsAllowed(context)
     }
 
     fun notificationsAllowed(context: Context): Boolean =
@@ -63,7 +65,11 @@ internal object WakeSupport {
     ) {
         val work =
             OneTimeWorkRequestBuilder<WakeWorker>().setInputData(
-                Data.Builder().putAll(data).putBoolean("registration", registration).build(),
+                Data
+                    .Builder()
+                    .putAll(data)
+                    .putBoolean("registration", registration)
+                    .build(),
             )
         if (!registration && Build.VERSION.SDK_INT >= 31) work.setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
         if (!registration) work.addTag("remote-session")
@@ -87,8 +93,15 @@ internal object WakeSupport {
             )
         context.getSystemService(NotificationManager::class.java).notify(
             NOTIFICATION,
-            Notification.Builder(context, CHANNEL).setSmallIcon(android.R.drawable.ic_lock_lock).setContentTitle("YepControl")
-                .setContentText(text).setContentIntent(pending).setAutoCancel(true).setTimeoutAfter(120000).build(),
+            Notification
+                .Builder(context, CHANNEL)
+                .setSmallIcon(android.R.drawable.ic_lock_lock)
+                .setContentTitle("YepControl")
+                .setContentText(text)
+                .setContentIntent(pending)
+                .setAutoCancel(true)
+                .setTimeoutAfter(120000)
+                .build(),
         )
     }
 }

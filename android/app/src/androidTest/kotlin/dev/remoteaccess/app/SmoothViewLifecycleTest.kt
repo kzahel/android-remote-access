@@ -70,7 +70,8 @@ class SmoothViewLifecycleTest {
         device.hasObject(By.pkg("com.android.systemui")) &&
             (
                 device.hasObject(By.res("com.android.systemui:id/screen_share_dialog_title")) ||
-                    device.hasObject(By.res("android:id/button1")) || device.hasObject(By.textContains("Share your screen"))
+                    device.hasObject(By.res("android:id/button1")) ||
+                    device.hasObject(By.textContains("Share your screen"))
             )
 
     private fun click(approve: Boolean) {
@@ -98,8 +99,14 @@ class SmoothViewLifecycleTest {
         value: Int? = null,
     ): ByteArray {
         val input =
-            ByteBuffer.allocate(if (value == null) 12 else 13).putInt(0x41524331).put(op.toByte())
-                .put(byteArrayOf(0, 0, 0)).putInt(++sequence).apply { if (value != null) put(value.toByte()) }.array()
+            ByteBuffer
+                .allocate(if (value == null) 12 else 13)
+                .putInt(0x41524331)
+                .put(op.toByte())
+                .put(byteArrayOf(0, 0, 0))
+                .putInt(++sequence)
+                .apply { if (value != null) put(value.toByte()) }
+                .array()
         owner.receive(input)
         return assertNotNull(replies.poll(10, TimeUnit.SECONDS), "Missing command reply")
     }
@@ -140,8 +147,13 @@ class SmoothViewLifecycleTest {
         skipped: Boolean = false,
     ) {
         receipt.writeText(
-            JSONObject().put("stage", stage).put("sdk", android.os.Build.VERSION.SDK_INT)
-                .put("video", VideoStream.state(owner)).put("prompt", prompt()).put("skipped", skipped).toString(),
+            JSONObject()
+                .put("stage", stage)
+                .put("sdk", android.os.Build.VERSION.SDK_INT)
+                .put("video", VideoStream.state(owner))
+                .put("prompt", prompt())
+                .put("skipped", skipped)
+                .toString(),
         )
     }
 
@@ -221,7 +233,8 @@ class SmoothViewLifecycleTest {
                     val next = VideoStream.request
                     context.startService(
                         Intent(context, VideoService::class.java)
-                            .putExtra("request", oldId).putExtra("consent", Intent()),
+                            .putExtra("request", oldId)
+                            .putExtra("consent", Intent()),
                     )
                     Thread.sleep(500)
                     assertTrue(next === VideoStream.request)
@@ -342,8 +355,16 @@ class SmoothViewLifecycleTest {
                     assertEquals(3, image[4].toInt())
                     val scene = ByteBuffer.wrap(image).getInt(12)
                     val tap =
-                        ByteBuffer.allocate(24).putInt(0x41524331).put(4.toByte()).put(byteArrayOf(0, 0, 0))
-                            .putInt(++sequence).putInt(scene).putInt(bounds.centerX()).putInt(bounds.centerY()).array()
+                        ByteBuffer
+                            .allocate(24)
+                            .putInt(0x41524331)
+                            .put(4.toByte())
+                            .put(byteArrayOf(0, 0, 0))
+                            .putInt(++sequence)
+                            .putInt(scene)
+                            .putInt(bounds.centerX())
+                            .putInt(bounds.centerY())
+                            .array()
                     owner.receive(tap)
                     assertEquals(0, assertNotNull(replies.poll(10, TimeUnit.SECONDS)).last().toInt())
                     frames()
@@ -372,8 +393,11 @@ class SmoothViewLifecycleTest {
             main {
                 VideoStream.close(context)
                 val monitor = ActivityLifecycleMonitorRegistry.getInstance()
-                Stage.entries.flatMap { monitor.getActivitiesInStage(it) }.filterIsInstance<ProjectionConsentActivity>()
-                    .filter { !it.isDestroyed }.forEach { it.dismiss() }
+                Stage.entries
+                    .flatMap { monitor.getActivitiesInStage(it) }
+                    .filterIsInstance<ProjectionConsentActivity>()
+                    .filter { !it.isDestroyed }
+                    .forEach { it.dismiss() }
             }
             if (syntheticLock) unlockFixture()
             device.unfreezeRotation()

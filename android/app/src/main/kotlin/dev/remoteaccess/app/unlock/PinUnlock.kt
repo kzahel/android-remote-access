@@ -12,7 +12,10 @@ import android.view.WindowManager
 import android.view.accessibility.AccessibilityNodeInfo
 
 /** One known credential, one observed SystemUI keypad, no guesses and no retries. Main thread only. */
-internal class PinUnlock(private val service: AccessibilityService, private val main: Handler) {
+internal class PinUnlock(
+    private val service: AccessibilityService,
+    private val main: Handler,
+) {
     private val vault by lazy { PinVault(service) }
     var active = false
         private set
@@ -63,7 +66,8 @@ internal class PinUnlock(private val service: AccessibilityService, private val 
             reply(4)
             return
         }
-        if (vault.guard.blocked() || runCatching {
+        if (vault.guard.blocked() ||
+            runCatching {
                 service.getSystemService(DevicePolicyManager::class.java).getMaximumFailedPasswordsForWipe(null)
             }.getOrNull() != 0
         ) {
@@ -121,7 +125,8 @@ internal class PinUnlock(private val service: AccessibilityService, private val 
                 return
             }
             if (index == digits.size) {
-                if (keyguard.isKeyguardLocked && enter != null &&
+                if (keyguard.isKeyguardLocked &&
+                    enter != null &&
                     (!enter.refresh() || !enter.performAction(AccessibilityNodeInfo.ACTION_CLICK))
                 ) {
                     finish(9)
@@ -130,7 +135,9 @@ internal class PinUnlock(private val service: AccessibilityService, private val 
                 observe(SystemClock.elapsedRealtime() + 3500)
             } else {
                 val node = digits[index]
-                if (!node.refresh() || !node.isVisibleToUser || !node.isEnabled ||
+                if (!node.refresh() ||
+                    !node.isVisibleToUser ||
+                    !node.isEnabled ||
                     !node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 ) {
                     finish(9)
@@ -156,8 +163,10 @@ internal class PinUnlock(private val service: AccessibilityService, private val 
                     val bounds = service.getSystemService(WindowManager::class.java).maximumWindowMetrics.bounds
                     val path = Path().apply { moveTo(bounds.width() / 2f, bounds.height() * 0.4f) }
                     service.dispatchGesture(
-                        GestureDescription.Builder()
-                            .addStroke(GestureDescription.StrokeDescription(path, 0, 60)).build(),
+                        GestureDescription
+                            .Builder()
+                            .addStroke(GestureDescription.StrokeDescription(path, 0, 60))
+                            .build(),
                         null,
                         main,
                     )

@@ -37,7 +37,10 @@ internal fun same(
     b: ByteArray,
 ): Boolean = java.security.MessageDigest.isEqual(a, b)
 
-internal fun hash(value: ByteArray): ByteArray = java.security.MessageDigest.getInstance("SHA-256").digest(value)
+internal fun hash(value: ByteArray): ByteArray =
+    java.security.MessageDigest
+        .getInstance("SHA-256")
+        .digest(value)
 
 internal fun random(size: Int): ByteArray = ByteArray(size).also { SecureRandom().nextBytes(it) }
 
@@ -65,7 +68,10 @@ interface Identity {
 }
 
 /** Works with a non-exportable Android Keystore PrivateKey as well as JCA keys. */
-class JcaIdentity(private val privateKey: PrivateKey, publicKey: PublicKey) : Identity {
+class JcaIdentity(
+    private val privateKey: PrivateKey,
+    publicKey: PublicKey,
+) : Identity {
     private val encoded = Crypto.publicBytes(publicKey)
     override val publicKey: ByteArray get() = encoded.copyOf()
 
@@ -89,9 +95,11 @@ class Authority(
 
 object Crypto {
     private val curve: ECParameterSpec =
-        AlgorithmParameters.getInstance("EC").apply {
-            init(ECGenParameterSpec("secp256r1"))
-        }.getParameterSpec(ECParameterSpec::class.java)
+        AlgorithmParameters
+            .getInstance("EC")
+            .apply {
+                init(ECGenParameterSpec("secp256r1"))
+            }.getParameterSpec(ECParameterSpec::class.java)
 
     fun generate(): KeyPair = KeyPairGenerator.getInstance("EC").apply { initialize(ECGenParameterSpec("secp256r1")) }.generateKeyPair()
 
@@ -114,7 +122,8 @@ object Crypto {
         val y = BigInteger(1, raw.copyOfRange(33, 65))
         val p = (curve.curve.field as java.security.spec.ECFieldFp).p
         requireSession(
-            x < p && y < p &&
+            x < p &&
+                y < p &&
                 y.modPow(BigInteger.valueOf(2), p) ==
                 (x.modPow(BigInteger.valueOf(3), p) + curve.curve.a * x + curve.curve.b).mod(p),
         )
@@ -202,7 +211,11 @@ object Crypto {
     }
 }
 
-class Channel internal constructor(private val auth: Authority, private val direction: Int, material: List<ByteArray>) {
+class Channel internal constructor(
+    private val auth: Authority,
+    private val direction: Int,
+    material: List<ByteArray>,
+) {
     private val sendKey = material[direction].copyOf()
     private val receiveKey = material[1 - direction].copyOf()
     private val sendPrefix = material[direction + 2].copyOf()

@@ -26,7 +26,13 @@ class ControlTest {
                 "touch" -> {
                     val batch = requireNotNull(parsed.touch)
                     assertEquals(42, batch.gesture)
-                    assertEquals(TouchPoint(120.25f, 240.5f), batch.contacts.single().path.single())
+                    assertEquals(
+                        TouchPoint(120.25f, 240.5f),
+                        batch.contacts
+                            .single()
+                            .path
+                            .single(),
+                    )
                 }
             }
         }
@@ -56,7 +62,14 @@ class ControlTest {
 
     @Test fun touchRejectsMissingContactsInvalidFlagsAndNonfiniteSamples() {
         val good = bytes("415243310b00000000000007000000030000002a0000000000280100000000000101000042f0800043708000")
-        assertEquals(1, ControlCommand.decode(good).touch?.contacts?.size)
+        assertEquals(
+            1,
+            ControlCommand
+                .decode(good)
+                .touch
+                ?.contacts
+                ?.size,
+        )
         for (length in 12 until good.size) assertFails { ControlCommand.decode(good.copyOf(length)) }
         for (index in listOf(24, 26, 27, 32, 33, 34, 36, 40)) {
             val bad = good.copyOf()

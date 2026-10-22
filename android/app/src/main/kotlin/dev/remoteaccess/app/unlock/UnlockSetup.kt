@@ -48,8 +48,13 @@ internal object UnlockSetup {
         layout.addView(pin)
         layout.addView(confirm)
         val dialog =
-            AlertDialog.Builder(activity).setTitle("Save phone PIN").setView(layout).setNegativeButton("Cancel", null)
-                .setPositiveButton("Save", null).create()
+            AlertDialog
+                .Builder(activity)
+                .setTitle("Save phone PIN")
+                .setView(layout)
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Save", null)
+                .create()
         dialog.setOnDismissListener {
             pin.text.clear()
             confirm.text.clear()
@@ -88,12 +93,14 @@ internal object UnlockSetup {
         activity: Activity,
         changed: () -> Unit,
     ) {
-        AlertDialog.Builder(
-            activity,
-        ).setTitle(
-            "Forget saved PIN?",
-        ).setMessage("Remote sessions will end. Manual PIN entry stays available to devices allowed to unlock.")
-            .setNegativeButton("Cancel", null).setPositiveButton("Forget") { _, _ ->
+        AlertDialog
+            .Builder(
+                activity,
+            ).setTitle(
+                "Forget saved PIN?",
+            ).setMessage("Remote sessions will end. Manual PIN entry stays available to devices allowed to unlock.")
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Forget") { _, _ ->
                 HostSessions.stop()
                 HostRuntime.io.execute {
                     PinVault(activity).forget()

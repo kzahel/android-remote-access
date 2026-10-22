@@ -17,8 +17,11 @@ internal object PhoneFeatures {
                 else -> "enabled"
             }
         val screenAccess = if (dev.remoteaccess.app.control.ScreenAccessService.current != null) "enabled" else "permission-needed"
-        return JSONObject().put("type", "features").put("v", 1)
-            .put("screenViewing", screenAccess).put("touchControl", screenAccess)
+        return JSONObject()
+            .put("type", "features")
+            .put("v", 1)
+            .put("screenViewing", screenAccess)
+            .put("touchControl", screenAccess)
             .put("connectionRequests", requests)
             .put("device", DeviceInfo.report(context))
     }

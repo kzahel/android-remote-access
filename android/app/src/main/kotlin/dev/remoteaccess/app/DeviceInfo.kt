@@ -11,7 +11,12 @@ internal object DeviceInfo {
         value: String?,
         max: Int,
         fallback: String,
-    ) = value?.filterNot { it.isISOControl() }?.trim()?.take(max)?.trim()?.ifEmpty { null } ?: fallback
+    ) = value
+        ?.filterNot { it.isISOControl() }
+        ?.trim()
+        ?.take(max)
+        ?.trim()
+        ?.ifEmpty { null } ?: fallback
 
     fun report(context: Context): JSONObject {
         val model = clean(Build.MODEL, 80, "Android phone")
