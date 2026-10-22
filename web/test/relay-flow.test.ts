@@ -110,7 +110,9 @@ it.each([
       const bytes = new Uint8Array(800000);
       bytes[0] = frame;
       socket.emit(await channel.seal(bytes));
-      expect(await session.read()).toEqual(bytes);
+      expect(
+        Buffer.from((await session.read()) ?? []).equals(Buffer.from(bytes)),
+      ).toBe(true);
     }
     expect(errors).toEqual([]);
     if (flow)
