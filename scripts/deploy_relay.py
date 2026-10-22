@@ -55,6 +55,8 @@ def production_configuration(account, worker, origin, bundle, tag, source, fcm_p
     config = configuration(account, "yepcontrol-relay-staging", "https://yepcontrol-relay-staging.example.workers.dev",
                            bundle, tag, source, fcm_project)
     config["name"] = worker
+    for limiter, namespace in zip(config["ratelimits"], ("340101", "340102")):
+        limiter["namespace_id"] = namespace
     config["vars"].pop("PROOF_EXPIRES")
     config["vars"].pop("PROOF_BUILD")
     config["vars"].update(PUBLIC_ORIGIN=origin, RELAY_MODE=mode)

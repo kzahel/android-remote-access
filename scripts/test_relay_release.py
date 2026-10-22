@@ -91,6 +91,7 @@ class RelayReleaseTest(unittest.TestCase):
         self.assertEqual(live["vars"]["RELAY_MODE"], "production")
         for field in ("PROOF_KEY", "PROOF_EXPIRES", "MIGRATION_SHA256", "MIGRATION_EXPIRES", "FCM_SERVICE_ACCOUNT"):
             self.assertNotIn(field, live["vars"])
+        self.assertEqual([limit["namespace_id"] for limit in live["ratelimits"]], ["340101", "340102"])
         self.assertNotIn("routes", live, "CI cannot change the operator-provisioned custom domains")
         for index, value in ((1, "yepcontrol-relay-proof"), (2, "https://other.invalid"), (6, None)):
             bad = args.copy(); bad[index] = value

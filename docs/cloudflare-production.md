@@ -4,7 +4,7 @@ The owner authorized moving the hosted relay to Cloudflare on 2026-10-22.
 The Node/SQLite relay remains the local and self-hosted implementation. Hosted
 operation uses an independent Worker with SQLite Durable Objects, the normal
 viewer, and its own send-only Firebase identity with automatic token renewal.
-Staging retains separate state, credentials and its closed fixture gate.
+Staging retains separate state, credentials, rate-limit namespaces and its closed fixture gate.
 
 ## Release and cutover contract
 
@@ -84,3 +84,7 @@ required for this cutover; the separate Pi TURN investigation remains planned.
 References reviewed 2026-10-22: [Worker custom domains](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/)
 manage DNS/certificates; [SQLite Durable Object storage](https://developers.cloudflare.com/durable-objects/api/sqlite-storage-api/)
 describes storage and recovery. Live cutover evidence is recorded after execution.
+
+Rate-limit namespaces are account-scoped; production and staging use distinct IDs
+to avoid sharing per-IP counters across Workers. See the
+[Cloudflare binding contract](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/).
