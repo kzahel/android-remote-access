@@ -37,7 +37,7 @@ Create a `relay-staging` environment restricted to deployment workflows on
 
 | Name | Kind | Meaning |
 | --- | --- | --- |
-| `CLOUDFLARE_API_TOKEN` | Secret | Dedicated CI token with Workers deployment permissions for the selected account. |
+| `CLOUDFLARE_API_TOKEN` | Secret | Dedicated token with Individual Workers Editor access to the existing isolated Worker. |
 | `CLOUDFLARE_ACCOUNT_ID` | Variable | Account containing the isolated staging service. |
 | `RELAY_WORKER_NAME` | Variable | `yepcontrol-relay-staging`, or the existing isolated `yepcontrol-relay-proof`. |
 | `RELAY_ORIGIN` | Variable | Matching HTTPS workers.dev origin, without trailing slash. |
@@ -45,8 +45,12 @@ Create a `relay-staging` environment restricted to deployment workflows on
 Keep concrete infrastructure values and token provisioning receipts in the
 private infrastructure repository. Do not upload the developer's Wrangler OAuth
 session or Firebase private key to GitHub. Cloudflare CI authentication requires
-an API token; scope it to the selected account and avoid unrelated zone/DNS
-permissions. [Cloudflare CI authentication](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/)
+an API token; scope it to the one existing Worker using **Individual Workers Editor**,
+which can deploy and update that Worker without creating/deleting Workers or
+accessing other Workers. Bootstrap a new staging Worker separately before
+granting CI access. Avoid account-wide or unrelated zone/DNS permissions.
+[Workers permissions](https://developers.cloudflare.com/workers/authorization/workers/)
+documents this scope. [Cloudflare CI authentication](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/)
 and [GitHub environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments)
 were reviewed 2026-10-22.
 
