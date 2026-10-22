@@ -16,7 +16,7 @@ implementation is outside this review.
 | SG-4 | FCM before the end-to-end session | Protocol behavior accepted; abuse controls open | Preserve endpoint authentication while adding fair wake quotas and monitoring. |
 | SG-5 | Pair-again semantics | Open, high priority | Do not present another pairing as revocation or repair. Define an explicit replacement flow. |
 | SG-6 | Hosted viewer origin | Intentional trust boundary | Treat deployment integrity as endpoint security. |
-| SG-7 | HSTS | Open deployment gap | Enable HSTS after confirming every covered subdomain is HTTPS-only. |
+| SG-7 | HSTS | Enabled and verified 2026-10-22 | Maintain the explicit hostname policies; evaluate broader coverage and preload separately. |
 
 ## SG-1: a paired controller is highly trusted
 
@@ -156,12 +156,31 @@ model.
 
 ## SG-7: enable HSTS
 
-The live site did not send `Strict-Transport-Security` when checked on
-2026-10-22. Configure an appropriate long-lived HSTS policy after confirming
-that every covered subdomain is HTTPS-only. Use `includeSubDomains` only when
-that condition is true, and evaluate browser preload separately. An HTTP-to-
-HTTPS redirect does not protect a first visit from an active network attacker;
-HSTS protects returning clients, while preload can cover the first visit.
+Enabled and live-tested 2026-10-22. HTTPS responses from `yepcontrol.com` and the
+separate `www.yepcontrol.com` redirect host send exactly one
+`Strict-Transport-Security: max-age=31536000` header (one year). Each policy
+covers its own hostname. Neither `includeSubDomains` nor `preload` is enabled;
+other subdomains carry no commitment from these policies.
+
+The deployment first used a five-minute lifetime and verified it before applying
+the one-year policy. Public HTTPS GET checks pass for the viewer and its scripts,
+privacy page, enrollment/install page, App Links association file, relay health,
+API errors, a missing association file and the `www` redirect. The redirect
+preserves the path and query. On-host HTTP checks confirm the existing 308
+redirects to HTTPS for both names, without an HSTS header on plain HTTP.
+Configuration validation passed, unrelated ingress configuration was preserved,
+and relay health and the running product revision were unchanged. No Android
+release or product-service deployment is needed for this fix.
+
+HSTS protects clients after they have received the policy over HTTPS. The first
+HTTP visit remains outside that protection; browser preload is a separate
+decision. Broader subdomain coverage requires confirming that every covered
+subdomain will remain HTTPS-only. Private verification receipts stay in
+`.local/sg7-proof/`.
+
+Official Caddy documentation and browser documentation reviewed 2026-10-22:
+[Caddy response headers](https://caddyserver.com/docs/caddyfile/directives/header)
+and [HSTS behavior](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Strict-Transport-Security).
 
 ## Lower-priority hardening
 
@@ -179,6 +198,6 @@ No practical break was found in the reviewed transcript signatures, P-256
 ephemeral key agreement, HKDF key separation, directional AES-GCM framing,
 sequence checks or endpoint key pinning. That is a limited source-review result,
 not a cryptographic proof. The SG-2 fix must reach the distributed Android build,
-SG-3 and SG-5 need explicit resolution before wider release, SG-7 needs deployment
-resolution, and the complete protocol and
-hosted endpoint should receive an independent security review.
+SG-3 and SG-5 need explicit resolution before wider release, and the complete
+protocol and hosted endpoint should receive an independent security review.
+SG-7 is enabled and verified on the current deployment.
