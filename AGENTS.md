@@ -110,9 +110,9 @@ changes. Play publication is not authorized.
 
 ## Initial development: no backward compatibility
 
-Release status update, 2026-10-21: the owner's later request authorizes the
+Release status update, 2026-10-22: the owner's later request authorizes the
 public MIT repository, CI signing/publishing and the free Tools-category,
-13+ internal Play beta. Version 0.6.0/code 4 is now active on internal testing.
+13+ internal Play beta. Version 0.7.0/code 5 is now active on internal testing.
 Store/policy forms are saved; Google review and Play-installed physical
 acceptance remain separate. Closed expansion follows the installed-build check;
 production rollout is not authorized. See `docs/distribution/android-beta.md`.

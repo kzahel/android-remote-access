@@ -138,3 +138,12 @@ zone is removed from Pi DDNS and the old deployment command refuses reactivation
 of the stale authority. Shared Caddy configuration is byte-for-byte unchanged;
 other Pi services and transports were preserved. Node remains available for local
 and self-hosted operation; coturn remains a separate proposal.
+
+
+Android **0.7.0 / code 5** is now available on the existing internal Play track.
+Its [release pipeline](https://github.com/kzahel/yepcontrol/actions/runs/39844787724)
+passed complete owned Android acceptance against production, including FCM,
+decoded video, input and revocation; the signed candidate was then
+[published through CI](https://github.com/kzahel/yepcontrol/actions/runs/39847513476).
+See the [internal update receipt](distribution/android-beta.md#cloudflare-compatible-internal-update--2026-10-22).
+This is internal availability, not a Play production rollout.

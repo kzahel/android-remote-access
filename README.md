@@ -10,7 +10,7 @@ approve access on the phone, and connect through an end-to-end encrypted session
 - Optional background wake and saved-PIN unlock.
 - Android 11+; application ID `com.yepcontrol.app`.
 
-**Internal beta:** version 0.6.0 is available on Google Play to invited testers.
+**Internal beta:** version 0.7.0 is available on Google Play to invited testers.
 The beta is unreviewed and may appear under its package name. See the
 [beta release guide](docs/distribution/android-beta.md).
 

@@ -233,3 +233,36 @@ account accepted the internal tester invitation. Its Play listing opens, but the
 browser Install flow stalls before device selection. A read-only check confirms
 the test phone does not have `com.yepcontrol.app` installed, so Play-installed
 acceptance remains pending. Complete that check before expanding the beta.
+
+
+## Cloudflare-compatible internal update — 2026-10-22
+
+**0.7.0 / code 5** is Active / Available to internal testers in Play Console,
+released Oct 22 at 22:18 CEST. It supports the Cloudflare relay's routed sockets
+and bounded ciphertext receipts while retaining the Node/local relay option.
+Update older installed hosts before connecting through Cloudflare; existing
+pairing identities survive an in-place update. Sensitive pairing, unlock-access
+and saved-PIN settings remain local to the phone, with an explanation when a
+remote session attempts to change them.
+
+[Release build and signing](https://github.com/kzahel/yepcontrol/actions/runs/39844787724)
+passed exact-source full Checks, owned Android 15/API-35 native storage/UI tests,
+crypto interoperability and live production hosted acceptance. Source:
+`b87030528328ee517719fadcaaa90c8300f327c4`. The signed AAB SHA-256 is
+`a12bd1369ce92b5c86fdd457f8ec1deaa413dd09dcd3695d2d703e12b923a134`.
+[CI internal publication](https://github.com/kzahel/yepcontrol/actions/runs/39847513476)
+verified that exact candidate and committed it to the existing internal track.
+
+The release acceptance run measured process-absent FCM receipt in **3,278 ms**
+and fresh encrypted exchange in **6,262 ms**, followed by process/browser restart,
+revocation and refusal. Forced hosted fallback decoded **12 H.264 frames in
+5.014 seconds**. Native taps, Unicode text, scrolling, held slider/long press,
+two-finger gestures, rotation, the input watchdog, global disarm and revocation
+passed. The harness confirms approval has actually started and gives scroll
+input a real duration; the native effects assertions remain mandatory.
+
+The existing Pixel 9 debug host was separately updated in place to 0.7.0 and its
+original pairing reports ready. This is separate from a Play-installed physical
+build check. Google review, wider closed testing, Play production rollout and
+natural overnight/reboot qualification remain unchanged; the internal release
+still shows its temporary unreviewed package name.
