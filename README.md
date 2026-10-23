@@ -10,9 +10,10 @@ approve access on the phone, and connect through an end-to-end encrypted session
 - Optional background wake and saved-PIN unlock.
 - Android 11+; application ID `com.yepcontrol.app`.
 
-**Internal beta:** version 0.7.0 is available on Google Play to invited testers.
-The beta is unreviewed and may appear under its package name. See the
-[beta release guide](docs/distribution/android-beta.md).
+**Play release:** version 0.7.0 has been submitted for public production release
+and awaits Google review. It remains available to invited internal testers;
+public availability is not yet confirmed. See the
+[production release record](docs/distribution/android-production.md).
 
 Screen control requires Android's screen-access permission; smooth video asks
 for screen-sharing consent. After a reboot, the phone needs its first local
@@ -87,6 +88,7 @@ availability and broader device qualification remain pending. See
 ## Documentation
 
 - [Beta builds, signing and Play publishing](docs/distribution/android-beta.md)
+- [First public Play submission](docs/distribution/android-production.md)
 - [Security decisions and open gaps](docs/security-gaps.md)
 - [Pairing and relay](docs/pairing-relay-v1.md) · [Session encryption](docs/crypto-session-v1.md)
 - [Smooth-view consent and lifecycle](docs/smooth-view-lifecycle.md)

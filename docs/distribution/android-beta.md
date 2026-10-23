@@ -266,3 +266,15 @@ original pairing reports ready. This is separate from a Play-installed physical
 build check. Google review, wider closed testing, Play production rollout and
 natural overnight/reboot qualification remain unchanged; the internal release
 still shows its temporary unreviewed package name.
+
+
+## Public production submission — 2026-10-23
+
+The owner subsequently authorized public Play publication. The same signed
+0.7.0/code-5 bundle was promoted from Play's library to a production full rollout
+and submitted with the saved listing/policy changes. Console now shows Changes
+in review, with automated quick checks initially pending. This supersedes the
+historical internal-only scope and earlier observed review gate above. Google
+approval and public availability are not yet confirmed. See the
+[production release record](android-production.md) for provenance, declarations,
+review media and remaining acceptance limits.

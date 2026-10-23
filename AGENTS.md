@@ -207,3 +207,15 @@ Keep the Node/SQLite runner for local and self-hosted operation. Pi coturn remai
 an investigation, not an installed service. See `docs/cloudflare-production.md`
 and `docs/relay-releases.md`. This authorizes relay production, not a Google Play
 production rollout or new physical-phone lock/debugging changes.
+
+
+## Public Play publication authorization — 2026-10-23
+
+The owner authorized publishing YepControl publicly on Google Play. This
+supersedes the earlier internal-only Play publication limit. The existing signed
+0.7.0/code-5 bundle has been submitted for production full rollout, with all
+available countries/regions selected and managed publishing off. Console shows
+Changes in review; initial automated checks, Google approval and actual public
+availability must be distinguished. See `docs/distribution/android-production.md`.
+The CI publisher remains scoped to internal testing. This does not authorize
+unrelated infrastructure changes or new physical-phone lock/debugging changes.
