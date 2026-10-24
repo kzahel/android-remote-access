@@ -115,6 +115,7 @@ dependencies {
     //noinspection GradleDependency
     androidTestImplementation("androidx.room:room-testing:2.8.5")
     // Data channels only. Exact AAR/license review: docs/direct-transport.md.
+    //noinspection NewerVersionAvailable
     implementation("io.github.webrtc-sdk:android:150.7871.01")
     implementation(project(":protocol"))
     // OkHttp's Kotlin client API is exercised by hosted acceptance.
