@@ -8,6 +8,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
 import androidx.test.runner.lifecycle.Stage
 import androidx.test.uiautomator.By
+import androidx.test.uiautomator.StaleObjectException
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
 import org.junit.Test
@@ -26,8 +27,23 @@ class MobileNavigationTest {
     private val device = UiDevice.getInstance(instrumentation)
 
     private fun click(id: String) {
-        assertNotNull(device.wait(Until.findObject(By.res("${context.packageName}:id/$id")), 10000)).click()
-        instrumentation.waitForIdleSync()
+        val selector = By.res("${context.packageName}:id/$id")
+        val deadline = System.nanoTime() + 10_000_000_000L
+        while (System.nanoTime() < deadline) {
+            try {
+                val view = device.findObject(selector)
+                if (view != null && view.isEnabled) {
+                    view.click()
+                    instrumentation.waitForIdleSync()
+                    return
+                }
+            } catch (_: StaleObjectException) {
+                // Theme/configuration changes can replace the Activity between lookup and click.
+                // Reacquire the node; never repeat a click that completed successfully.
+            }
+            Thread.sleep(100)
+        }
+        error("Native control did not become clickable: $id")
     }
 
     private fun title(expected: String) {
